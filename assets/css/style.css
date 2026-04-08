@@ -574,7 +574,8 @@ button:active {
 #hero {
   width: 100%;
   height: 90vh;
-  background: linear-gradient(to top, #4d4a60ba, #32a213f2), url("../../img/view_4.jpg") no-repeat top center;
+  /* background: linear-gradient(to top, #4d4a60ba, #32a213f2), url("../../img/view_4.jpg") no-repeat top center; */
+  background: linear-gradient(to top, #4d4a60ba, #32a213f2), url("https://lh3.googleusercontent.com/gps-cs-s/AHVAwep7-KWrro8cB7Zwq6QL4U8ky70QDNvy0v0-wd-mUmr4ofuFVnej0zXQS0sLOMyCk6nwPINkjVWSVOHrkLJYhAOAaCKr9V8JKT9td6s4ZtYN8wXmkuKRVzbOpM0BnQFM0CLALq4fSw=s2048-v1") no-repeat top center;
   background-size: cover;
   margin-bottom: -200px;
 }

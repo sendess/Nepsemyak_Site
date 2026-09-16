@@ -1,0 +1,449 @@
+---
+import { Font } from 'astro:assets';
+import '~/styles/global.css';
+import Icon from '~/components/Icon.astro';
+import type { IconName } from '~/components/icons';
+
+type Props = { title: string; wide?: boolean };
+const { title, wide = false } = Astro.props;
+const admin = Astro.locals.admin;
+const path = Astro.url.pathname.replace(/\/$/, '') || '/admin';
+
+const nav: { href: string; label: string; icon: IconName; ownerOnly?: boolean }[] = [
+  { href: '/admin', label: 'Dashboard', icon: 'house' },
+  { href: '/admin/notices', label: 'Notices', icon: 'megaphone' },
+  { href: '/admin/news', label: 'News', icon: 'newspaper' },
+  { href: '/admin/jobs', label: 'Jobs', icon: 'briefcase' },
+  { href: '/admin/users', label: 'Users', icon: 'users', ownerOnly: true },
+];
+const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path === href || path.startsWith(`${href}/`));
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} · Nepsemyak admin</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <Font cssVariable="--font-body" preload />
+    <Font cssVariable="--font-display" />
+  </head>
+  <body class="admin">
+    <a class="skip-link" href="#admin-main">Skip to content</a>
+    <div class="shell">
+      <aside class="sidebar" data-sidebar>
+        <a class="brand" href="/admin">
+          <img src="/images/logo-96.webp" alt="" width="40" height="40" />
+          <span>
+            <strong>Nepsemyak</strong>
+            <small>Admin</small>
+          </span>
+        </a>
+        <nav aria-label="Admin">
+          {
+            nav
+              .filter((item) => !item.ownerOnly || admin?.role === 'owner')
+              .map((item) => (
+                <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+                  <Icon name={item.icon} size={20} />
+                  {item.label}
+                </a>
+              ))
+          }
+        </nav>
+        <div class="sidebar-foot">
+          <a href="/" target="_blank" rel="noopener">
+            <Icon name="external-link" size={18} />
+            View website
+          </a>
+        </div>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <button class="menu-btn" type="button" aria-label="Open menu" data-menu-btn>
+            <Icon name="menu" size={22} />
+          </button>
+          <h1>{title}</h1>
+          {
+            admin && (
+              <div class="who">
+                <span class="who-text">
+                  <strong>{admin.name || admin.email}</strong>
+                  <small>{admin.role === 'owner' ? 'Owner' : 'Editor'}</small>
+                </span>
+                <button class="btn btn-ghost btn-sm" type="button" data-sign-out>
+                  Sign out
+                </button>
+              </div>
+            )
+          }
+        </header>
+        <main id="admin-main" class:list={['content', { wide }]}>
+          <slot />
+        </main>
+      </div>
+    </div>
+
+    <script>
+      document.querySelector('[data-menu-btn]')?.addEventListener('click', () => {
+        document.querySelector('[data-sidebar]')?.classList.toggle('open');
+      });
+      document.querySelector('[data-sign-out]')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget as HTMLButtonElement;
+        btn.disabled = true;
+        await fetch('/api/auth/sign-out', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        }).catch(() => null);
+        location.href = '/admin/login';
+      });
+      // Ask before deleting anything.
+      document.querySelectorAll<HTMLFormElement>('form[data-confirm]').forEach((form) => {
+        form.addEventListener('submit', (e) => {
+          if (!confirm(form.dataset.confirm)) e.preventDefault();
+        });
+      });
+    </script>
+
+    <style is:global>
+      body.admin {
+        background: #f3f5f2;
+        font-size: 1rem;
+      }
+
+      .admin .card {
+        box-shadow: none;
+      }
+
+      .admin h2 {
+        font-size: 1.2rem;
+      }
+
+      .admin-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+      }
+
+      .admin-table th,
+      .admin-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        text-align: start;
+        vertical-align: top;
+      }
+
+      .admin-table th {
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted);
+        background: #fafbf9;
+      }
+
+      .admin-table tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: #fff;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .flash {
+        display: flex;
+        gap: 0.6rem;
+        align-items: center;
+        margin-bottom: 1.25rem;
+        padding: 0.8rem 1rem;
+        border-radius: 12px;
+        background: var(--green-100);
+        color: var(--green-900);
+        font-weight: 600;
+      }
+
+      .flash.error {
+        background: #fde8e6;
+        color: #7a1d12;
+      }
+
+      .form-grid {
+        display: grid;
+        gap: 1.25rem;
+      }
+
+      .form-section {
+        display: grid;
+        gap: 1rem;
+        padding: 1.5rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: #fff;
+      }
+
+      .form-section > h2 {
+        margin-bottom: 0.25rem;
+      }
+
+      .hint {
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
+
+      .field-error {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #b42318;
+      }
+
+      .row-2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+        gap: 1rem;
+      }
+
+      .actions-bar {
+        position: sticky;
+        bottom: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: rgb(255 255 255 / 0.95);
+        backdrop-filter: blur(6px);
+      }
+
+      .btn-danger {
+        --btn-bg: #fff;
+        --btn-fg: #b42318;
+        --btn-border: #f3c4bf;
+      }
+
+      .btn-danger:hover {
+        --btn-bg: #fde8e6;
+        --btn-fg: #912018;
+      }
+
+      .empty-state {
+        display: grid;
+        justify-items: center;
+        gap: 0.75rem;
+        padding: 3rem 1.5rem;
+        border: 2px dashed var(--line-strong);
+        border-radius: var(--radius);
+        text-align: center;
+        color: var(--muted);
+      }
+
+      .check-row {
+        display: flex;
+        gap: 0.6rem;
+        align-items: center;
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      .check-row input {
+        width: 1.2rem;
+        height: 1.2rem;
+        accent-color: var(--green);
+      }
+    </style>
+
+    <style>
+      .shell {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        height: 100vh;
+        padding: 1.25rem 0.9rem;
+        background: linear-gradient(to bottom, var(--green-800), var(--green-900));
+        color: #e3efdd;
+      }
+
+      .brand {
+        display: flex;
+        gap: 0.7rem;
+        align-items: center;
+        padding: 0.25rem 0.5rem;
+        color: #fff;
+        text-decoration: none;
+      }
+
+      .brand img {
+        border-radius: 50%;
+        background: #fff;
+      }
+
+      .brand span {
+        display: grid;
+        line-height: 1.15;
+      }
+
+      .brand strong {
+        font-family: var(--font-head);
+      }
+
+      .brand small {
+        color: var(--yellow);
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      nav {
+        display: grid;
+        gap: 0.2rem;
+      }
+
+      nav a,
+      .sidebar-foot a {
+        display: flex;
+        gap: 0.7rem;
+        align-items: center;
+        padding: 0.65rem 0.8rem;
+        border-radius: 10px;
+        color: #d6e8cf;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      nav a:hover,
+      .sidebar-foot a:hover {
+        background: rgb(255 255 255 / 0.08);
+        color: #fff;
+      }
+
+      nav a[aria-current='page'] {
+        background: rgb(255 255 255 / 0.14);
+        color: #fff;
+        box-shadow: inset 3px 0 0 var(--yellow);
+      }
+
+      .sidebar-foot {
+        margin-top: auto;
+      }
+
+      .main {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        min-height: 64px;
+        padding: 0.6rem clamp(1rem, 3vw, 2rem);
+        background: #fff;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .topbar h1 {
+        font-size: 1.3rem;
+      }
+
+      .who {
+        display: flex;
+        gap: 0.9rem;
+        align-items: center;
+        margin-inline-start: auto;
+      }
+
+      .who-text {
+        display: grid;
+        text-align: end;
+        line-height: 1.2;
+      }
+
+      .who-text strong {
+        color: var(--ink);
+        font-size: 0.92rem;
+      }
+
+      .who-text small {
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .menu-btn {
+        display: none;
+        padding: 0.4rem;
+        border: 0;
+        border-radius: 10px;
+        background: var(--green-50);
+        color: var(--green-800);
+        cursor: pointer;
+      }
+
+      .content {
+        width: min(960px, 100%);
+        padding: clamp(1rem, 3vw, 2rem);
+      }
+
+      .content.wide {
+        width: min(1200px, 100%);
+      }
+
+      @media (max-width: 860px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: fixed;
+          inset: 0 auto 0 0;
+          z-index: 50;
+          width: 250px;
+          transform: translateX(-100%);
+          transition: transform 0.25s var(--ease);
+        }
+
+        .sidebar.open {
+          transform: none;
+          box-shadow: var(--shadow-lg);
+        }
+
+        .menu-btn {
+          display: grid;
+        }
+
+        .who-text {
+          display: none;
+        }
+      }
+    </style>
+  </body>
+</html>

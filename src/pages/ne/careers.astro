@@ -1,12 +1,18 @@
 ---
 import BaseLayout from '~/layouts/BaseLayout.astro';
-import View from '~/views/Careers.astro';
+import Careers from '~/views/Careers.astro';
+import { cachePublic } from '~/lib/cache';
+import { listOpenJobs } from '~/lib/content';
 import { useTranslations } from '~/i18n/utils';
+
+export const prerender = false;
 
 const lang = 'ne';
 const t = useTranslations(lang);
+const jobs = await listOpenJobs();
+cachePublic(Astro.response.headers, ['jobs']);
 ---
 
 <BaseLayout title={t('careers.title')} description={t('careers.emptyText')}>
-  <View lang={lang} />
+  <Careers lang={lang} jobs={jobs} />
 </BaseLayout>

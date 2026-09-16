@@ -1,12 +1,12 @@
 ---
-import { Image } from 'astro:assets';
 import Icon from '~/components/Icon.astro';
 import CountUp from '~/components/CountUp.astro';
 import SectionHead from '~/components/SectionHead.astro';
 import YouTube from '~/components/YouTube.astro';
 import FaqList from '~/components/FaqList.astro';
 import CtaBand from '~/components/CtaBand.astro';
-import chairmanPhoto from '~/assets/images/chairman.jpg';
+import NewsCard from '~/components/NewsCard.astro';
+import type { NewsPost } from '~/lib/content';
 import { org } from '~/data/site';
 import { serviceStats, figure } from '~/data/stats';
 import { serviceGroups } from '~/data/services';
@@ -16,8 +16,8 @@ import { faqs } from '~/data/faq';
 import { formatDate, formatNumber, localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
 import type { IconName } from '~/components/icons';
 
-type Props = { lang: Lang };
-const { lang } = Astro.props;
+type Props = { lang: Lang; latestNews: NewsPost[] };
+const { lang, latestNews } = Astro.props;
 const t = useTranslations(lang);
 const href = (path: string) => localizePath(path, lang);
 const n = (v: number) => formatNumber(v, lang);
@@ -126,6 +126,28 @@ const stats = [
     </p>
   </div>
 </section>
+
+<!-- Latest news (managed in /admin/news) -->
+{
+  latestNews.length > 0 && (
+    <section class="section section-tint" aria-labelledby="latest-title">
+      <div class="container">
+        <div class="split-head">
+          <SectionHead eyebrow={t('nav.news')} title={t('news.latestTitle')} intro={t('news.latestIntro')} id="latest-title" />
+          <a class="btn btn-ghost" href={href('/news/')}>
+            {t('news.allNews')}
+            <Icon name="arrow-right" size={18} class="icon-shift" />
+          </a>
+        </div>
+        <div class="latest">
+          {latestNews.map((post) => (
+            <NewsCard post={post} lang={lang} />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
 
 <!-- Journey -->
 <section class="section section-white" aria-labelledby="journey-title">
@@ -280,7 +302,15 @@ const stats = [
   <div class="container">
     <figure class="chairman reveal">
       <div class="chairman-photo">
-        <Image src={chairmanPhoto} alt={chairman.name[lang]} width={560} widths={[360, 560]} sizes="(max-width: 760px) 90vw, 360px" />
+        <img
+          src="/images/chairman-560.webp"
+          srcset="/images/chairman-360.webp 360w, /images/chairman-560.webp 560w"
+          sizes="(max-width: 760px) 90vw, 360px"
+          alt={chairman.name[lang]}
+          width="560"
+          height="468"
+          loading="lazy"
+        />
       </div>
       <div class="chairman-body">
         <span class="eyebrow" id="chairman-title">{t('home.chairman.eyebrow')}</span>
@@ -580,6 +610,13 @@ const stats = [
     padding-inline: 0.5rem;
     font-size: var(--step--1);
     color: var(--muted);
+  }
+
+  /* ---------- Latest news ---------- */
+  .latest {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+    gap: 1.5rem;
   }
 
   /* ---------- Journey ---------- */

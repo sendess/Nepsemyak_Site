@@ -1,8 +1,15 @@
 ---
 import BaseLayout from '~/layouts/BaseLayout.astro';
 import Home from '~/views/Home.astro';
+import { cachePublic } from '~/lib/cache';
+import { listPublishedNews } from '~/lib/content';
+
+export const prerender = false;
+
+const latestNews = await listPublishedNews(3);
+cachePublic(Astro.response.headers, ['news']);
 ---
 
 <BaseLayout>
-  <Home lang="en" />
+  <Home lang="en" latestNews={latestNews} />
 </BaseLayout>

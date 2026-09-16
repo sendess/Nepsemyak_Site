@@ -1,0 +1,248 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import BilingualField from '~/components/admin/BilingualField.astro';
+import ImageField from '~/components/admin/ImageField.astro';
+import { deleteNews, getNews, NEWS_STATUSES, saveNews, slugTaken, type NewsInput } from '~/lib/content';
+import { FormReader, slugify } from '~/lib/forms';
+import { parseId, todayNpt } from '~/lib/admin-format';
+import { purge } from '~/lib/cache';
+import { branches } from '~/data/site';
+import { formatDate } from '~/i18n/utils';
+
+export const prerender = false;
+
+const id = parseId(Astro.params.id);
+if (id === null) return Astro.redirect('/admin/news', 303);
+const existing = id === 'new' ? null : await getNews(id);
+if (id !== 'new' && !existing) return Astro.redirect('/admin/news', 303);
+
+let values: NewsInput = existing ?? {
+  slug: '',
+  status: 'draft',
+  published_on: todayNpt(),
+  branch: null,
+  title_en: '',
+  title_ne: '',
+  summary_en: '',
+  summary_ne: '',
+  body_en: '',
+  body_ne: '',
+  cover_media_id: null,
+};
+let errors: Record<string, string> = {};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const by = Astro.locals.admin!.email;
+
+  if (form.get('_action') === 'delete' && existing) {
+    await deleteNews(existing.id);
+    await purge(['news']);
+    return Astro.redirect('/admin/news?done=deleted', 303);
+  }
+
+  const f = new FormReader(form);
+  const branchIds = branches.map((b) => b.id);
+  const branchValue = String(form.get('branch') ?? '');
+  values = {
+    title_en: f.text('title_en', { max: 160 }),
+    title_ne: f.text('title_ne', { max: 160 }),
+    summary_en: f.text('summary_en', { max: 400 }),
+    summary_ne: f.text('summary_ne', { max: 400 }),
+    body_en: f.text('body_en', { max: 20000 }),
+    body_ne: f.text('body_ne', { max: 20000 }),
+    published_on: f.date('published_on', { required: true, label: 'Date' }) ?? values.published_on,
+    branch: branchIds.includes(branchValue) ? branchValue : null,
+    status: form.get('_action') === 'publish' ? 'published' : f.choice('status', NEWS_STATUSES, 'draft'),
+    cover_media_id: /^[0-9a-f-]{36}$/i.test(String(form.get('cover_media_id'))) ? String(form.get('cover_media_id')) : null,
+    slug: slugify(f.text('slug', { max: 80 })),
+  };
+  if (form.get('_action') === 'unpublish') values.status = 'draft';
+  f.requireOneOf(values.title_en, values.title_ne, 'title', 'Title');
+
+  // Web address: from the English title, or date-based when the title is Nepali only.
+  if (!values.slug) values.slug = slugify(values.title_en) || `news-${values.published_on}`;
+  if (await slugTaken(values.slug, existing?.id ?? null)) {
+    if (form.get('slug')) f.errors.slug = 'Another post already uses this web address.';
+    else values.slug = `${values.slug}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+  errors = f.errors;
+
+  if (f.ok) {
+    const savedId = await saveNews(existing?.id ?? null, values, by);
+    await purge(['news']);
+    const done = values.status === 'published' ? (existing?.status === 'published' ? 'updated' : 'published') : 'saved';
+    return Astro.redirect(`/admin/news/${savedId}?done=${done}`, 303);
+  }
+}
+
+const flash = Astro.url.searchParams.get('done');
+const isPublished = existing?.status === 'published';
+---
+
+<AdminLayout title={existing ? 'Edit post' : 'Write a post'}>
+  <a class="link-arrow back" href="/admin/news"><Icon name="arrow-left" size={16} /> All posts</a>
+  {
+    flash && (
+      <p class="flash">
+        <Icon name="circle-check" size={20} /> Post {flash}.{' '}
+        {isPublished && (
+          <a href={`/news/${existing!.slug}`} target="_blank" rel="noopener">
+            View on website
+          </a>
+        )}
+      </p>
+    )
+  }
+  {Object.keys(errors).length > 0 && <p class="flash error">Please fix the highlighted fields.</p>}
+
+  <form method="post" class="form-grid">
+    <input type="hidden" name="status" value={values.status} />
+
+    <section class="form-section">
+      <BilingualField name="title" label="Title" values={{ en: values.title_en, ne: values.title_ne }} max={160} error={errors.title} />
+      <BilingualField
+        name="summary"
+        label="Short summary"
+        values={{ en: values.summary_en, ne: values.summary_ne }}
+        multiline
+        rows={2}
+        max={400}
+        hint="One or two sentences shown on news cards."
+      />
+      <BilingualField
+        name="body"
+        label="Full story"
+        values={{ en: values.body_en, ne: values.body_ne }}
+        multiline
+        rows={10}
+        max={20000}
+        hint="Leave an empty line between paragraphs."
+      />
+    </section>
+
+    <section class="form-section">
+      <ImageField name="cover_media_id" label="Cover photo" mediaId={values.cover_media_id} hint="Landscape photos work best." />
+    </section>
+
+    <section class="form-section">
+      <h2>Details</h2>
+      <div class="row-2">
+        <div class="field">
+          <label for="published_on">Date</label>
+          <input class="input" type="date" id="published_on" name="published_on" value={values.published_on} required />
+          <p class="hint">Shown in Nepali as {formatDate(values.published_on, 'ne')} (BS).</p>
+          {errors.published_on && <p class="field-error">{errors.published_on}</p>}
+        </div>
+        <div class="field">
+          <label for="branch">Office</label>
+          <select class="select" id="branch" name="branch">
+            <option value="">Company-wide</option>
+            {
+              branches.map((b) => (
+                <option value={b.id} selected={values.branch === b.id}>
+                  {b.name.en}
+                </option>
+              ))
+            }
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="slug">Web address</label>
+        <div class="slug">
+          <span>nepsemyak.com.np/news/</span>
+          <input class="input" id="slug" name="slug" value={values.slug} placeholder="created from the English title" maxlength="80" />
+        </div>
+        {errors.slug && <p class="field-error">{errors.slug}</p>}
+      </div>
+    </section>
+
+    <div class="actions-bar">
+      <div class="left">
+        {
+          isPublished ? (
+            <>
+              <button class="btn btn-primary" type="submit" name="_action" value="publish">
+                <Icon name="check" size={18} /> Save changes
+              </button>
+              <button class="btn btn-ghost" type="submit" name="_action" value="unpublish">
+                Unpublish
+              </button>
+            </>
+          ) : (
+            <>
+              <button class="btn btn-primary" type="submit" name="_action" value="publish">
+                <Icon name="send" size={18} /> Publish
+              </button>
+              <button class="btn btn-ghost" type="submit" name="_action" value="draft">
+                Save draft
+              </button>
+            </>
+          )
+        }
+      </div>
+      {
+        existing && (
+          <button class="btn btn-danger" type="submit" name="_action" value="delete" formnovalidate data-delete>
+            Delete
+          </button>
+        )
+      }
+    </div>
+  </form>
+</AdminLayout>
+
+<script>
+  document.querySelector<HTMLButtonElement>('[data-delete]')?.addEventListener('click', (e) => {
+    if (!confirm('Delete this post and its cover photo? This cannot be undone.')) e.preventDefault();
+  });
+</script>
+
+<style>
+  .back {
+    margin-bottom: 1rem;
+  }
+
+  .flash a {
+    margin-inline-start: auto;
+  }
+
+  .slug {
+    display: flex;
+    align-items: center;
+    border: 1.5px solid var(--line-strong);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .slug span {
+    padding: 0 0.25rem 0 0.9rem;
+    color: var(--muted);
+    white-space: nowrap;
+    font-size: 0.92rem;
+  }
+
+  .slug .input {
+    border: 0;
+    border-radius: 0;
+    padding-left: 0;
+  }
+
+  .slug:focus-within {
+    border-color: var(--green);
+    box-shadow: 0 0 0 4px rgb(69 154 46 / 0.18);
+  }
+
+  .slug .input:focus {
+    box-shadow: none;
+  }
+
+  .left {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+</style>

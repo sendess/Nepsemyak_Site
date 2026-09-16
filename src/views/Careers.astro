@@ -4,34 +4,110 @@ import PageHero from '~/components/PageHero.astro';
 import CtaBand from '~/components/CtaBand.astro';
 import { branches } from '~/data/site';
 import { workforceStats } from '~/data/stats';
-import { formatNumber, useTranslations, type Lang } from '~/i18n/utils';
+import type { Job } from '~/lib/content';
+import { paragraphs, pickLang } from '~/lib/forms';
+import { formatDate, formatNumber, useTranslations, type Lang } from '~/i18n/utils';
 
-type Props = { lang: Lang };
-const { lang } = Astro.props;
+type Props = { lang: Lang; jobs: Job[] };
+const { lang, jobs } = Astro.props;
 const t = useTranslations(lang);
 const facebookPages = branches.filter((b) => b.facebook);
+const pick = (en: string, ne: string) => pickLang(en, ne, lang);
 ---
 
 <PageHero lang={lang} title={t('careers.title')} lead={t('careers.intro').replace('{n}', formatNumber(workforceStats.total, lang))} />
 
 <section class="section section-white">
-  <div class="container-narrow">
-    <div class="empty reveal">
-      <span class="icon-tile lg"><Icon name="briefcase" size={30} /></span>
-      <h2 class="h3">{t('careers.emptyTitle')}</h2>
-      <p class="lead">{t('careers.emptyText')}</p>
-      <div class="follow">
-        {
-          facebookPages.map((b) => (
-            <a class="btn btn-ghost btn-sm" href={b.facebook} target="_blank" rel="noopener">
-              <Icon name="facebook" size={16} />
-              {b.name[lang]}
-            </a>
-          ))
-        }
+  {
+    jobs.length > 0 ? (
+      <div class="container-narrow jobs">
+        <h2 class="h3">{t('careers.openTitle')}</h2>
+        {jobs.map((job) => {
+          const description = paragraphs(pick(job.description_en, job.description_ne));
+          const howToApply = paragraphs(pick(job.how_to_apply_en, job.how_to_apply_ne));
+          const location = pick(job.location_en, job.location_ne);
+          return (
+            <article class="job reveal" id={`job-${job.id}`}>
+              <header>
+                <span class="icon-tile lg">
+                  <Icon name="briefcase" size={26} />
+                </span>
+                <div>
+                  <h3 class="h3">{pick(job.title_en, job.title_ne)}</h3>
+                  <ul class="facts">
+                    {location && (
+                      <li>
+                        <Icon name="map-pin" size={16} />
+                        <span class="visually-hidden">{t('careers.location')}: </span>
+                        {location}
+                      </li>
+                    )}
+                    {job.openings && (
+                      <li>
+                        <Icon name="users" size={16} />
+                        {t('careers.openings')}: {formatNumber(job.openings, lang)}
+                      </li>
+                    )}
+                    <li>
+                      <Icon name="calendar" size={16} />
+                      {t('careers.deadline')}: {job.deadline ? formatDate(job.deadline, lang) : t('careers.untilFilled')}
+                    </li>
+                  </ul>
+                </div>
+              </header>
+              {description.length > 0 && (
+                <div class="text">
+                  {description.map((lines) => (
+                    <p>
+                      {lines.map((line, i) => (
+                        <>
+                          {i > 0 && <br />}
+                          {line}
+                        </>
+                      ))}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {howToApply.length > 0 && (
+                <div class="apply">
+                  <h4>{t('careers.howToApply')}</h4>
+                  {howToApply.map((lines) => (
+                    <p>
+                      {lines.map((line, i) => (
+                        <>
+                          {i > 0 && <br />}
+                          {line}
+                        </>
+                      ))}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </article>
+          );
+        })}
       </div>
-    </div>
-  </div>
+    ) : (
+      <div class="container-narrow">
+        <div class="empty reveal">
+          <span class="icon-tile lg">
+            <Icon name="briefcase" size={30} />
+          </span>
+          <h2 class="h3">{t('careers.emptyTitle')}</h2>
+          <p class="lead">{t('careers.emptyText')}</p>
+          <div class="follow">
+            {facebookPages.map((b) => (
+              <a class="btn btn-ghost btn-sm" href={b.facebook} target="_blank" rel="noopener">
+                <Icon name="facebook" size={16} />
+                {b.name[lang]}
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 </section>
 
 <CtaBand lang={lang} flush />
@@ -54,5 +130,67 @@ const facebookPages = branches.filter((b) => b.facebook);
     justify-content: center;
     gap: 0.6rem;
     margin-top: 0.5rem;
+  }
+
+  .jobs {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .job {
+    display: grid;
+    gap: 1.25rem;
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .job header {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .facts li {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+  }
+
+  .facts :global(.icon) {
+    color: var(--green);
+  }
+
+  .text {
+    display: grid;
+    gap: 0.9rem;
+    color: var(--ink);
+  }
+
+  .apply {
+    display: grid;
+    gap: 0.5rem;
+    padding: 1.1rem 1.25rem;
+    border-radius: var(--radius);
+    background: var(--green-50);
+    border-left: 4px solid var(--green);
+  }
+
+  .apply h4 {
+    font-size: 1rem;
   }
 </style>

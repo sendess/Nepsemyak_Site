@@ -1,0 +1,278 @@
+// Database access for admin-managed content. Every write reports the cache tags to purge.
+import { sql } from './db';
+import type { AdminRole } from './auth';
+
+/* ---------------- Notices ---------------- */
+
+export type NoticeTone = 'info' | 'warning' | 'urgent';
+export const NOTICE_TONES: readonly NoticeTone[] = ['info', 'warning', 'urgent'];
+
+export type Notice = {
+  id: number;
+  message_en: string;
+  message_ne: string;
+  link_url: string | null;
+  tone: NoticeTone;
+  is_active: boolean;
+  starts_at: string;
+  ends_at: string | null;
+  updated_by: string | null;
+  updated_at: string;
+};
+
+export type NoticeInput = Pick<Notice, 'message_en' | 'message_ne' | 'link_url' | 'tone' | 'is_active' | 'ends_at'> & {
+  starts_at: string | null;
+};
+
+/** The notice visitors see: active, started, not yet ended. Most recent wins. */
+export async function getCurrentNotice(): Promise<Notice | null> {
+  const rows = await sql`
+    select * from notices
+    where is_active and starts_at <= now() and (ends_at is null or ends_at > now())
+    order by starts_at desc, id desc limit 1`;
+  return (rows[0] as Notice) ?? null;
+}
+
+export async function listNotices(): Promise<Notice[]> {
+  return (await sql`select * from notices order by is_active desc, starts_at desc, id desc`) as Notice[];
+}
+
+export async function getNotice(id: number): Promise<Notice | null> {
+  return ((await sql`select * from notices where id = ${id}`)[0] as Notice) ?? null;
+}
+
+export async function saveNotice(id: number | null, input: NoticeInput, by: string): Promise<number> {
+  const starts = input.starts_at ?? new Date().toISOString();
+  if (id === null) {
+    const [row] = await sql`
+      insert into notices (message_en, message_ne, link_url, tone, is_active, starts_at, ends_at, updated_by)
+      values (${input.message_en}, ${input.message_ne}, ${input.link_url}, ${input.tone}, ${input.is_active}, ${starts}, ${input.ends_at}, ${by})
+      returning id`;
+    return Number(row.id);
+  }
+  await sql`
+    update notices set message_en = ${input.message_en}, message_ne = ${input.message_ne}, link_url = ${input.link_url},
+      tone = ${input.tone}, is_active = ${input.is_active}, starts_at = ${starts}, ends_at = ${input.ends_at},
+      updated_by = ${by}, updated_at = now()
+    where id = ${id}`;
+  return id;
+}
+
+export async function deleteNotice(id: number) {
+  await sql`delete from notices where id = ${id}`;
+}
+
+/* ---------------- Media ---------------- */
+
+export const MEDIA_TYPES = ['image/webp', 'image/jpeg', 'image/png'] as const;
+export type MediaType = (typeof MEDIA_TYPES)[number];
+export const MEDIA_MAX_BYTES = 1_500_000;
+
+export async function createMedia(bytes: Uint8Array, contentType: MediaType, width: number | null, height: number | null, by: string) {
+  const [row] = await sql`
+    insert into media (content_type, bytes, width, height, created_by)
+    values (${contentType}, ${Buffer.from(bytes)}, ${width}, ${height}, ${by})
+    returning id`;
+  return String(row.id);
+}
+
+export async function getMedia(id: string): Promise<{ bytes: Buffer; content_type: MediaType } | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const rows = await sql`select bytes, content_type from media where id = ${id}`;
+  return (rows[0] as { bytes: Buffer; content_type: MediaType }) ?? null;
+}
+
+/** Check the file signature, not just the declared type. */
+export function sniffImageType(bytes: Uint8Array): MediaType | null {
+  const b = bytes;
+  if (b.length > 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  return null;
+}
+
+export const mediaUrl = (id: string | null) => (id ? `/media/${id}` : null);
+
+/* ---------------- News ---------------- */
+
+export type NewsStatus = 'draft' | 'published';
+export const NEWS_STATUSES: readonly NewsStatus[] = ['draft', 'published'];
+
+export type NewsPost = {
+  id: number;
+  slug: string;
+  status: NewsStatus;
+  published_on: string;
+  branch: string | null;
+  title_en: string;
+  title_ne: string;
+  summary_en: string;
+  summary_ne: string;
+  body_en: string;
+  body_ne: string;
+  cover_media_id: string | null;
+  updated_by: string | null;
+  updated_at: string;
+};
+
+export type NewsInput = Omit<NewsPost, 'id' | 'updated_by' | 'updated_at'>;
+
+// `published_on` is returned as text so dates never shift across time zones.
+const newsColumns = sql`id, slug, status, published_on::text as published_on, branch, title_en, title_ne,
+  summary_en, summary_ne, body_en, body_ne, cover_media_id, updated_by, updated_at`;
+
+export async function listPublishedNews(limit = 50): Promise<NewsPost[]> {
+  return (await sql`
+    select ${newsColumns} from news_posts
+    where status = 'published' and published_on <= (now() at time zone 'Asia/Kathmandu')::date
+    order by published_on desc, id desc limit ${limit}`) as NewsPost[];
+}
+
+export async function getPublishedNews(slug: string): Promise<NewsPost | null> {
+  const rows = await sql`
+    select ${newsColumns} from news_posts
+    where slug = ${slug} and status = 'published' and published_on <= (now() at time zone 'Asia/Kathmandu')::date`;
+  return (rows[0] as NewsPost) ?? null;
+}
+
+export async function listAllNews(): Promise<NewsPost[]> {
+  return (await sql`select ${newsColumns} from news_posts order by published_on desc, id desc`) as NewsPost[];
+}
+
+export async function getNews(id: number): Promise<NewsPost | null> {
+  return ((await sql`select ${newsColumns} from news_posts where id = ${id}`)[0] as NewsPost) ?? null;
+}
+
+export async function slugTaken(slug: string, exceptId: number | null): Promise<boolean> {
+  const rows = await sql`select 1 from news_posts where slug = ${slug} and id is distinct from ${exceptId}`;
+  return rows.length > 0;
+}
+
+export async function saveNews(id: number | null, p: NewsInput, by: string): Promise<number> {
+  if (id === null) {
+    const [row] = await sql`
+      insert into news_posts (slug, status, published_on, branch, title_en, title_ne, summary_en, summary_ne,
+        body_en, body_ne, cover_media_id, updated_by)
+      values (${p.slug}, ${p.status}, ${p.published_on}, ${p.branch}, ${p.title_en}, ${p.title_ne}, ${p.summary_en},
+        ${p.summary_ne}, ${p.body_en}, ${p.body_ne}, ${p.cover_media_id}, ${by})
+      returning id`;
+    return Number(row.id);
+  }
+  await sql`
+    update news_posts set slug = ${p.slug}, status = ${p.status}, published_on = ${p.published_on}, branch = ${p.branch},
+      title_en = ${p.title_en}, title_ne = ${p.title_ne}, summary_en = ${p.summary_en}, summary_ne = ${p.summary_ne},
+      body_en = ${p.body_en}, body_ne = ${p.body_ne}, cover_media_id = ${p.cover_media_id},
+      updated_by = ${by}, updated_at = now()
+    where id = ${id}`;
+  return id;
+}
+
+export async function deleteNews(id: number) {
+  // Remove the cover image too when no other post uses it.
+  await sql`
+    with removed as (delete from news_posts where id = ${id} returning cover_media_id)
+    delete from media m using removed r
+    where m.id = r.cover_media_id
+      and not exists (select 1 from news_posts n where n.cover_media_id = m.id and n.id <> ${id})`;
+}
+
+/* ---------------- Jobs ---------------- */
+
+export type JobStatus = 'draft' | 'open' | 'closed';
+export const JOB_STATUSES: readonly JobStatus[] = ['draft', 'open', 'closed'];
+
+export type Job = {
+  id: number;
+  status: JobStatus;
+  title_en: string;
+  title_ne: string;
+  location_en: string;
+  location_ne: string;
+  description_en: string;
+  description_ne: string;
+  how_to_apply_en: string;
+  how_to_apply_ne: string;
+  openings: number | null;
+  deadline: string | null;
+  updated_by: string | null;
+  updated_at: string;
+};
+
+export type JobInput = Omit<Job, 'id' | 'updated_by' | 'updated_at'>;
+
+const jobColumns = sql`id, status, title_en, title_ne, location_en, location_ne, description_en, description_ne,
+  how_to_apply_en, how_to_apply_ne, openings, deadline::text as deadline, updated_by, updated_at`;
+
+/** Open jobs whose deadline (if any) has not passed in Nepal time. */
+export async function listOpenJobs(): Promise<Job[]> {
+  return (await sql`
+    select ${jobColumns} from jobs
+    where status = 'open' and (deadline is null or deadline >= (now() at time zone 'Asia/Kathmandu')::date)
+    order by deadline nulls last, id desc`) as Job[];
+}
+
+export async function listAllJobs(): Promise<Job[]> {
+  return (await sql`select ${jobColumns} from jobs order by (status = 'open') desc, updated_at desc`) as Job[];
+}
+
+export async function getJob(id: number): Promise<Job | null> {
+  return ((await sql`select ${jobColumns} from jobs where id = ${id}`)[0] as Job) ?? null;
+}
+
+export async function saveJob(id: number | null, j: JobInput, by: string): Promise<number> {
+  if (id === null) {
+    const [row] = await sql`
+      insert into jobs (status, title_en, title_ne, location_en, location_ne, description_en, description_ne,
+        how_to_apply_en, how_to_apply_ne, openings, deadline, updated_by)
+      values (${j.status}, ${j.title_en}, ${j.title_ne}, ${j.location_en}, ${j.location_ne}, ${j.description_en},
+        ${j.description_ne}, ${j.how_to_apply_en}, ${j.how_to_apply_ne}, ${j.openings}, ${j.deadline}, ${by})
+      returning id`;
+    return Number(row.id);
+  }
+  await sql`
+    update jobs set status = ${j.status}, title_en = ${j.title_en}, title_ne = ${j.title_ne},
+      location_en = ${j.location_en}, location_ne = ${j.location_ne}, description_en = ${j.description_en},
+      description_ne = ${j.description_ne}, how_to_apply_en = ${j.how_to_apply_en}, how_to_apply_ne = ${j.how_to_apply_ne},
+      openings = ${j.openings}, deadline = ${j.deadline}, updated_by = ${by}, updated_at = now()
+    where id = ${id}`;
+  return id;
+}
+
+export async function deleteJob(id: number) {
+  await sql`delete from jobs where id = ${id}`;
+}
+
+/* ---------------- Admin users ---------------- */
+
+export type AdminRecord = { email: string; name: string; role: AdminRole; created_at: string; last_seen_at: string | null };
+
+export async function listAdmins(): Promise<AdminRecord[]> {
+  return (await sql`select email, name, role, created_at, last_seen_at from admin_users order by role, email`) as AdminRecord[];
+}
+
+export async function upsertAdmin(email: string, name: string, role: AdminRole, by: string) {
+  await sql`
+    insert into admin_users (email, name, role, created_by) values (${email}, ${name}, ${role}, ${by})
+    on conflict (email) do update set name = excluded.name, role = excluded.role`;
+}
+
+export async function removeAdmin(email: string) {
+  // Never remove the last owner.
+  await sql`
+    delete from admin_users
+    where email = ${email}
+      and (role <> 'owner' or (select count(*) from admin_users where role = 'owner') > 1)`;
+}
+
+/* ---------------- Dashboard ---------------- */
+
+export async function dashboardCounts() {
+  const [row] = await sql`
+    select
+      (select count(*) from news_posts where status = 'published')::int as news_published,
+      (select count(*) from news_posts where status = 'draft')::int as news_drafts,
+      (select count(*) from jobs where status = 'open')::int as jobs_open,
+      (select count(*) from admin_users)::int as admins,
+      (select coalesce(sum(size_bytes), 0) from media)::bigint as media_bytes`;
+  return row as { news_published: number; news_drafts: number; jobs_open: number; admins: number; media_bytes: number };
+}

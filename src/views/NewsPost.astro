@@ -1,0 +1,153 @@
+---
+import Icon from '~/components/Icon.astro';
+import NewsCard from '~/components/NewsCard.astro';
+import CtaBand from '~/components/CtaBand.astro';
+import type { NewsPost } from '~/lib/content';
+import { paragraphs, pickLang } from '~/lib/forms';
+import { branches } from '~/data/site';
+import { formatDate, localizePath, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang; post: NewsPost; more: NewsPost[] };
+const { lang, post, more } = Astro.props;
+const t = useTranslations(lang);
+const title = pickLang(post.title_en, post.title_ne, lang);
+const summary = pickLang(post.summary_en, post.summary_ne, lang);
+const body = paragraphs(pickLang(post.body_en, post.body_ne, lang));
+const office = branches.find((b) => b.id === post.branch)?.name[lang] ?? t('news.companyWide');
+// Mark text that falls back to the other language, so screen readers pronounce it correctly.
+const other: Lang = lang === 'ne' ? 'en' : 'ne';
+const langOf = (en: string, ne: string): Lang => ((lang === 'ne' ? ne : en) ? lang : other);
+const shownLang = langOf(post.title_en, post.title_ne);
+const summaryLang = langOf(post.summary_en, post.summary_ne);
+const bodyLang = langOf(post.body_en, post.body_ne);
+---
+
+<article>
+  <header class="post-hero">
+    <div class="container-narrow">
+      <ol class="breadcrumb">
+        <li><a href={localizePath('/', lang)}>{t('site.home')}</a></li>
+        <li aria-hidden="true"><Icon name="chevron-right" size={14} /></li>
+        <li><a href={localizePath('/news/', lang)}>{t('news.title')}</a></li>
+      </ol>
+      <p class="meta">
+        <Icon name="calendar" size={16} />
+        <time datetime={post.published_on}>{formatDate(post.published_on, lang)}</time>
+        <span aria-hidden="true">·</span>
+        <span>{office}</span>
+      </p>
+      <h1 lang={shownLang}>{title}</h1>
+      {summary && <p class="lead" lang={summaryLang}>{summary}</p>}
+    </div>
+  </header>
+
+  {
+    post.cover_media_id && (
+      <div class="container-narrow cover">
+        <img src={`/media/${post.cover_media_id}`} alt="" decoding="async" />
+      </div>
+    )
+  }
+
+  <div class="container-narrow prose" lang={bodyLang}>
+    {
+      body.map((lines) => (
+        <p>
+          {lines.map((line, i) => (
+            <>
+              {i > 0 && <br />}
+              {line}
+            </>
+          ))}
+        </p>
+      ))
+    }
+    <a class="link-arrow back" href={localizePath('/news/', lang)}>
+      <Icon name="arrow-left" size={16} />
+      {t('news.back')}
+    </a>
+  </div>
+</article>
+
+{
+  more.length > 0 && (
+    <section class="section section-tint" aria-labelledby="more-title">
+      <div class="container">
+        <h2 class="h3" id="more-title" style="margin-bottom: 1.5rem">
+          {t('news.latestTitle')}
+        </h2>
+        <div class="more">
+          {more.map((p) => (
+            <NewsCard post={p} lang={lang} />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+<CtaBand lang={lang} />
+
+<style>
+  .post-hero {
+    padding-block: clamp(3rem, 7vw, 5rem) clamp(4rem, 8vw, 6rem);
+    background:
+      radial-gradient(600px 300px at 90% 10%, rgb(255 228 31 / 0.14), transparent 60%),
+      linear-gradient(to bottom right, var(--green-bright), var(--green) 45%, var(--slate));
+    color: #eef6ea;
+  }
+
+  .post-hero .container-narrow {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .post-hero h1 {
+    color: #fff;
+    font-size: clamp(2rem, 1.5rem + 2.2vw, 3.1rem);
+  }
+
+  .post-hero .lead {
+    color: #e3efdd;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: center;
+    color: #d6e8cf;
+    font-size: 0.95rem;
+  }
+
+  .cover {
+    margin-top: clamp(-4rem, -6vw, -2.5rem);
+  }
+
+  .cover img {
+    width: 100%;
+    max-height: 520px;
+    object-fit: cover;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .prose {
+    display: grid;
+    gap: 1.2rem;
+    padding-block: clamp(2rem, 5vw, 3.5rem) clamp(3rem, 6vw, 4.5rem);
+    font-size: 1.12rem;
+    line-height: 1.8;
+    color: var(--ink);
+  }
+
+  .back {
+    margin-top: 1rem;
+  }
+
+  .more {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+    gap: 1.5rem;
+  }
+</style>

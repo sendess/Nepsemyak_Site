@@ -1,0 +1,192 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import BilingualField from '~/components/admin/BilingualField.astro';
+import { deleteJob, getJob, JOB_STATUSES, saveJob, type JobInput } from '~/lib/content';
+import { FormReader } from '~/lib/forms';
+import { parseId } from '~/lib/admin-format';
+import { purge } from '~/lib/cache';
+import { formatDate } from '~/i18n/utils';
+
+export const prerender = false;
+
+const id = parseId(Astro.params.id);
+if (id === null) return Astro.redirect('/admin/jobs', 303);
+const existing = id === 'new' ? null : await getJob(id);
+if (id !== 'new' && !existing) return Astro.redirect('/admin/jobs', 303);
+
+let values: JobInput = existing ?? {
+  status: 'open',
+  title_en: '',
+  title_ne: '',
+  location_en: '',
+  location_ne: '',
+  description_en: '',
+  description_ne: '',
+  how_to_apply_en: '',
+  how_to_apply_ne: '',
+  openings: null,
+  deadline: null,
+};
+let errors: Record<string, string> = {};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+
+  if (form.get('_action') === 'delete' && existing) {
+    await deleteJob(existing.id);
+    await purge(['jobs']);
+    return Astro.redirect('/admin/jobs?done=deleted', 303);
+  }
+
+  const f = new FormReader(form);
+  values = {
+    status: f.choice('status', JOB_STATUSES, 'open'),
+    title_en: f.text('title_en', { max: 160 }),
+    title_ne: f.text('title_ne', { max: 160 }),
+    location_en: f.text('location_en', { max: 160 }),
+    location_ne: f.text('location_ne', { max: 160 }),
+    description_en: f.text('description_en', { max: 10000 }),
+    description_ne: f.text('description_ne', { max: 10000 }),
+    how_to_apply_en: f.text('how_to_apply_en', { max: 2000 }),
+    how_to_apply_ne: f.text('how_to_apply_ne', { max: 2000 }),
+    openings: f.int('openings', { min: 1, max: 500, label: 'Openings' }),
+    deadline: f.date('deadline', { label: 'Deadline' }),
+  };
+  f.requireOneOf(values.title_en, values.title_ne, 'title', 'Position title');
+  errors = f.errors;
+
+  if (f.ok) {
+    await saveJob(existing?.id ?? null, values, Astro.locals.admin!.email);
+    await purge(['jobs']);
+    return Astro.redirect(`/admin/jobs?done=${existing ? 'updated' : 'added'}`, 303);
+  }
+}
+
+const statuses = [
+  { value: 'open', label: 'Open', desc: 'Shown on the Careers page' },
+  { value: 'draft', label: 'Draft', desc: 'Hidden while you prepare it' },
+  { value: 'closed', label: 'Closed', desc: 'Hidden, kept for records' },
+];
+---
+
+<AdminLayout title={existing ? 'Edit job' : 'Add a job'}>
+  <a class="link-arrow back" href="/admin/jobs"><Icon name="arrow-left" size={16} /> All jobs</a>
+  {Object.keys(errors).length > 0 && <p class="flash error">Please fix the highlighted fields.</p>}
+
+  <form method="post" class="form-grid">
+    <section class="form-section">
+      <BilingualField name="title" label="Position" values={{ en: values.title_en, ne: values.title_ne }} max={160} error={errors.title} />
+      <BilingualField name="location" label="Location / office" values={{ en: values.location_en, ne: values.location_ne }} max={160} />
+      <BilingualField
+        name="description"
+        label="Description"
+        values={{ en: values.description_en, ne: values.description_ne }}
+        multiline
+        rows={8}
+        max={10000}
+        hint="Duties, requirements and benefits. Leave an empty line between paragraphs."
+      />
+      <BilingualField
+        name="how_to_apply"
+        label="How to apply"
+        values={{ en: values.how_to_apply_en, ne: values.how_to_apply_ne }}
+        multiline
+        rows={3}
+        max={2000}
+        hint="For example: bring your CV to the Central Secretariat, or email it to nepsemyak@gmail.com."
+      />
+    </section>
+
+    <section class="form-section">
+      <h2>Details</h2>
+      <div class="row-2">
+        <div class="field">
+          <label for="openings">Number of openings (optional)</label>
+          <input class="input" type="number" id="openings" name="openings" min="1" max="500" value={values.openings ?? ''} />
+          {errors.openings && <p class="field-error">{errors.openings}</p>}
+        </div>
+        <div class="field">
+          <label for="deadline">Application deadline (optional)</label>
+          <input class="input" type="date" id="deadline" name="deadline" value={values.deadline ?? ''} />
+          {values.deadline && <p class="hint">Shown in Nepali as {formatDate(values.deadline, 'ne')} (BS).</p>}
+          {errors.deadline && <p class="field-error">{errors.deadline}</p>}
+        </div>
+      </div>
+      <div class="statuses">
+        {
+          statuses.map((s) => (
+            <label class="status">
+              <input type="radio" name="status" value={s.value} checked={values.status === s.value} />
+              <span>
+                <strong>{s.label}</strong>
+                <small>{s.desc}</small>
+              </span>
+            </label>
+          ))
+        }
+      </div>
+    </section>
+
+    <div class="actions-bar">
+      <button class="btn btn-primary" type="submit" name="_action" value="save">
+        <Icon name="check" size={18} />
+        {existing ? 'Save changes' : 'Add job'}
+      </button>
+      {
+        existing && (
+          <button class="btn btn-danger" type="submit" name="_action" value="delete" formnovalidate data-delete>
+            Delete
+          </button>
+        )
+      }
+    </div>
+  </form>
+</AdminLayout>
+
+<script>
+  document.querySelector<HTMLButtonElement>('[data-delete]')?.addEventListener('click', (e) => {
+    if (!confirm('Delete this job listing? This cannot be undone.')) e.preventDefault();
+  });
+</script>
+
+<style>
+  .back {
+    margin-bottom: 1rem;
+  }
+
+  .statuses {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    gap: 0.75rem;
+  }
+
+  .status {
+    display: flex;
+    gap: 0.7rem;
+    align-items: flex-start;
+    padding: 0.9rem 1rem;
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    cursor: pointer;
+  }
+
+  .status:has(input:checked) {
+    border-color: var(--green);
+    background: var(--green-50);
+  }
+
+  .status input {
+    margin-top: 0.3rem;
+    accent-color: var(--green);
+  }
+
+  .status span {
+    display: grid;
+    line-height: 1.3;
+  }
+
+  .status small {
+    color: var(--muted);
+  }
+</style>

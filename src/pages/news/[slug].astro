@@ -1,0 +1,23 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import NewsPost from '~/views/NewsPost.astro';
+import NotFound from '~/views/NotFound.astro';
+import { cachePublic } from '~/lib/cache';
+import { getPublishedNews, listPublishedNews } from '~/lib/content';
+import { pickLang } from '~/lib/forms';
+
+export const prerender = false;
+
+const lang = 'en';
+const post = await getPublishedNews(Astro.params.slug ?? '');
+if (!post) Astro.response.status = 404;
+const more = post ? (await listPublishedNews(4)).filter((p) => p.id !== post.id).slice(0, 3) : [];
+// Missing posts are cached too (tagged), so a later publish under this address clears them.
+cachePublic(Astro.response.headers, ['news']);
+const title = post ? pickLang(post.title_en, post.title_ne, lang) : '404';
+const description = post ? pickLang(post.summary_en, post.summary_ne, lang) || undefined : undefined;
+---
+
+<BaseLayout title={title} description={description} noindex={!post}>
+  {post ? <NewsPost lang={lang} post={post} more={more} /> : <NotFound />}
+</BaseLayout>

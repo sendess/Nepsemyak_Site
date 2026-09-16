@@ -1,12 +1,18 @@
 ---
 import BaseLayout from '~/layouts/BaseLayout.astro';
-import View from '~/views/News.astro';
+import News from '~/views/News.astro';
+import { cachePublic } from '~/lib/cache';
+import { listPublishedNews } from '~/lib/content';
 import { useTranslations } from '~/i18n/utils';
+
+export const prerender = false;
 
 const lang = 'en';
 const t = useTranslations(lang);
+const posts = await listPublishedNews();
+cachePublic(Astro.response.headers, ['news']);
 ---
 
-<BaseLayout title={t('news.title')} description={t('news.intro')}>
-  <View lang={lang} />
+<BaseLayout title={t('news.title')} description={t('news.latestIntro')}>
+  <News lang={lang} posts={posts} />
 </BaseLayout>

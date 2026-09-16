@@ -1,0 +1,146 @@
+---
+/**
+ * Image picker that resizes in the browser (max 1600px, WebP) before uploading,
+ * so phone photos of several MB become ~150 KB. Stores the media id in a hidden input.
+ */
+type Props = { name: string; label: string; mediaId: string | null; hint?: string };
+const { name, label, mediaId, hint } = Astro.props;
+---
+
+<div class="image-field" data-image-field>
+  <span class="label">{label}</span>
+  {hint && <p class="hint">{hint}</p>}
+  <input type="hidden" name={name} value={mediaId ?? ''} data-media-id />
+  <div class="preview" data-preview hidden={!mediaId}>
+    <img src={mediaId ? `/media/${mediaId}` : ''} alt="" data-preview-img />
+    <button class="btn btn-danger btn-sm" type="button" data-remove>Remove image</button>
+  </div>
+  <label class="drop" data-drop hidden={!!mediaId}>
+    <input type="file" accept="image/jpeg,image/png,image/webp" data-file />
+    <span class="drop-title">Choose a photo</span>
+    <span class="hint">JPEG, PNG or WebP. Large photos are resized automatically.</span>
+  </label>
+  <p class="status" data-status role="status"></p>
+</div>
+
+<script>
+  const MAX_SIDE = 1600;
+
+  async function resize(file: File): Promise<{ blob: Blob; width: number; height: number }> {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.82));
+    if (!blob) throw new Error('This browser could not convert the image.');
+    return { blob, width, height };
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-image-field]').forEach((root) => {
+    const idInput = root.querySelector<HTMLInputElement>('[data-media-id]')!;
+    const fileInput = root.querySelector<HTMLInputElement>('[data-file]')!;
+    const preview = root.querySelector<HTMLElement>('[data-preview]')!;
+    const img = root.querySelector<HTMLImageElement>('[data-preview-img]')!;
+    const drop = root.querySelector<HTMLElement>('[data-drop]')!;
+    const status = root.querySelector<HTMLElement>('[data-status]')!;
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      status.textContent = 'Resizing and uploading…';
+      try {
+        const { blob, width, height } = await resize(file);
+        const body = new FormData();
+        body.append('file', blob, 'image.webp');
+        body.append('width', String(width));
+        body.append('height', String(height));
+        const res = await fetch('/api/admin/media', { method: 'POST', body });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message ?? 'Upload failed.');
+        idInput.value = data.id;
+        img.src = data.url;
+        preview.hidden = false;
+        drop.hidden = true;
+        status.textContent = `Uploaded (${Math.round(blob.size / 1024)} KB). Remember to save.`;
+      } catch (err) {
+        status.textContent = err instanceof Error ? err.message : 'Upload failed.';
+      } finally {
+        fileInput.value = '';
+      }
+    });
+
+    root.querySelector('[data-remove]')?.addEventListener('click', () => {
+      idInput.value = '';
+      preview.hidden = true;
+      drop.hidden = false;
+      status.textContent = 'Image removed. Remember to save.';
+    });
+  });
+</script>
+
+<style>
+  .image-field {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .label {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .preview {
+    display: grid;
+    gap: 0.75rem;
+    justify-items: start;
+  }
+
+  .preview img {
+    width: min(100%, 420px);
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+  }
+
+  .drop {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0.25rem;
+    padding: 1.75rem 1rem;
+    border: 2px dashed var(--line-strong);
+    border-radius: 14px;
+    background: #fafbf9;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .drop:hover {
+    border-color: var(--green);
+    background: var(--green-50);
+  }
+
+  .drop input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .drop-title {
+    font-weight: 600;
+    color: var(--green-700);
+  }
+
+  .status {
+    min-height: 1.2em;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+</style>

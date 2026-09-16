@@ -1,0 +1,89 @@
+---
+/** English and Nepali inputs side by side for one piece of content. */
+type Props = {
+  name: string;
+  label: string;
+  values: { en: string; ne: string };
+  multiline?: boolean;
+  rows?: number;
+  max?: number;
+  hint?: string;
+  error?: string;
+};
+const { name, label, values, multiline = false, rows = 4, max = 200, hint, error } = Astro.props;
+const langs = [
+  { code: 'en', label: 'English', lang: 'en' },
+  { code: 'ne', label: 'नेपाली', lang: 'ne' },
+] as const;
+---
+
+<fieldset class="bilingual">
+  <legend>{label}</legend>
+  {hint && <p class="hint">{hint}</p>}
+  <div class="pair">
+    {
+      langs.map((l) => (
+        <div class="field">
+          <label for={`${name}_${l.code}`}>
+            <span class="lang-tag">{l.code.toUpperCase()}</span> {l.label}
+          </label>
+          {multiline ? (
+            <textarea
+              class="textarea"
+              id={`${name}_${l.code}`}
+              name={`${name}_${l.code}`}
+              rows={rows}
+              maxlength={max}
+              lang={l.lang}
+              set:text={values[l.code]}
+            />
+          ) : (
+            <input class="input" id={`${name}_${l.code}`} name={`${name}_${l.code}`} value={values[l.code]} maxlength={max} lang={l.lang} />
+          )}
+        </div>
+      ))
+    }
+  </div>
+  {error && <p class="field-error">{error}</p>}
+</fieldset>
+
+<style>
+  .bilingual {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+
+  legend {
+    margin-bottom: 0.35rem;
+    padding: 0;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: 0.9rem;
+  }
+
+  label {
+    font-weight: 400 !important;
+    font-size: 0.9rem !important;
+    color: var(--muted) !important;
+  }
+
+  .lang-tag {
+    display: inline-block;
+    padding: 0 0.35rem;
+    border-radius: 5px;
+    background: var(--green-100);
+    color: var(--green-800);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+</style>

@@ -10,14 +10,20 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "db:migrate": "node --env-file=.env.local scripts/db.mjs migrate",
+    "db:status": "node --env-file=.env.local scripts/db.mjs status",
+    "db:add-admin": "node --env-file=.env.local scripts/db.mjs add-admin"
   },
   "dependencies": {
+    "@astrojs/netlify": "^8.2.6",
     "@astrojs/sitemap": "^3.7.4",
     "@lucide/astro": "^1.46.0",
     "@neon/config": "^1.7.0",
     "@neon/env": "^1.4.0",
+    "@neondatabase/auth": "0.5.0-beta",
     "@neondatabase/serverless": "^1.1.0",
+    "@netlify/functions": "^5.3.0",
     "astro": "^7.3.3",
     "nepali-date-converter": "^3.4.0"
   },

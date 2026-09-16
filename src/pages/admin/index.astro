@@ -1,0 +1,142 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import StatusBadge from '~/components/admin/StatusBadge.astro';
+import { dashboardCounts, getCurrentNotice } from '~/lib/content';
+
+export const prerender = false;
+
+const [counts, notice] = await Promise.all([dashboardCounts(), getCurrentNotice()]);
+const admin = Astro.locals.admin!;
+const mediaMb = (Number(counts.media_bytes) / 1_000_000).toFixed(1);
+
+const tiles = [
+  { href: '/admin/news', icon: 'newspaper', value: counts.news_published, label: 'Published news posts', extra: `${counts.news_drafts} draft(s)` },
+  { href: '/admin/jobs', icon: 'briefcase', value: counts.jobs_open, label: 'Open job listings', extra: 'Shown on Careers' },
+  { href: '/admin/users', icon: 'users', value: counts.admins, label: 'People with admin access', extra: `${mediaMb} MB of images stored` },
+] as const;
+---
+
+<AdminLayout title="Dashboard">
+  <p class="welcome">Namaste, {admin.name || admin.email}.</p>
+
+  <section class="notice-card" aria-labelledby="notice-title">
+    <div>
+      <h2 id="notice-title">Site notice</h2>
+      {
+        notice ? (
+          <p>
+            <StatusBadge status={notice.tone} /> {notice.message_en || notice.message_ne}
+          </p>
+        ) : (
+          <p class="muted">No notice is showing on the website.</p>
+        )
+      }
+    </div>
+    <a class="btn btn-primary btn-sm" href="/admin/notices">
+      <Icon name="megaphone" size={16} />
+      {notice ? 'Manage notice' : 'Post a notice'}
+    </a>
+  </section>
+
+  <div class="tiles">
+    {
+      tiles.map((tile) => (
+        <a class="tile" href={tile.href}>
+          <span class="icon-tile">
+            <Icon name={tile.icon} size={22} />
+          </span>
+          <strong>{tile.value}</strong>
+          <span>{tile.label}</span>
+          <small>{tile.extra}</small>
+        </a>
+      ))
+    }
+  </div>
+
+  <section class="form-section quick">
+    <h2>Quick actions</h2>
+    <div class="quick-links">
+      <a class="btn btn-ghost" href="/admin/news/new"><Icon name="newspaper" size={18} /> Write a news post</a>
+      <a class="btn btn-ghost" href="/admin/jobs/new"><Icon name="briefcase" size={18} /> Add a job</a>
+      <a class="btn btn-ghost" href="/admin/notices#new"><Icon name="megaphone" size={18} /> Post a notice</a>
+    </div>
+    <p class="hint">
+      Changes appear on the website within a few seconds of saving. Everything can be written in English, Nepali or both —
+      if one language is empty, visitors see the other.
+    </p>
+  </section>
+</AdminLayout>
+
+<style>
+  .welcome {
+    margin-bottom: 1.25rem;
+    font-size: 1.1rem;
+    color: var(--ink);
+  }
+
+  .notice-card {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    border-radius: var(--radius);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--yellow);
+  }
+
+  .notice-card p {
+    margin-top: 0.35rem;
+  }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .tile {
+    display: grid;
+    gap: 0.2rem;
+    padding: 1.25rem;
+    border-radius: var(--radius);
+    background: #fff;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    text-decoration: none;
+    transition: border-color 0.2s, transform 0.2s var(--ease);
+  }
+
+  .tile:hover {
+    border-color: var(--green-200);
+    transform: translateY(-2px);
+    color: var(--muted);
+  }
+
+  .tile .icon-tile {
+    margin-bottom: 0.5rem;
+  }
+
+  .tile strong {
+    font-family: var(--font-head);
+    font-size: 2rem;
+    line-height: 1.1;
+    color: var(--green-700);
+  }
+
+  .tile span {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .quick-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+</style>

@@ -1,0 +1,71 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import StatusBadge from '~/components/admin/StatusBadge.astro';
+import { listNotices, type Notice } from '~/lib/content';
+import { formatNpt } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const notices = await listNotices();
+const now = Date.now();
+const state = (n: Notice) => {
+  if (!n.is_active) return 'inactive';
+  if (Date.parse(n.starts_at) > now) return 'scheduled';
+  if (n.ends_at && Date.parse(n.ends_at) <= now) return 'expired';
+  return 'active';
+};
+const flash = Astro.url.searchParams.get('done');
+---
+
+<AdminLayout title="Notices">
+  {flash && <p class="flash"><Icon name="circle-check" size={20} /> Notice {flash}. The website updates within seconds.</p>}
+
+  <div class="toolbar">
+    <p class="hint">
+      A notice appears as a banner at the top of every page — for collection delays, holidays or urgent updates. Only the
+      newest active notice is shown.
+    </p>
+    <a class="btn btn-primary" href="/admin/notices/new" id="new"><Icon name="megaphone" size={18} /> New notice</a>
+  </div>
+
+  {
+    notices.length === 0 ? (
+      <div class="empty-state">
+        <Icon name="megaphone" size={32} />
+        <p>No notices yet.</p>
+      </div>
+    ) : (
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Message</th>
+              <th scope="col">Type</th>
+              <th scope="col">Status</th>
+              <th scope="col">Showing</th>
+            </tr>
+          </thead>
+          <tbody>
+            {notices.map((n) => (
+              <tr>
+                <td>
+                  <a href={`/admin/notices/${n.id}`}>{n.message_en || n.message_ne}</a>
+                </td>
+                <td>
+                  <StatusBadge status={n.tone} />
+                </td>
+                <td>
+                  <StatusBadge status={state(n)} />
+                </td>
+                <td class="hint">
+                  {formatNpt(n.starts_at)} → {n.ends_at ? formatNpt(n.ends_at) : 'until turned off'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+</AdminLayout>

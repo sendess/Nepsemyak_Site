@@ -1,0 +1,69 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import StatusBadge from '~/components/admin/StatusBadge.astro';
+import { listAllJobs } from '~/lib/content';
+import { formatDay, todayNpt } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const jobs = await listAllJobs();
+const today = todayNpt();
+const flash = Astro.url.searchParams.get('done');
+---
+
+<AdminLayout title="Jobs" wide>
+  {flash && <p class="flash"><Icon name="circle-check" size={20} /> Job {flash}.</p>}
+
+  <div class="toolbar">
+    <p class="hint">Open jobs appear on the Careers page. They hide automatically after the deadline.</p>
+    <a class="btn btn-primary" href="/admin/jobs/new"><Icon name="briefcase" size={18} /> Add a job</a>
+  </div>
+
+  {
+    jobs.length === 0 ? (
+      <div class="empty-state">
+        <Icon name="briefcase" size={32} />
+        <p>No job listings. The Careers page says there are no openings right now.</p>
+      </div>
+    ) : (
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Position</th>
+              <th scope="col">Location</th>
+              <th scope="col">Openings</th>
+              <th scope="col">Deadline</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.map((j) => (
+              <tr>
+                <td>
+                  <a href={`/admin/jobs/${j.id}`}>{j.title_en || j.title_ne}</a>
+                </td>
+                <td>{j.location_en || j.location_ne || '—'}</td>
+                <td>{j.openings ?? '—'}</td>
+                <td>
+                  {formatDay(j.deadline)}
+                  {j.status === 'open' && j.deadline && j.deadline < today && <small class="expired"> (passed)</small>}
+                </td>
+                <td>
+                  <StatusBadge status={j.status} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .expired {
+    color: #b42318;
+  }
+</style>

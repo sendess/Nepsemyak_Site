@@ -1,7 +1,5 @@
 ---
-import { Image } from 'astro:assets';
 import Icon from './Icon.astro';
-import logo from '~/assets/images/logo.png';
 import { org } from '~/data/site';
 import { localizePath, stripLang, useTranslations, type Lang } from '~/i18n/utils';
 import type { IconName } from './icons';
@@ -35,7 +33,7 @@ const links = [
   <div class="container bar">
     <a class="brand" href={href('/')} aria-label={`${org.legalName[lang]} — ${t('site.home')}`}>
       <span class="brand-logo">
-        <Image src={logo} alt="" width={56} height={56} loading="eager" />
+        <img src="/images/logo-96.webp" alt="" width="48" height="48" />
       </span>
       <span class="brand-text">
         <span class="brand-name">{org.name[lang]}</span>

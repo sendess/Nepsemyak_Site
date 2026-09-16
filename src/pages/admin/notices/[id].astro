@@ -1,0 +1,194 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import BilingualField from '~/components/admin/BilingualField.astro';
+import { deleteNotice, getNotice, NOTICE_TONES, saveNotice, type NoticeInput } from '~/lib/content';
+import { FormReader } from '~/lib/forms';
+import { parseId, toNptInput } from '~/lib/admin-format';
+import { purge } from '~/lib/cache';
+
+export const prerender = false;
+
+const id = parseId(Astro.params.id);
+if (id === null) return Astro.redirect('/admin/notices', 303);
+const existing = id === 'new' ? null : await getNotice(id);
+if (id !== 'new' && !existing) return Astro.redirect('/admin/notices', 303);
+
+let values: NoticeInput = existing
+  ? { ...existing, starts_at: existing.starts_at }
+  : { message_en: '', message_ne: '', link_url: null, tone: 'info', is_active: true, starts_at: null, ends_at: null };
+let errors: Record<string, string> = {};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const by = Astro.locals.admin!.email;
+
+  if (form.get('_action') === 'delete' && existing) {
+    await deleteNotice(existing.id);
+    await purge(['notice']);
+    return Astro.redirect('/admin/notices?done=deleted', 303);
+  }
+
+  const f = new FormReader(form);
+  values = {
+    message_en: f.text('message_en', { max: 280, label: 'Message' }),
+    message_ne: f.text('message_ne', { max: 280, label: 'Message' }),
+    link_url: f.url('link_url', { label: 'Link' }),
+    tone: f.choice('tone', NOTICE_TONES, 'info'),
+    is_active: f.checkbox('is_active'),
+    starts_at: f.dateTime('starts_at', { label: 'Start' }),
+    ends_at: f.dateTime('ends_at', { label: 'End' }),
+  };
+  f.requireOneOf(values.message_en, values.message_ne, 'message', 'Message');
+  if (values.starts_at && values.ends_at && Date.parse(values.ends_at) <= Date.parse(values.starts_at)) {
+    f.errors.ends_at = 'End must be after the start.';
+  }
+  errors = f.errors;
+
+  if (f.ok) {
+    await saveNotice(existing?.id ?? null, values, by);
+    await purge(['notice']);
+    return Astro.redirect(`/admin/notices?done=${existing ? 'updated' : 'published'}`, 303);
+  }
+}
+
+const tones = [
+  { value: 'info', label: 'Information', desc: 'General updates' },
+  { value: 'warning', label: 'Delay / warning', desc: 'Collection delays, holidays' },
+  { value: 'urgent', label: 'Urgent', desc: 'Strikes, landfill closures, emergencies' },
+];
+---
+
+<AdminLayout title={existing ? 'Edit notice' : 'New notice'}>
+  <a class="link-arrow back" href="/admin/notices"><Icon name="arrow-left" size={16} /> All notices</a>
+  {Object.keys(errors).length > 0 && <p class="flash error">Please fix the highlighted fields.</p>}
+
+  <form method="post" class="form-grid">
+    <section class="form-section">
+      <BilingualField
+        name="message"
+        label="Message"
+        values={{ en: values.message_en, ne: values.message_ne }}
+        multiline
+        rows={3}
+        max={280}
+        hint="Keep it short — one or two sentences."
+        error={errors.message ?? errors.message_en ?? errors.message_ne}
+      />
+      <div class="field">
+        <label for="link_url">Link (optional)</label>
+        <input class="input" id="link_url" name="link_url" value={values.link_url ?? ''} placeholder="/news or https://…" />
+        <p class="hint">Visitors can click the banner to read more.</p>
+        {errors.link_url && <p class="field-error">{errors.link_url}</p>}
+      </div>
+    </section>
+
+    <section class="form-section">
+      <h2>Type</h2>
+      <div class="tones">
+        {
+          tones.map((tone) => (
+            <label class:list={['tone', tone.value]}>
+              <input type="radio" name="tone" value={tone.value} checked={values.tone === tone.value} />
+              <span>
+                <strong>{tone.label}</strong>
+                <small>{tone.desc}</small>
+              </span>
+            </label>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="form-section">
+      <h2>When to show it</h2>
+      <div class="row-2">
+        <div class="field">
+          <label for="starts_at">Start (Nepal time)</label>
+          <input class="input" type="datetime-local" id="starts_at" name="starts_at" value={toNptInput(values.starts_at)} />
+          <p class="hint">Leave empty to show immediately.</p>
+          {errors.starts_at && <p class="field-error">{errors.starts_at}</p>}
+        </div>
+        <div class="field">
+          <label for="ends_at">End (Nepal time, optional)</label>
+          <input class="input" type="datetime-local" id="ends_at" name="ends_at" value={toNptInput(values.ends_at)} />
+          <p class="hint">The banner disappears automatically after this.</p>
+          {errors.ends_at && <p class="field-error">{errors.ends_at}</p>}
+        </div>
+      </div>
+      <label class="check-row">
+        <input type="checkbox" name="is_active" checked={values.is_active} />
+        Show this notice on the website
+      </label>
+    </section>
+
+    <div class="actions-bar">
+      <button class="btn btn-primary" type="submit" name="_action" value="save">
+        <Icon name="check" size={18} />
+        {existing ? 'Save changes' : 'Publish notice'}
+      </button>
+      {
+        existing && (
+          <button class="btn btn-danger" type="submit" name="_action" value="delete" formnovalidate data-delete>
+            Delete
+          </button>
+        )
+      }
+    </div>
+  </form>
+</AdminLayout>
+
+<script>
+  document.querySelector<HTMLButtonElement>('[data-delete]')?.addEventListener('click', (e) => {
+    if (!confirm('Delete this notice? This cannot be undone.')) e.preventDefault();
+  });
+</script>
+
+<style>
+  .back {
+    margin-bottom: 1rem;
+  }
+
+  .tones {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    gap: 0.75rem;
+  }
+
+  .tone {
+    display: flex;
+    gap: 0.7rem;
+    align-items: flex-start;
+    padding: 0.9rem 1rem;
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    cursor: pointer;
+  }
+
+  .tone:has(input:checked) {
+    border-color: var(--green);
+    background: var(--green-50);
+  }
+
+  .tone input {
+    margin-top: 0.3rem;
+    accent-color: var(--green);
+  }
+
+  .tone span {
+    display: grid;
+    line-height: 1.3;
+  }
+
+  .tone small {
+    color: var(--muted);
+  }
+
+  .tone.warning strong {
+    color: #6b5300;
+  }
+
+  .tone.urgent strong {
+    color: #912018;
+  }
+</style>

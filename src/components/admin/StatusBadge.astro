@@ -1,0 +1,58 @@
+---
+type Props = { status: string };
+const { status } = Astro.props;
+const tone: Record<string, string> = {
+  published: 'good',
+  open: 'good',
+  active: 'good',
+  draft: 'muted',
+  closed: 'muted',
+  inactive: 'muted',
+  scheduled: 'info',
+  expired: 'muted',
+  owner: 'info',
+  editor: 'muted',
+  info: 'info',
+  warning: 'warn',
+  urgent: 'bad',
+};
+---
+
+<span class:list={['badge', tone[status] ?? 'muted']}>{status}</span>
+
+<style>
+  .badge {
+    display: inline-block;
+    padding: 0.1rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    white-space: nowrap;
+  }
+
+  .good {
+    background: var(--green-100);
+    color: var(--green-800);
+  }
+
+  .muted {
+    background: #eef0ee;
+    color: #4b5563;
+  }
+
+  .info {
+    background: #e3eefa;
+    color: #1d4f86;
+  }
+
+  .warn {
+    background: #fff4c2;
+    color: #6b5300;
+  }
+
+  .bad {
+    background: #fde8e6;
+    color: #912018;
+  }
+</style>

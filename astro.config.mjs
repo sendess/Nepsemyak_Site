@@ -1,10 +1,30 @@
 // @ts-check
-import { defineConfig, fontProviders } from 'astro/config';
+import { defineConfig, envField, fontProviders } from 'astro/config';
+import netlify from '@astrojs/netlify';
 import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
   site: 'https://nepsemyak.com.np',
   trailingSlash: 'ignore',
+
+  // Pages are pre-rendered by default. Pages that read the database
+  // (news, careers, home, admin) opt out with `export const prerender = false`.
+  adapter: netlify({
+    // Build-time image optimization only; on-demand pages use pre-sized files in public/.
+    imageCDN: false,
+    // No edge functions are used; skip the local Deno emulator.
+    devFeatures: { images: false, environmentVariables: false, edgeFunctions: false },
+  }),
+  // Astro sessions are unused (sign-in is handled by Neon Auth), so no Netlify Blobs store is created.
+  session: false,
+
+  env: {
+    schema: {
+      DATABASE_URL: envField.string({ context: 'server', access: 'secret' }),
+      NEON_AUTH_BASE_URL: envField.string({ context: 'server', access: 'secret' }),
+      NEON_AUTH_COOKIE_SECRET: envField.string({ context: 'server', access: 'secret', min: 32 }),
+    },
+  },
 
   i18n: {
     locales: ['en', 'ne'],
@@ -34,7 +54,7 @@ export default defineConfig({
   integrations: [
     sitemap({
       i18n: { defaultLocale: 'en', locales: { en: 'en-NP', ne: 'ne-NP' } },
-      filter: (page) => !page.includes('/contact/sent'),
+      filter: (page) => !page.includes('/contact/sent') && !page.includes('/admin'),
     }),
   ],
 });

@@ -1,0 +1,159 @@
+---
+import Icon from './Icon.astro';
+import type { NewsPost } from '~/lib/content';
+import { pickLang } from '~/lib/forms';
+import { branches } from '~/data/site';
+import { formatDate, localizePath, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { post: NewsPost; lang: Lang; featured?: boolean };
+const { post, lang, featured = false } = Astro.props;
+const t = useTranslations(lang);
+const title = pickLang(post.title_en, post.title_ne, lang);
+const summary = pickLang(post.summary_en, post.summary_ne, lang);
+const office = branches.find((b) => b.id === post.branch)?.name[lang] ?? t('news.companyWide');
+const href = localizePath(`/news/${post.slug}/`, lang);
+---
+
+<article class:list={['news-card', { featured }]}>
+  <a class="cover" href={href} tabindex="-1" aria-hidden="true">
+    {
+      post.cover_media_id ? (
+        <img src={`/media/${post.cover_media_id}`} alt="" loading="lazy" decoding="async" />
+      ) : (
+        <span class="placeholder">
+          <Icon name="newspaper" size={40} />
+        </span>
+      )
+    }
+  </a>
+  <div class="body">
+    <p class="meta">
+      <time datetime={post.published_on}>{formatDate(post.published_on, lang)}</time>
+      <span aria-hidden="true">·</span>
+      <span>{office}</span>
+    </p>
+    <h3 class="title"><a href={href}>{title}</a></h3>
+    {summary && <p class="summary">{summary}</p>}
+    <span class="link-arrow">
+      {t('news.readMore')}
+      <Icon name="arrow-right" size={16} />
+    </span>
+  </div>
+</article>
+
+<style>
+  .news-card {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    transition:
+      transform 0.25s var(--ease),
+      box-shadow 0.25s var(--ease);
+  }
+
+  .news-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+  }
+
+  .cover {
+    display: block;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: var(--green-50);
+  }
+
+  .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s var(--ease);
+  }
+
+  .news-card:hover .cover img {
+    transform: scale(1.04);
+  }
+
+  .placeholder {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    color: var(--green-200);
+    background:
+      radial-gradient(circle at 1px 1px, var(--green-100) 1px, transparent 0) 0 0 / 16px 16px,
+      linear-gradient(135deg, var(--green-50), #fff);
+  }
+
+  .body {
+    display: grid;
+    align-content: start;
+    gap: 0.6rem;
+    padding: 1.25rem 1.4rem 1.5rem;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+
+  .title {
+    font-size: 1.2rem;
+    line-height: 1.3;
+  }
+
+  :global(:lang(ne)) .title {
+    line-height: 1.5;
+  }
+
+  .title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Whole card is clickable through the title link. */
+  .title a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  .summary {
+    color: var(--muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .link-arrow {
+    margin-top: 0.25rem;
+  }
+
+  .news-card:hover .link-arrow :global(.icon) {
+    transform: translateX(4px);
+  }
+
+  @media (min-width: 900px) {
+    .featured {
+      grid-column: span 2;
+      grid-template-columns: 1.2fr 1fr;
+      grid-template-rows: 1fr;
+    }
+
+    .featured .cover {
+      aspect-ratio: auto;
+      min-height: 100%;
+    }
+
+    .featured .title {
+      font-size: 1.6rem;
+    }
+  }
+</style>

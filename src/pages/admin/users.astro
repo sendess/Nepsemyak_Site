@@ -1,0 +1,177 @@
+---
+import { handleAuthProxyRequest } from '@neondatabase/auth/server';
+import { NEON_AUTH_BASE_URL, NEON_AUTH_COOKIE_SECRET } from 'astro:env/server';
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import StatusBadge from '~/components/admin/StatusBadge.astro';
+import { listAdmins, removeAdmin, upsertAdmin } from '~/lib/content';
+import { FormReader } from '~/lib/forms';
+import { formatNpt } from '~/lib/admin-format';
+import type { AdminRole } from '~/lib/auth';
+
+export const prerender = false;
+
+const me = Astro.locals.admin!;
+if (me.role !== 'owner') return Astro.redirect('/admin', 303);
+
+let message: { kind: 'ok' | 'error'; text: string } | null = null;
+let errors: Record<string, string> = {};
+
+/**
+ * Create the Neon Auth sign-in account. Public sign-up is disabled, so accounts are
+ * created here by an owner (who has the Neon Auth "admin" role). The random password
+ * is never shown or stored — staff sign in with emailed codes.
+ */
+async function createSignInAccount(email: string, name: string): Promise<string | null> {
+  const password = crypto.getRandomValues(new Uint8Array(32)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
+  const headers = new Headers(Astro.request.headers);
+  headers.set('content-type', 'application/json');
+  headers.delete('content-length');
+  const request = new Request(new URL('/api/auth/admin/create-user', Astro.url), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ email, name: name || email, password, role: 'user' }),
+  });
+  const res = await handleAuthProxyRequest({
+    request,
+    path: 'admin/create-user',
+    baseUrl: NEON_AUTH_BASE_URL,
+    cookieSecret: NEON_AUTH_COOKIE_SECRET,
+    sameSite: 'lax',
+  });
+  if (res.ok) return null;
+  const data = await res.json().catch(() => ({}));
+  if (data.code === 'USER_ALREADY_EXISTS' || /already exist/i.test(data.message ?? '')) return null;
+  return data.message ?? `Neon Auth returned ${res.status}`;
+}
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('_action');
+
+  if (action === 'remove') {
+    const email = String(form.get('email') ?? '').toLowerCase();
+    if (email === me.email) {
+      message = { kind: 'error', text: 'You cannot remove yourself.' };
+    } else {
+      await removeAdmin(email);
+      message = { kind: 'ok', text: `${email} no longer has admin access.` };
+    }
+  }
+
+  if (action === 'add') {
+    const f = new FormReader(form);
+    const email = f.text('email', { max: 160, required: true, label: 'Email' }).toLowerCase();
+    const name = f.text('name', { max: 80 });
+    const role = f.choice<AdminRole>('role', ['owner', 'editor'], 'editor');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) f.errors.email = 'Enter a valid email address.';
+    errors = f.errors;
+
+    if (f.ok) {
+      await upsertAdmin(email, name, role, me.email);
+      const problem = await createSignInAccount(email, name);
+      message = problem
+        ? {
+            kind: 'error',
+            text: `${email} was added to the admin list, but the sign-in account could not be created (${problem}). Ask the site developer to create it.`,
+          }
+        : { kind: 'ok', text: `${email} can now sign in at /admin with an emailed code.` };
+    }
+  }
+}
+
+const admins = await listAdmins();
+---
+
+<AdminLayout title="Users">
+  {message && <p class:list={['flash', { error: message.kind === 'error' }]}>{message.text}</p>}
+
+  <section class="form-section">
+    <h2>Add someone</h2>
+    <p class="hint"><strong>Editors</strong> manage notices, news and jobs. <strong>Owners</strong> can also add and remove people.</p>
+    <form method="post" class="add">
+      <input type="hidden" name="_action" value="add" />
+      <div class="field">
+        <label for="email">Email</label>
+        <input class="input" id="email" name="email" type="email" required />
+        {errors.email && <p class="field-error">{errors.email}</p>}
+      </div>
+      <div class="field">
+        <label for="name">Name</label>
+        <input class="input" id="name" name="name" />
+      </div>
+      <div class="field">
+        <label for="role">Role</label>
+        <select class="select" id="role" name="role">
+          <option value="editor">Editor</option>
+          <option value="owner">Owner</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit"><Icon name="check" size={18} /> Add</button>
+    </form>
+  </section>
+
+  <div class="table-wrap list">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">Person</th>
+          <th scope="col">Role</th>
+          <th scope="col">Last active</th>
+          <th scope="col"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          admins.map((a) => (
+            <tr>
+              <td>
+                <strong>{a.name || a.email}</strong>
+                {a.name && <small class="email">{a.email}</small>}
+              </td>
+              <td>
+                <StatusBadge status={a.role} />
+              </td>
+              <td class="hint">{a.last_seen_at ? formatNpt(a.last_seen_at) : 'Never signed in'}</td>
+              <td>
+                {a.email !== me.email && (
+                  <form method="post" data-confirm={`Remove admin access for ${a.email}?`}>
+                    <input type="hidden" name="_action" value="remove" />
+                    <input type="hidden" name="email" value={a.email} />
+                    <button class="btn btn-danger btn-sm" type="submit">
+                      Remove
+                    </button>
+                  </form>
+                )}
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</AdminLayout>
+
+<style>
+  .add {
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1fr auto;
+    gap: 0.9rem;
+    align-items: end;
+  }
+
+  @media (max-width: 760px) {
+    .add {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .list {
+    margin-top: 1.25rem;
+  }
+
+  .email {
+    display: block;
+    color: var(--muted);
+  }
+</style>

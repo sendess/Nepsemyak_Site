@@ -1,0 +1,236 @@
+---
+import { Font } from 'astro:assets';
+import '~/styles/global.css';
+
+export const prerender = false;
+
+const { admin, signedInEmail } = Astro.locals;
+const nextParam = Astro.url.searchParams.get('next') ?? '';
+// Only same-site admin paths are allowed as a return destination.
+const next = /^\/admin(\/[\w\-/?=&%.]*)?$/.test(nextParam) ? nextParam : '/admin';
+if (admin) return Astro.redirect(next, 303);
+const denied = Astro.url.searchParams.has('denied') && signedInEmail;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Sign in · Nepsemyak admin</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <Font cssVariable="--font-body" preload />
+    <Font cssVariable="--font-display" />
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="panel">
+        <a class="brand" href="/">
+          <img src="/images/logo-96.webp" alt="" width="56" height="56" />
+          <span>
+            <strong>Nepsemyak</strong>
+            <small>Website admin</small>
+          </span>
+        </a>
+
+        {
+          denied ? (
+            <section class="step">
+              <h1 class="h3">No admin access</h1>
+              <p>
+                <strong>{signedInEmail}</strong> is signed in but is not on the admin list. Ask the site owner to add you, or sign in
+                with another email.
+              </p>
+              <button class="btn btn-primary" type="button" data-sign-out>
+                Use another email
+              </button>
+            </section>
+          ) : (
+            <>
+              <section class="step" data-step="email">
+                <h1 class="h3">Sign in</h1>
+                <p class="muted">We’ll email you a 6-digit code. No password needed.</p>
+                <form data-email-form>
+                  <div class="field">
+                    <label for="email">Work email</label>
+                    <input class="input" id="email" name="email" type="email" autocomplete="email" required />
+                  </div>
+                  <button class="btn btn-primary" type="submit">
+                    Email me a code
+                  </button>
+                </form>
+              </section>
+
+              <section class="step" data-step="code" hidden>
+                <h1 class="h3">Check your email</h1>
+                <p class="muted">
+                  If <strong data-email-echo /> has admin access, a code is on its way. It may take a minute — check spam too.
+                </p>
+                <form data-code-form>
+                  <div class="field">
+                    <label for="otp">6-digit code</label>
+                    <input
+                      class="input code"
+                      id="otp"
+                      name="otp"
+                      inputmode="numeric"
+                      autocomplete="one-time-code"
+                      pattern="[0-9]{6}"
+                      maxlength="6"
+                      required
+                    />
+                  </div>
+                  <button class="btn btn-primary" type="submit">
+                    Sign in
+                  </button>
+                  <button class="link" type="button" data-back>
+                    Use a different email
+                  </button>
+                </form>
+              </section>
+            </>
+          )
+        }
+        <p class="message" data-message role="alert"></p>
+      </div>
+    </main>
+
+    <script define:vars={{ next }}>
+      const message = document.querySelector('[data-message]');
+      const show = (step) => {
+        document.querySelectorAll('[data-step]').forEach((el) => (el.hidden = el.dataset.step !== step));
+        message.textContent = '';
+      };
+      const post = async (path, body) => {
+        const res = await fetch(`/api/auth/${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        return { ok: res.ok, data };
+      };
+      let email = '';
+
+      document.querySelector('[data-email-form]')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const button = e.target.querySelector('button');
+        button.disabled = true;
+        email = e.target.email.value.trim().toLowerCase();
+        const { ok, data } = await post('email-otp/send-verification-otp', { email, type: 'sign-in' });
+        button.disabled = false;
+        if (!ok) {
+          message.textContent = data.message ?? 'Could not send a code. Try again in a minute.';
+          return;
+        }
+        document.querySelector('[data-email-echo]').textContent = email;
+        show('code');
+        document.getElementById('otp').focus();
+      });
+
+      document.querySelector('[data-code-form]')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const button = e.target.querySelector('button[type=submit]');
+        button.disabled = true;
+        const { ok, data } = await post('sign-in/email-otp', { email, otp: e.target.otp.value.trim() });
+        if (ok) {
+          location.href = next;
+          return;
+        }
+        button.disabled = false;
+        message.textContent =
+          data.code === 'TOO_MANY_ATTEMPTS'
+            ? 'Too many attempts. Request a new code.'
+            : 'That code is not valid or has expired.';
+      });
+
+      document.querySelector('[data-back]')?.addEventListener('click', () => show('email'));
+
+      document.querySelector('[data-sign-out]')?.addEventListener('click', async () => {
+        await post('sign-out', {});
+        location.href = '/admin/login';
+      });
+    </script>
+
+    <style>
+      body {
+        min-height: 100vh;
+        background:
+          radial-gradient(700px 400px at 90% 0%, rgb(255 228 31 / 0.14), transparent 60%),
+          linear-gradient(160deg, var(--green-bright), var(--green) 45%, var(--slate));
+      }
+
+      .wrap {
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        padding: 1.5rem;
+      }
+
+      .panel {
+        display: grid;
+        gap: 1.5rem;
+        width: min(420px, 100%);
+        padding: clamp(1.5rem, 5vw, 2.5rem);
+        border-radius: var(--radius-lg);
+        background: #fff;
+        box-shadow: var(--shadow-lg);
+      }
+
+      .brand {
+        display: flex;
+        gap: 0.8rem;
+        align-items: center;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .brand img {
+        border-radius: 50%;
+      }
+
+      .brand span {
+        display: grid;
+        line-height: 1.2;
+      }
+
+      .brand strong {
+        font-family: var(--font-head);
+        font-size: 1.25rem;
+        color: var(--navy);
+      }
+
+      .brand small {
+        color: var(--muted);
+      }
+
+      .step,
+      form {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .code {
+        font-size: 1.6rem;
+        letter-spacing: 0.4em;
+        text-align: center;
+      }
+
+      .link {
+        justify-self: center;
+        border: 0;
+        background: none;
+        color: var(--green-700);
+        text-decoration: underline;
+        cursor: pointer;
+      }
+
+      .message {
+        min-height: 1.2em;
+        color: #b42318;
+        font-weight: 600;
+      }
+    </style>
+  </body>
+</html>

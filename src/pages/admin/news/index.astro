@@ -1,0 +1,103 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import StatusBadge from '~/components/admin/StatusBadge.astro';
+import { listAllNews } from '~/lib/content';
+import { branches } from '~/data/site';
+import { formatDay } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const posts = await listAllNews();
+const branchName = (id: string | null) => branches.find((b) => b.id === id)?.name.en ?? 'Company-wide';
+const flash = Astro.url.searchParams.get('done');
+---
+
+<AdminLayout title="News" wide>
+  {flash && <p class="flash"><Icon name="circle-check" size={20} /> Post {flash}.</p>}
+
+  <div class="toolbar">
+    <p class="hint">Published posts appear on the News page and the home page. Drafts are only visible here.</p>
+    <a class="btn btn-primary" href="/admin/news/new"><Icon name="newspaper" size={18} /> Write a post</a>
+  </div>
+
+  {
+    posts.length === 0 ? (
+      <div class="empty-state">
+        <Icon name="newspaper" size={32} />
+        <p>No posts yet. Share a cleaning campaign, training or announcement.</p>
+      </div>
+    ) : (
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Title</th>
+              <th scope="col">Date</th>
+              <th scope="col">Office</th>
+              <th scope="col">Status</th>
+              <th scope="col">
+                <span class="visually-hidden">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {posts.map((p) => (
+              <tr>
+                <td class="title-cell">
+                  {p.cover_media_id ? <img src={`/media/${p.cover_media_id}`} alt="" width="64" height="40" loading="lazy" /> : <span class="no-img" />}
+                  <span>
+                    <a href={`/admin/news/${p.id}`}>{p.title_en || p.title_ne}</a>
+                    {p.title_en && p.title_ne && <small lang="ne">{p.title_ne}</small>}
+                  </span>
+                </td>
+                <td class="nowrap">{formatDay(p.published_on)}</td>
+                <td>{branchName(p.branch)}</td>
+                <td>
+                  <StatusBadge status={p.status} />
+                </td>
+                <td class="nowrap">
+                  {p.status === 'published' && (
+                    <a class="link-arrow" href={`/news/${p.slug}`} target="_blank" rel="noopener">
+                      View <Icon name="arrow-up-right" size={14} />
+                    </a>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .title-cell {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .title-cell img,
+  .no-img {
+    flex: none;
+    width: 64px;
+    height: 40px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--green-50);
+  }
+
+  .title-cell span {
+    display: grid;
+  }
+
+  .title-cell small {
+    color: var(--muted);
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+</style>

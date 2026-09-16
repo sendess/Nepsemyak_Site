@@ -1,7 +1,5 @@
 ---
-import { Image } from 'astro:assets';
 import Icon from './Icon.astro';
-import logo from '~/assets/images/logo.png';
 import { org, branches, circle } from '~/data/site';
 import { formatDigits, localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
 
@@ -32,7 +30,7 @@ const year = new Date().getFullYear();
   <div class="container footer-grid">
     <div class="footer-brand">
       <a class="brand" href={href('/')}>
-        <span class="brand-logo"><Image src={logo} alt="" width={56} height={56} /></span>
+        <span class="brand-logo"><img src="/images/logo-96.webp" alt="" width="48" height="48" loading="lazy" /></span>
         <span class="brand-name">{org.legalName[lang]}</span>
       </a>
       <p class="about">{t('footer.about')}</p>

@@ -1,0 +1,88 @@
+---
+import Icon from './Icon.astro';
+import { org } from '~/data/site';
+import { localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
+
+/** `flush` removes the top padding when the previous section is also white. */
+type Props = { lang: Lang; title?: string; text?: string; flush?: boolean };
+const { lang, title, text, flush = false } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="section section-white" style={flush ? 'padding-top: 0' : undefined}>
+  <div class="container">
+    <div class="cta reveal">
+      <div class="copy">
+        <h2 class="h2">{title ?? t('home.cta.title')}</h2>
+        <p>{text ?? t('home.cta.text')}</p>
+      </div>
+      <div class="buttons">
+        <a class="btn btn-yellow" href={`${localizePath('/contact', lang)}#query`}>
+          <Icon name="send" size={18} />
+          {t('cta.query')}
+        </a>
+        <a class="btn btn-light" href={telHref(org.mainPhone)}>
+          <Icon name="phone" size={18} />
+          {t('home.cta.callCentral')}: {org.mainPhone}
+        </a>
+        <a class="btn btn-light" href={org.chatUrl} target="_blank" rel="noopener">
+          <Icon name="message-circle" size={18} />
+          {t('cta.chat')}
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 2rem;
+    align-items: center;
+    overflow: hidden;
+    padding: clamp(2rem, 5vw, 3.5rem);
+    border-radius: var(--radius-lg);
+    background:
+      radial-gradient(600px 300px at 100% 0%, rgb(255 228 31 / 0.2), transparent 60%),
+      linear-gradient(120deg, var(--green-bright), var(--green) 40%, var(--slate));
+    color: #eef6ea;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .cta::after {
+    content: '';
+    position: absolute;
+    right: -6rem;
+    bottom: -8rem;
+    width: 22rem;
+    height: 22rem;
+    border-radius: 50%;
+    border: 48px solid rgb(255 255 255 / 0.06);
+    pointer-events: none;
+  }
+
+  .copy {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .copy h2 {
+    color: #fff;
+  }
+
+  .buttons {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 0.75rem;
+    justify-items: stretch;
+  }
+
+  @media (max-width: 860px) {
+    .cta {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

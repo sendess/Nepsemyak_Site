@@ -1,0 +1,27 @@
+---
+import { icons, brandPaths, type IconName, type BrandName } from './icons';
+
+type Props = {
+  name: IconName | BrandName;
+  size?: number;
+  class?: string;
+  strokeWidth?: number;
+  /** Icons are decorative unless a label is given. */
+  label?: string;
+};
+
+const { name, size = 20, class: className, strokeWidth = 1.75, label } = Astro.props;
+const a11y = label ? { role: 'img' as const, 'aria-label': label } : { 'aria-hidden': 'true' as const };
+const isBrand = name in brandPaths;
+const Lucide = isBrand ? null : icons[name as IconName];
+---
+
+{
+  isBrand ? (
+    <svg class:list={['icon', className]} width={size} height={size} viewBox="0 0 24 24" fill="currentColor" {...a11y}>
+      <path d={brandPaths[name as BrandName]} />
+    </svg>
+  ) : (
+    Lucide && <Lucide class:list={['icon', className]} size={size} stroke-width={strokeWidth} {...a11y} />
+  )
+}

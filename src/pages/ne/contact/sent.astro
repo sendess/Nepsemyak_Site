@@ -1,0 +1,12 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import View from '~/views/ContactSent.astro';
+import { useTranslations } from '~/i18n/utils';
+
+const lang = 'ne';
+const t = useTranslations(lang);
+---
+
+<BaseLayout title={t('contact.sentTitle')} description={t('contact.sentText')} noindex>
+  <View lang={lang} />
+</BaseLayout>

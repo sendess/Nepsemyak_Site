@@ -1,0 +1,1015 @@
+---
+import { Image } from 'astro:assets';
+import Icon from '~/components/Icon.astro';
+import CountUp from '~/components/CountUp.astro';
+import SectionHead from '~/components/SectionHead.astro';
+import YouTube from '~/components/YouTube.astro';
+import FaqList from '~/components/FaqList.astro';
+import CtaBand from '~/components/CtaBand.astro';
+import chairmanPhoto from '~/assets/images/chairman.jpg';
+import { org } from '~/data/site';
+import { serviceStats, figure } from '~/data/stats';
+import { serviceGroups } from '~/data/services';
+import { journey, sortingGuide } from '~/data/home';
+import { aboutIntro, milestones, chairman } from '~/data/about';
+import { faqs } from '~/data/faq';
+import { formatDate, formatNumber, localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
+import type { IconName } from '~/components/icons';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+const href = (path: string) => localizePath(path, lang);
+const n = (v: number) => formatNumber(v, lang);
+
+const collected = figure(serviceStats.wastePerDay, 'total');
+const houses = figure(serviceStats.reach, 'houses');
+const people = figure(serviceStats.reach, 'population');
+const wards = figure(serviceStats.reach, 'wards');
+const municipalities = figure(serviceStats.reach, 'municipalities');
+
+const heroLead =
+  lang === 'ne'
+    ? `हामी दैनिक ${n(municipalities)} नगरपालिकाका ${n(houses)} घरबाट ${n(collected)} मेट्रिक टन फोहोर सङ्कलन गर्छौं, र सकेसम्म धेरै फोहोरलाई कम्पोस्ट मल तथा पुनःप्रशोधित वस्तुमा बदल्छौं।`
+    : `Every day we collect ${n(collected)} tonnes of waste from ${n(houses)} homes across ${n(municipalities)} municipalities — and turn as much of it as we can into compost and recycled products.`;
+
+const helpItems: { href: string; icon: IconName; title: string; desc: string; external?: boolean }[] = [
+  { href: `${href('/contact')}#query`, icon: 'send', title: t('home.help.query'), desc: t('home.help.queryDesc') },
+  { href: org.chatUrl, icon: 'message-circle', title: t('home.help.chat'), desc: t('home.help.chatDesc'), external: true },
+  { href: `${href('/contact')}#offices`, icon: 'map-pin', title: t('home.help.branch'), desc: t('home.help.branchDesc') },
+  { href: '#sorting', icon: 'recycle', title: t('home.help.sort'), desc: t('home.help.sortDesc') },
+];
+
+const stats = [
+  { value: collected, label: t('home.stats.collected') },
+  { value: houses, label: t('home.stats.houses') },
+  { value: people, label: t('home.stats.people') },
+  { value: wards, label: t('home.stats.wards').replace('{n}', n(municipalities)) },
+];
+---
+
+<!-- Hero -->
+<section class="hero">
+  <svg class="hero-art" viewBox="0 0 600 600" aria-hidden="true">
+    <g fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="420" cy="220" r="120"></circle>
+      <circle cx="420" cy="220" r="180"></circle>
+      <circle cx="420" cy="220" r="240"></circle>
+      <circle cx="420" cy="220" r="300"></circle>
+      <circle cx="420" cy="220" r="360"></circle>
+    </g>
+  </svg>
+  <div class="container hero-grid">
+    <div class="hero-copy">
+      <p class="hero-eyebrow">
+        <span class="dot" aria-hidden="true"></span>
+        {t('home.eyebrow')}
+      </p>
+      <h1>{t('home.title')}</h1>
+      <p class="hero-lead">{heroLead}</p>
+      <div class="hero-actions">
+        <a class="btn btn-yellow" href={`${href('/contact')}#query`}>
+          {t('cta.query')}
+          <Icon name="arrow-right" size={18} class="icon-shift" />
+        </a>
+        <a class="btn btn-light" href={href('/services')}>{t('cta.allServices')}</a>
+      </div>
+      <p class="hero-slogan">
+        <Icon name="quote" size={18} />
+        <span>{org.slogan[lang]}</span>
+      </p>
+    </div>
+
+    <aside class="help-card" aria-labelledby="help-title">
+      <h2 id="help-title">{t('home.helpTitle')}</h2>
+      <ul>
+        {
+          helpItems.map((item) => (
+            <li>
+              <a class="help-item" href={item.href} {...(item.external ? { target: '_blank', rel: 'noopener' } : {})}>
+                <span class="icon-tile">
+                  <Icon name={item.icon} size={22} />
+                </span>
+                <span class="help-text">
+                  <span class="help-title">{item.title}</span>
+                  <span class="help-desc">{item.desc}</span>
+                </span>
+                <Icon name={item.external ? 'arrow-up-right' : 'arrow-right'} size={18} class="help-arrow" />
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<!-- Stats -->
+<section class="stats-wrap" aria-label={t('nav.impact')}>
+  <div class="container">
+    <div class="stats">
+      {
+        stats.map((s) => (
+          <div class="stat">
+            <CountUp value={s.value} lang={lang} class="stat-value" />
+            <span class="stat-label">{s.label}</span>
+          </div>
+        ))
+      }
+    </div>
+    <p class="stats-foot">
+      <span>{t('common.dataAsOf')}: {formatDate(serviceStats.asOf, lang)}</span>
+      <a class="link-arrow" href={href('/impact')}>
+        {t('cta.fullImpact')}
+        <Icon name="arrow-right" size={16} />
+      </a>
+    </p>
+  </div>
+</section>
+
+<!-- Journey -->
+<section class="section section-white" aria-labelledby="journey-title">
+  <div class="container">
+    <SectionHead eyebrow={t('home.journey.eyebrow')} title={t('home.journey.title')} intro={t('home.journey.intro')} center id="journey-title" />
+    <ol class="journey">
+      {
+        journey.map((step, i) => (
+          <li class="journey-step reveal">
+            <span class="journey-icon">
+              <Icon name={step.icon} size={28} />
+              <span class="journey-num">{formatNumber(i + 1, lang)}</span>
+            </span>
+            <h3 class="h4">{step.title[lang]}</h3>
+            <p>{step.text[lang]}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
+
+<!-- Sorting guide -->
+<section class="section section-tint" id="sorting" aria-labelledby="sorting-title">
+  <div class="container">
+    <SectionHead eyebrow={t('home.sort.eyebrow')} title={t('home.sort.title')} intro={t('home.sort.intro')} id="sorting-title" />
+    <div class="sort-grid">
+      <article class="sort-card degradable reveal">
+        <header>
+          <span class="icon-tile lg solid"><Icon name="leaf" size={28} /></span>
+          <div>
+            <h3 class="h3">{t('home.sort.degradable')}</h3>
+            <p class="alt-name">{t('home.sort.degradableNe')}</p>
+          </div>
+          <span class="freq"><Icon name="calendar" size={16} /> {t('home.sort.degradableFreq')}</span>
+        </header>
+        <ul class="check-list">
+          {
+            sortingGuide.degradable.map((item) => (
+              <li>
+                <Icon name="check" size={18} />
+                <span>{item[lang]}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </article>
+      <article class="sort-card nondegradable reveal">
+        <header>
+          <span class="icon-tile lg solid"><Icon name="recycle" size={28} /></span>
+          <div>
+            <h3 class="h3">{t('home.sort.nondegradable')}</h3>
+            <p class="alt-name">{t('home.sort.nondegradableNe')}</p>
+          </div>
+          <span class="freq"><Icon name="calendar" size={16} /> {t('home.sort.nondegradableFreq')}</span>
+        </header>
+        <ul class="check-list">
+          {
+            sortingGuide.nonDegradable.map((item) => (
+              <li>
+                <Icon name="check" size={18} />
+                <span>{item[lang]}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </article>
+    </div>
+    <div class="tips">
+      <h3 class="h4">{t('home.sort.tipsTitle')}</h3>
+      <ul>
+        {
+          sortingGuide.tips.map((tip, i) => (
+            <li>
+              <Icon name={(['trash', 'truck', 'info'] as const)[i]} size={22} />
+              <span>{tip[lang]}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Services -->
+<section class="section section-white" aria-labelledby="services-title">
+  <div class="container">
+    <div class="split-head">
+      <SectionHead eyebrow={t('home.services.eyebrow')} title={t('home.services.title')} intro={t('home.services.intro')} id="services-title" />
+      <a class="btn btn-ghost" href={href('/services')}>
+        {t('cta.allServices')}
+        <Icon name="arrow-right" size={18} class="icon-shift" />
+      </a>
+    </div>
+    <div class="service-groups">
+      {
+        serviceGroups.map((group, i) => (
+          <a class:list={['group-card', 'reveal', `g${i + 1}`]} href={`${href('/services')}#${group.id}`}>
+            <span class="icon-tile lg">
+              <Icon name={group.icon} size={28} />
+            </span>
+            <h3 class="h3">{group.title[lang]}</h3>
+            <p>{group.summary[lang]}</p>
+            <ul class="group-list">
+              {group.services.map((s) => (
+                <li>{s.title[lang]}</li>
+              ))}
+            </ul>
+            <span class="link-arrow">
+              {t('cta.learnMore')}
+              <Icon name="arrow-right" size={16} />
+            </span>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<!-- About + documentary -->
+<section class="section section-dark" aria-labelledby="about-title">
+  <div class="container about-grid">
+    <div class="stack" style="--stack: 1.25rem">
+      <span class="eyebrow">{t('home.about.eyebrow')}</span>
+      <h2 class="h2" id="about-title">{t('home.about.title')}</h2>
+      <p class="lead">{aboutIntro[0][lang]}</p>
+      <ol class="mini-timeline">
+        {
+          milestones.map((m) => (
+            <li>
+              <span class="year">{m.year[lang]}</span>
+              <span>{m.title[lang]}</span>
+            </li>
+          ))
+        }
+      </ol>
+      <div>
+        <a class="btn btn-yellow" href={href('/about')}>
+          {t('cta.ourStory')}
+          <Icon name="arrow-right" size={18} class="icon-shift" />
+        </a>
+      </div>
+    </div>
+    <div class="reveal">
+      <YouTube id={org.youtubeVideoId} title={t('home.about.videoTitle')} label={t('home.about.video')} />
+    </div>
+  </div>
+</section>
+
+<!-- Chairman -->
+<section class="section section-tint" aria-labelledby="chairman-title">
+  <div class="container">
+    <figure class="chairman reveal">
+      <div class="chairman-photo">
+        <Image src={chairmanPhoto} alt={chairman.name[lang]} width={560} widths={[360, 560]} sizes="(max-width: 760px) 90vw, 360px" />
+      </div>
+      <div class="chairman-body">
+        <span class="eyebrow" id="chairman-title">{t('home.chairman.eyebrow')}</span>
+        <blockquote>
+          <Icon name="quote" size={40} class="quote-mark" />
+          <p>{chairman.excerpt[lang]}</p>
+          <p class="quote-more">{chairman.message[4][lang]}</p>
+        </blockquote>
+        <figcaption>
+          <strong>{chairman.name[lang]}</strong>
+          <span>{chairman.role[lang]}</span>
+        </figcaption>
+        <a class="link-arrow" href={`${href('/about')}#chairman`}>
+          {t('cta.readMessage')}
+          <Icon name="arrow-right" size={16} />
+        </a>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section section-white" aria-labelledby="faq-title">
+  <div class="container faq-grid">
+    <div class="stack" style="--stack: 1.25rem">
+      <span class="eyebrow">{t('home.faq.eyebrow')}</span>
+      <h2 class="h2" id="faq-title">{t('home.faq.title')}</h2>
+      <p class="lead">{t('faq.intro')}</p>
+      <div class="faq-actions">
+        <a class="btn btn-primary" href={href('/faq')}>
+          {t('cta.allQuestions')}
+          <Icon name="arrow-right" size={18} class="icon-shift" />
+        </a>
+        <a class="btn btn-ghost" href={telHref(org.mainPhone)}>
+          <Icon name="phone" size={18} />
+          {org.mainPhone}
+        </a>
+      </div>
+    </div>
+    <FaqList items={faqs.slice(0, 3)} lang={lang} openFirst />
+  </div>
+</section>
+
+<CtaBand lang={lang} flush />
+
+<style>
+  /* ---------- Hero ---------- */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    padding-block: clamp(3rem, 7vw, 5.5rem) clamp(7rem, 12vw, 9rem);
+    background:
+      radial-gradient(900px 500px at 80% 10%, rgb(255 228 31 / 0.12), transparent 60%),
+      linear-gradient(to bottom, var(--green-bright) 0%, var(--green) 45%, var(--slate) 100%);
+    color: #eef6ea;
+  }
+
+  .hero-art {
+    position: absolute;
+    top: -10%;
+    right: -15%;
+    width: min(900px, 110vw);
+    color: rgb(255 255 255 / 0.1);
+    pointer-events: none;
+  }
+
+  .hero-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: clamp(2rem, 5vw, 4.5rem);
+    align-items: center;
+  }
+
+  @media (max-width: 960px) {
+    .hero-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .hero-copy {
+    display: grid;
+    gap: 1.4rem;
+    justify-items: start;
+  }
+
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.35rem 0.9rem 0.35rem 0.6rem;
+    border-radius: 999px;
+    background: rgb(0 0 0 / 0.16);
+    border: 1px solid rgb(255 255 255 / 0.22);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: var(--yellow);
+    box-shadow: 0 0 0 4px rgb(255 228 31 / 0.25);
+  }
+
+  .hero h1 {
+    color: #fff;
+    font-size: clamp(2.4rem, 1.6rem + 3.6vw, 4.4rem);
+    line-height: 1.05;
+    letter-spacing: -0.035em;
+    max-width: 17ch;
+  }
+
+  .hero h1:lang(ne),
+  :global(:lang(ne)) .hero h1 {
+    line-height: 1.3;
+    letter-spacing: 0;
+  }
+
+  .hero-lead {
+    max-width: 38rem;
+    font-size: var(--step-1);
+    color: #e6f1e1;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.4rem;
+  }
+
+  .hero-slogan {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    max-width: 34rem;
+    margin-top: 0.6rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgb(255 255 255 / 0.2);
+    font-style: italic;
+    color: var(--yellow-soft);
+  }
+
+  .hero-slogan :global(.icon) {
+    flex: none;
+    margin-top: 0.2em;
+    color: var(--yellow);
+  }
+
+  .help-card {
+    padding: clamp(1.25rem, 3vw, 1.75rem);
+    border-radius: var(--radius-lg);
+    background: rgb(255 255 255 / 0.96);
+    color: var(--text);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .help-card h2 {
+    margin: 0.25rem 0.5rem 1rem;
+    font-size: var(--step-1);
+  }
+
+  .help-card ul {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .help-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.9rem;
+    align-items: center;
+    padding: 0.8rem;
+    border-radius: 16px;
+    color: inherit;
+    text-decoration: none;
+    transition:
+      background-color 0.2s,
+      transform 0.2s var(--ease);
+  }
+
+  .help-item:hover {
+    background: var(--green-50);
+    color: inherit;
+  }
+
+  .help-item:hover :global(.help-arrow) {
+    transform: translateX(3px);
+    color: var(--green);
+  }
+
+  .help-text {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .help-title {
+    font-family: var(--font-head);
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--navy);
+    line-height: 1.3;
+  }
+
+  :global(:lang(ne)) .help-title {
+    font-family: var(--font-sans);
+    font-size: 1.1rem;
+  }
+
+  .help-desc {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .help-item :global(.help-arrow) {
+    color: var(--line-strong);
+    transition: transform 0.2s var(--ease), color 0.2s;
+  }
+
+  /* ---------- Stats ---------- */
+  .stats-wrap {
+    position: relative;
+    z-index: 2;
+    padding-bottom: clamp(3rem, 6vw, 4.5rem);
+    background: var(--surface);
+  }
+
+  .stats-wrap .container {
+    margin-top: clamp(-5rem, -8vw, -3.5rem);
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+  }
+
+  @media (max-width: 860px) {
+    .stats {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .stat {
+    display: grid;
+    align-content: start;
+    gap: 0.35rem;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border-inline-start: 1px solid var(--line);
+  }
+
+  .stat:first-child {
+    border-inline-start: 0;
+  }
+
+  @media (max-width: 860px) {
+    .stat:nth-child(odd) {
+      border-inline-start: 0;
+    }
+
+    .stat:nth-child(n + 3) {
+      border-top: 1px solid var(--line);
+    }
+  }
+
+  .stat :global(.stat-value) {
+    font-family: var(--font-head);
+    font-size: clamp(1.9rem, 1.4rem + 2vw, 3rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: var(--green-700);
+  }
+
+  .stat-label {
+    font-size: 0.98rem;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+
+  .stats-foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    margin-top: 1rem;
+    padding-inline: 0.5rem;
+    font-size: var(--step--1);
+    color: var(--muted);
+  }
+
+  /* ---------- Journey ---------- */
+  .journey {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+
+  .journey::before {
+    content: '';
+    position: absolute;
+    top: 2.25rem;
+    left: 10%;
+    right: 10%;
+    height: 3px;
+    border-radius: 3px;
+    background: linear-gradient(to right, var(--green-bright), var(--green), var(--slate));
+    opacity: 0.35;
+  }
+
+  .journey-step {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    gap: 0.6rem;
+    text-align: center;
+  }
+
+  .journey-icon {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 4.5rem;
+    height: 4.5rem;
+    margin-bottom: 0.4rem;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 3px solid var(--green);
+    color: var(--green-700);
+    box-shadow: 0 0 0 8px var(--surface);
+  }
+
+  .journey-step:last-child .journey-icon {
+    border-color: var(--slate);
+    color: var(--slate);
+  }
+
+  .journey-num {
+    position: absolute;
+    top: -0.35rem;
+    right: -0.35rem;
+    display: grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    background: var(--yellow);
+    color: var(--green-900);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .journey-step p {
+    font-size: 0.98rem;
+    color: var(--muted);
+  }
+
+  @media (max-width: 900px) {
+    .journey {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    .journey::before {
+      top: 2rem;
+      bottom: 2rem;
+      left: 2.25rem;
+      right: auto;
+      width: 3px;
+      height: auto;
+      background: linear-gradient(to bottom, var(--green-bright), var(--green), var(--slate));
+    }
+
+    .journey-step {
+      grid-template-columns: auto 1fr;
+      justify-items: start;
+      column-gap: 1.25rem;
+      row-gap: 0.25rem;
+      padding-bottom: 1.75rem;
+      text-align: start;
+    }
+
+    .journey-icon {
+      grid-row: span 2;
+      margin: 0;
+    }
+  }
+
+  /* ---------- Sorting ---------- */
+  .sort-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: 1.5rem;
+  }
+
+  .sort-card {
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .sort-card header {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.4rem 1rem;
+    align-items: center;
+    padding: 1.5rem 1.75rem;
+    color: #fff;
+  }
+
+  .sort-card.degradable header {
+    background: linear-gradient(120deg, var(--green-bright), var(--green));
+  }
+
+  .sort-card.nondegradable header {
+    background: linear-gradient(120deg, var(--navy), var(--slate));
+  }
+
+  .sort-card header h3 {
+    color: #fff;
+  }
+
+  .sort-card :global(.icon-tile.solid) {
+    background: rgb(255 255 255 / 0.18);
+  }
+
+  .alt-name {
+    font-size: 0.95rem;
+    opacity: 0.85;
+  }
+
+  .freq {
+    grid-column: 1 / -1;
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: var(--yellow);
+    color: var(--green-900);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .sort-card .check-list {
+    padding: 1.5rem 1.75rem 1.75rem;
+  }
+
+  .sort-card.nondegradable .check-list :global(.icon) {
+    color: var(--navy);
+  }
+
+  .tips {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem 2rem;
+    align-items: center;
+    margin-top: 1.5rem;
+    padding: 1.5rem 1.75rem;
+    border: 1px dashed var(--green-200);
+    border-radius: var(--radius);
+    background: rgb(255 255 255 / 0.6);
+  }
+
+  .tips ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: 1rem 1.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tips li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.7rem;
+    font-size: 0.98rem;
+    line-height: 1.5;
+  }
+
+  .tips li :global(.icon) {
+    color: var(--green);
+  }
+
+  @media (max-width: 760px) {
+    .tips {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* ---------- Services ---------- */
+  .split-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem 2rem;
+    margin-bottom: clamp(2rem, 5vw, 3.5rem);
+  }
+
+  .split-head :global(.section-head) {
+    margin-bottom: 0;
+  }
+
+  .service-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 1.5rem;
+  }
+
+  .group-card {
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+    padding: clamp(1.5rem, 3vw, 2.25rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+    transition:
+      transform 0.25s var(--ease),
+      box-shadow 0.25s var(--ease),
+      border-color 0.25s;
+  }
+
+  .group-card:hover {
+    color: var(--text);
+    transform: translateY(-6px);
+    border-color: var(--green-200);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .group-card.g2 {
+    background: linear-gradient(180deg, var(--green-50), #fff 70%);
+  }
+
+  .group-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.25rem 0 0.5rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .group-list li {
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    font-size: 0.86rem;
+    color: var(--ink);
+  }
+
+  .group-card .link-arrow {
+    margin-top: auto;
+  }
+
+  .group-card:hover .link-arrow :global(.icon) {
+    transform: translateX(4px);
+  }
+
+  /* ---------- About ---------- */
+  .about-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: center;
+  }
+
+  @media (max-width: 960px) {
+    .about-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .mini-timeline {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin: 0.5rem 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mini-timeline li {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    background: rgb(255 255 255 / 0.06);
+    border: 1px solid rgb(255 255 255 / 0.1);
+    font-size: 0.95rem;
+    line-height: 1.35;
+  }
+
+  .year {
+    font-family: var(--font-head);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--yellow);
+  }
+
+  /* ---------- Chairman ---------- */
+  .chairman {
+    display: grid;
+    grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: center;
+    margin: 0;
+    padding: clamp(1.5rem, 4vw, 3rem);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  @media (max-width: 760px) {
+    .chairman {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .chairman-photo {
+    position: relative;
+  }
+
+  .chairman-photo::before {
+    content: '';
+    position: absolute;
+    inset: 1rem -1rem -1rem 1rem;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--green), var(--yellow));
+  }
+
+  .chairman-photo :global(img) {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    object-position: 45% 20%;
+    border-radius: var(--radius-lg);
+  }
+
+  .chairman-body {
+    display: grid;
+    gap: 1.25rem;
+    justify-items: start;
+  }
+
+  blockquote {
+    position: relative;
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+  }
+
+  blockquote :global(.quote-mark) {
+    color: var(--green-200);
+  }
+
+  blockquote p:first-of-type {
+    font-family: var(--font-head);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--navy);
+  }
+
+  :global(:lang(ne)) blockquote p:first-of-type {
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+
+  .quote-more {
+    color: var(--muted);
+  }
+
+  figcaption {
+    display: grid;
+  }
+
+  figcaption strong {
+    font-family: var(--font-head);
+    color: var(--ink);
+  }
+
+  figcaption span {
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+
+  /* ---------- FAQ ---------- */
+  .faq-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    .faq-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .faq-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+</style>

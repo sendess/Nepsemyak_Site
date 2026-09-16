@@ -1,0 +1,57 @@
+---
+import Icon from '~/components/Icon.astro';
+import BranchCard from '~/components/BranchCard.astro';
+import { branches } from '~/data/site';
+import { localizePath, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="section section-tint">
+  <div class="container-narrow done">
+    <span class="check"><Icon name="circle-check" size={48} /></span>
+    <h1 class="h2">{t('contact.sentTitle')}</h1>
+    <p class="lead">{t('contact.sentText')}</p>
+    <a class="btn btn-primary" href={localizePath('/', lang)}>
+      <Icon name="arrow-left" size={18} />
+      {t('cta.backHome')}
+    </a>
+  </div>
+</section>
+
+<section class="section section-white">
+  <div class="container">
+    <h2 class="h3" style="margin-bottom: 1.5rem">{t('contact.officesTitle')}</h2>
+    <div class="offices">
+      {branches.map((b) => <BranchCard branch={b} lang={lang} />)}
+    </div>
+  </div>
+</section>
+
+<style>
+  .done {
+    display: grid;
+    justify-items: center;
+    gap: 1.1rem;
+    text-align: center;
+  }
+
+  .check {
+    display: grid;
+    place-items: center;
+    width: 6rem;
+    height: 6rem;
+    border-radius: 50%;
+    background: var(--green);
+    color: #fff;
+    box-shadow: 0 0 0 14px var(--green-100);
+  }
+
+  .offices {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+    gap: 1.25rem;
+  }
+</style>

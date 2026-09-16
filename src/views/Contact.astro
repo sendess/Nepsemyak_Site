@@ -1,0 +1,226 @@
+---
+import Icon from '~/components/Icon.astro';
+import PageHero from '~/components/PageHero.astro';
+import BranchCard from '~/components/BranchCard.astro';
+import LazyEmbed from '~/components/LazyEmbed.astro';
+import { org, branches, mapEmbed } from '~/data/site';
+import { localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+// Option values stay in English so submissions read the same from both languages.
+const topics = [
+  { value: 'missed-collection', label: t('contact.topic.missed') },
+  { value: 'new-connection', label: t('contact.topic.new') },
+  { value: 'fees', label: t('contact.topic.fee') },
+  { value: 'staff-feedback', label: t('contact.topic.staff') },
+  { value: 'suggestion', label: t('contact.topic.suggestion') },
+  { value: 'other', label: t('contact.topic.other') },
+];
+const central = branches[0];
+---
+
+<PageHero lang={lang} title={t('contact.title')} lead={t('contact.intro')} />
+
+<section class="section section-white">
+  <div class="container contact-grid">
+    <div class="form-card" id="query">
+      <h2 class="h3">{t('contact.formTitle')}</h2>
+      <p class="muted">{t('contact.formIntro')}</p>
+
+      <!-- Handled by Netlify Forms. Submissions appear under Forms in the Netlify dashboard. -->
+      <form name="query" method="POST" action={localizePath('/contact/sent/', lang)} data-netlify="true" netlify-honeypot="bot-field">
+        <input type="hidden" name="form-name" value="query" />
+        <input type="hidden" name="language" value={lang} />
+        <p class="visually-hidden" aria-hidden="true">
+          <label>Leave empty <input name="bot-field" tabindex="-1" autocomplete="off" /></label>
+        </p>
+
+        <div class="row">
+          <div class="field">
+            <label for="q-name">{t('contact.name')} *</label>
+            <input class="input" id="q-name" name="name" type="text" autocomplete="name" required maxlength="120" />
+          </div>
+          <div class="field">
+            <label for="q-phone">{t('contact.phone')} *</label>
+            <input class="input" id="q-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required minlength="7" maxlength="20" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="q-branch">{t('contact.branch')}</label>
+            <select class="select" id="q-branch" name="branch">
+              <option value="not-sure">{t('contact.branchUnsure')}</option>
+              {branches.map((b) => <option value={b.id}>{b.name[lang]}</option>)}
+            </select>
+          </div>
+          <div class="field">
+            <label for="q-topic">{t('contact.topic')}</label>
+            <select class="select" id="q-topic" name="topic">
+              {topics.map((tp) => <option value={tp.value}>{tp.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="q-email">{t('contact.emailOptional')}</label>
+            <input class="input" id="q-email" name="email" type="email" autocomplete="email" maxlength="120" />
+          </div>
+          <div class="field">
+            <label for="q-address">{t('contact.address')}</label>
+            <input class="input" id="q-address" name="address" type="text" autocomplete="street-address" maxlength="160" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="q-message">{t('contact.message')} *</label>
+          <textarea class="textarea" id="q-message" name="message" required maxlength="2000" rows="5"></textarea>
+        </div>
+
+        <div class="submit">
+          <button class="btn btn-primary" type="submit">
+            <Icon name="send" size={18} />
+            {t('contact.submit')}
+          </button>
+          <p class="small muted">{t('contact.privacy')}</p>
+        </div>
+      </form>
+    </div>
+
+    <aside class="aside">
+      <div class="chat-card">
+        <span class="icon-tile lg solid"><Icon name="message-circle" size={28} /></span>
+        <h2 class="h4">{t('contact.chatTitle')}</h2>
+        <p>{t('contact.chatText')}</p>
+        <a class="btn btn-yellow" href={org.chatUrl} target="_blank" rel="noopener">
+          {t('cta.chat')}
+          <Icon name="arrow-up-right" size={18} />
+        </a>
+      </div>
+      <div class="card quick">
+        <h2 class="h4">{central.name[lang]}</h2>
+        <a href={telHref(central.phones[0])} class="quick-line"><Icon name="phone" size={20} /> {central.phones.join(', ')}</a>
+        <a href={`mailto:${org.email}`} class="quick-line"><Icon name="mail" size={20} /> {org.email}</a>
+        <p class="quick-line"><Icon name="map-pin" size={20} /> {central.address[lang]}</p>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="section section-tint" id="offices" aria-labelledby="offices-title">
+  <div class="container">
+    <h2 class="h2" id="offices-title" style="margin-bottom: 2rem">{t('contact.officesTitle')}</h2>
+    <div class="offices">
+      {branches.map((b, i) => <BranchCard branch={b} lang={lang} featured={i === 0} />)}
+      <div class="map">
+        <LazyEmbed src={mapEmbed(central.mapQuery)} title={`${central.name[lang]} — Google Maps`} buttonLabel={t('cta.showMap')} icon="map" height="100%" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .contact-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: clamp(1.5rem, 4vw, 3rem);
+    align-items: start;
+  }
+
+  @media (max-width: 960px) {
+    .contact-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .form-card {
+    display: grid;
+    gap: 0.6rem;
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    scroll-margin-top: calc(var(--header-h) + 1rem);
+  }
+
+  form {
+    display: grid;
+    gap: 1.1rem;
+    margin-top: 1rem;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: 1.1rem;
+  }
+
+  .submit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+  }
+
+  .aside {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .chat-card {
+    display: grid;
+    gap: 0.85rem;
+    justify-items: start;
+    padding: clamp(1.5rem, 3vw, 2rem);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(150deg, var(--green-bright), var(--green) 50%, var(--slate));
+    color: #eef6ea;
+  }
+
+  .chat-card h2 {
+    color: #fff;
+  }
+
+  .chat-card :global(.icon-tile.solid) {
+    background: rgb(255 255 255 / 0.18);
+  }
+
+  .quick {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .quick-line {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--ink);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  a.quick-line:hover {
+    color: var(--green-700);
+  }
+
+  .quick-line :global(.icon) {
+    flex: none;
+    color: var(--green);
+  }
+
+  .offices {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+    gap: 1.25rem;
+  }
+
+  .map {
+    min-height: 320px;
+    display: grid;
+  }
+</style>

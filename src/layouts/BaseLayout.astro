@@ -1,0 +1,100 @@
+---
+import { Font } from 'astro:assets';
+import '~/styles/global.css';
+import Header from '~/components/Header.astro';
+import Footer from '~/components/Footer.astro';
+import { org, branches } from '~/data/site';
+import { getLangFromUrl, localizePath, stripLang, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = {
+  title?: string;
+  description?: string;
+  noindex?: boolean;
+};
+
+const lang: Lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const { title, description = org.description[lang], noindex = false } = Astro.props;
+
+const siteName = org.legalName[lang];
+const fullTitle = title ? `${title} | ${org.name[lang]}` : `${org.legalName[lang]} — ${org.tagline[lang]}`;
+const basePath = stripLang(Astro.url.pathname);
+const canonical = new URL(localizePath(basePath, lang), Astro.site);
+const alternates = (['en', 'ne'] as const).map((l) => ({ lang: l, href: new URL(localizePath(basePath, l), Astro.site).href }));
+const ogImage = new URL('/og.png', Astro.site);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: org.legalName.en,
+  alternateName: [org.name.en, org.legalName.ne],
+  url: Astro.site?.href,
+  logo: new URL('/apple-touch-icon.png', Astro.site).href,
+  email: org.email,
+  foundingDate: '2009',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'Bagdol Road',
+    addressLocality: 'Lalitpur',
+    postalCode: '44600',
+    addressCountry: 'NP',
+  },
+  contactPoint: branches.map((b) => ({
+    '@type': 'ContactPoint',
+    name: b.name.en,
+    telephone: b.phones.map((p) => `+977-${p.replace(/^0/, '')}`).join(', '),
+    contactType: 'customer service',
+    areaServed: 'NP',
+    availableLanguage: ['Nepali', 'English'],
+  })),
+};
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    {
+      noindex ? (
+        <meta name="robots" content="noindex" />
+      ) : (
+        <>
+          <link rel="canonical" href={canonical.href} />
+          {alternates.map((a) => (
+            <link rel="alternate" hreflang={a.lang} href={a.href} />
+          ))}
+          <link rel="alternate" hreflang="x-default" href={alternates[0].href} />
+        </>
+      )
+    }
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <meta name="theme-color" content="#459a2e" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:image" content={ogImage.href} />
+    <meta property="og:locale" content={lang === 'ne' ? 'ne_NP' : 'en_US'} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <Font cssVariable="--font-body" preload />
+    <Font cssVariable="--font-display" />
+
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">{t('site.skip')}</a>
+    <Header lang={lang} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer lang={lang} />
+  </body>
+</html>

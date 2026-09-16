@@ -1,0 +1,71 @@
+---
+import Icon from '~/components/Icon.astro';
+import PageHero from '~/components/PageHero.astro';
+import FaqList from '~/components/FaqList.astro';
+import { faqs } from '~/data/faq';
+import { org } from '~/data/site';
+import { localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<PageHero lang={lang} title={t('faq.title')} lead={t('faq.intro')} />
+
+<section class="section section-white">
+  <div class="container faq-layout">
+    <FaqList items={faqs} lang={lang} openFirst />
+    <aside class="still">
+      <span class="icon-tile lg solid"><Icon name="circle-question-mark" size={28} /></span>
+      <h2 class="h4">{t('faq.stillTitle')}</h2>
+      <p>{t('faq.stillText')}</p>
+      <a class="btn btn-yellow" href={`${localizePath('/contact', lang)}#query`}>
+        <Icon name="send" size={18} />
+        {t('cta.query')}
+      </a>
+      <a class="btn btn-light" href={org.chatUrl} target="_blank" rel="noopener">
+        <Icon name="message-circle" size={18} />
+        {t('cta.chat')}
+      </a>
+      <a class="btn btn-light" href={telHref(org.mainPhone)}>
+        <Icon name="phone" size={18} />
+        {org.mainPhone}
+      </a>
+    </aside>
+  </div>
+</section>
+
+<style>
+  .faq-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    gap: clamp(1.5rem, 4vw, 3rem);
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    .faq-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .still {
+    position: sticky;
+    top: calc(var(--header-h) + 1.5rem);
+    display: grid;
+    gap: 0.9rem;
+    padding: 1.75rem;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(160deg, var(--green), var(--slate));
+    color: #eef6ea;
+  }
+
+  .still h2 {
+    color: #fff;
+  }
+
+  .still :global(.icon-tile.solid) {
+    background: rgb(255 255 255 / 0.18);
+  }
+</style>

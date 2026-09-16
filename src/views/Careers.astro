@@ -1,0 +1,58 @@
+---
+import Icon from '~/components/Icon.astro';
+import PageHero from '~/components/PageHero.astro';
+import CtaBand from '~/components/CtaBand.astro';
+import { branches } from '~/data/site';
+import { workforceStats } from '~/data/stats';
+import { formatNumber, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+const facebookPages = branches.filter((b) => b.facebook);
+---
+
+<PageHero lang={lang} title={t('careers.title')} lead={t('careers.intro').replace('{n}', formatNumber(workforceStats.total, lang))} />
+
+<section class="section section-white">
+  <div class="container-narrow">
+    <div class="empty reveal">
+      <span class="icon-tile lg"><Icon name="briefcase" size={30} /></span>
+      <h2 class="h3">{t('careers.emptyTitle')}</h2>
+      <p class="lead">{t('careers.emptyText')}</p>
+      <div class="follow">
+        {
+          facebookPages.map((b) => (
+            <a class="btn btn-ghost btn-sm" href={b.facebook} target="_blank" rel="noopener">
+              <Icon name="facebook" size={16} />
+              {b.name[lang]}
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<CtaBand lang={lang} flush />
+
+<style>
+  .empty {
+    display: grid;
+    justify-items: center;
+    gap: 1rem;
+    padding: clamp(2rem, 6vw, 4rem);
+    border: 2px dashed var(--green-200);
+    border-radius: var(--radius-lg);
+    background: var(--green-50);
+    text-align: center;
+  }
+
+  .follow {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+  }
+</style>

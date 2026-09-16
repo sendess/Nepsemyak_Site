@@ -1,0 +1,220 @@
+---
+import Icon from '~/components/Icon.astro';
+import PageHero from '~/components/PageHero.astro';
+import SectionHead from '~/components/SectionHead.astro';
+import CtaBand from '~/components/CtaBand.astro';
+import { serviceGroups, methodology, feePrinciples } from '~/data/services';
+import { formatNumber, localizePath, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<PageHero lang={lang} title={t('services.title')} lead={t('services.intro')}>
+  <nav class="jump" aria-label={t('services.title')}>
+    {
+      serviceGroups.map((g) => (
+        <a href={`#${g.id}`}>
+          <Icon name={g.icon} size={18} />
+          {g.title[lang]}
+          <span class="count">{formatNumber(g.services.length, lang)}</span>
+        </a>
+      ))
+    }
+  </nav>
+</PageHero>
+
+{
+  serviceGroups.map((group, gi) => (
+    <section class:list={['section', gi % 2 === 0 ? 'section-white' : 'section-tint']} id={group.id} aria-labelledby={`${group.id}-title`}>
+      <div class="container">
+        <div class="group-head">
+          <span class="icon-tile lg solid">
+            <Icon name={group.icon} size={28} />
+          </span>
+          <div>
+            <h2 class="h2" id={`${group.id}-title`}>{group.title[lang]}</h2>
+            <p class="lead">{group.summary[lang]}</p>
+          </div>
+        </div>
+        <div class="service-grid">
+          {group.services.map((s) => (
+            <article class="card card-hover service reveal" id={s.id}>
+              <span class="icon-tile">
+                <Icon name={s.icon} size={24} />
+              </span>
+              <h3 class="h4">{s.title[lang]}</h3>
+              <p>{s.text[lang]}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  ))
+}
+
+<section class="section section-dark" aria-labelledby="how-title">
+  <div class="container">
+    <SectionHead title={t('services.howTitle')} intro={t('services.howIntro')} id="how-title" />
+    <ol class="steps">
+      {
+        methodology.map((m, i) => (
+          <li class="reveal">
+            <span class="step-num">{formatNumber(i + 1, lang, { minimumIntegerDigits: 2 })}</span>
+            <p>{m[lang]}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
+
+<section class="section section-white" aria-labelledby="fees-title">
+  <div class="container fees">
+    <div class="stack" style="--stack: 1.25rem">
+      <h2 class="h2" id="fees-title">{t('services.feesTitle')}</h2>
+      <p class="lead">{t('services.feesIntro')}</p>
+      <a class="link-arrow" href={`${localizePath('/faq', lang)}#fees-differ`}>
+        {t('services.feesFaq')}
+        <Icon name="arrow-right" size={16} />
+      </a>
+    </div>
+    <ul class="check-list fee-list">
+      {
+        feePrinciples.map((p) => (
+          <li>
+            <Icon name="circle-check" size={22} />
+            <span>{p[lang]}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<CtaBand lang={lang} flush />
+
+<style>
+  .jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 2rem;
+  }
+
+  .jump a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.6rem 0.55rem 1rem;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.14);
+    border: 1px solid rgb(255 255 255 / 0.3);
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 0.2s;
+  }
+
+  .jump a:hover {
+    background: rgb(255 255 255 / 0.25);
+    color: #fff;
+  }
+
+  .count {
+    display: grid;
+    place-items: center;
+    min-width: 1.6rem;
+    height: 1.6rem;
+    padding-inline: 0.4rem;
+    border-radius: 999px;
+    background: var(--yellow);
+    color: var(--green-900);
+    font-size: 0.8rem;
+  }
+
+  .group-head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.25rem;
+    align-items: start;
+    max-width: 48rem;
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  .group-head .lead {
+    margin-top: 0.5rem;
+  }
+
+  .service-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+    gap: 1.25rem;
+  }
+
+  .service {
+    display: grid;
+    align-content: start;
+    gap: 0.85rem;
+  }
+
+  .service p {
+    color: var(--muted);
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .steps li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem;
+    align-items: start;
+    padding: 1.25rem 1.4rem;
+    border-radius: var(--radius);
+    background: rgb(255 255 255 / 0.05);
+    border: 1px solid rgb(255 255 255 / 0.09);
+  }
+
+  .step-num {
+    font-family: var(--font-head);
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--yellow);
+  }
+
+  .fees {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: start;
+  }
+
+  @media (max-width: 860px) {
+    .fees {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .fee-list {
+    gap: 1rem;
+  }
+
+  .fee-list li {
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius);
+    background: var(--green-50);
+  }
+
+  .fee-list :global(.icon) {
+    margin-top: 0.15em;
+  }
+</style>

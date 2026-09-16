@@ -1,0 +1,29 @@
+---
+import Icon from './Icon.astro';
+import { localizePath, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang; title: string; lead?: string; parent?: { path: string; label: string } };
+const { lang, title, lead, parent } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="page-hero">
+  <div class="container">
+    <ol class="breadcrumb">
+      <li><a href={localizePath('/', lang)}>{t('site.home')}</a></li>
+      {
+        parent && (
+          <>
+            <li aria-hidden="true"><Icon name="chevron-right" size={14} /></li>
+            <li><a href={localizePath(parent.path, lang)}>{parent.label}</a></li>
+          </>
+        )
+      }
+      <li aria-hidden="true"><Icon name="chevron-right" size={14} /></li>
+      <li aria-current="page">{title}</li>
+    </ol>
+    <h1>{title}</h1>
+    {lead && <p class="lead" style="margin-top: 1rem">{lead}</p>}
+    <slot />
+  </div>
+</section>

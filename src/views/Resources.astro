@@ -1,0 +1,127 @@
+---
+import Icon from '~/components/Icon.astro';
+import PageHero from '~/components/PageHero.astro';
+import LazyEmbed from '~/components/LazyEmbed.astro';
+import CtaBand from '~/components/CtaBand.astro';
+import { resourceFolders, driveFolderUrl, driveEmbedUrl } from '~/data/resources';
+import { useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<PageHero lang={lang} title={t('resources.title')} lead={t('resources.intro')}>
+  <nav class="jump" aria-label={t('resources.title')}>
+    {
+      resourceFolders.map((f) => (
+        <a href={`#${f.id}`}>
+          <Icon name={f.icon} size={18} />
+          {f.title[lang]}
+        </a>
+      ))
+    }
+  </nav>
+</PageHero>
+
+<section class="section section-white">
+  <div class="container folders">
+    {
+      resourceFolders.map((f) => (
+        <article class="folder reveal" id={f.id}>
+          <div class="folder-info">
+            <span class="icon-tile lg">
+              <Icon name={f.icon} size={28} />
+            </span>
+            <h2 class="h3">{f.title[lang]}</h2>
+            <p class="muted">{f.text[lang]}</p>
+            {f.tags && (
+              <ul class="tags">
+                {f.tags.map((tag) => (
+                  <li class="tag">{tag[lang]}</li>
+                ))}
+              </ul>
+            )}
+            <a class="btn btn-primary" href={driveFolderUrl(f.driveId)} target="_blank" rel="noopener">
+              <Icon name="folder-open" size={18} />
+              {t('cta.openFolder')}
+              <span class="visually-hidden">{t('common.opensNewTab')}</span>
+            </a>
+          </div>
+          <LazyEmbed src={driveEmbedUrl(f.driveId)} title={f.title[lang]} buttonLabel={t('cta.browseHere')} icon="download" height="360px" />
+        </article>
+      ))
+    }
+  </div>
+</section>
+
+<CtaBand lang={lang} flush />
+
+<style>
+  .jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 2rem;
+  }
+
+  .jump a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.14);
+    border: 1px solid rgb(255 255 255 / 0.3);
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .jump a:hover {
+    background: rgb(255 255 255 / 0.25);
+    color: #fff;
+  }
+
+  .folders {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .folder {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: clamp(1.5rem, 4vw, 3rem);
+    align-items: center;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .folder:nth-child(even) {
+    background: var(--green-50);
+    border-color: var(--green-100);
+  }
+
+  @media (max-width: 860px) {
+    .folder {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .folder-info {
+    display: grid;
+    gap: 0.9rem;
+    justify-items: start;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+</style>

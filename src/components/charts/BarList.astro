@@ -1,0 +1,239 @@
+---
+import type { Figure } from '~/data/stats';
+import { formatNumber, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = {
+  items: Figure[];
+  lang: Lang;
+  caption: string;
+  /** Value that a full-width bar represents. Defaults to the largest item. */
+  max?: number;
+  unit?: string;
+  /** Show each value as a share of `max` in the tooltip and table. */
+  showShare?: boolean;
+  /** Highlight the first row (e.g. a total). */
+  emphasizeFirst?: boolean;
+};
+
+const { items, lang, caption, max, unit = '', showShare = false, emphasizeFirst = false } = Astro.props;
+const t = useTranslations(lang);
+const scale = max ?? Math.max(...items.map((i) => i.value));
+const pct = (v: number) => Math.round((v / scale) * 100);
+const fmt = (v: number) => `${formatNumber(v, lang)}${unit ? ` ${unit}` : ''}`;
+---
+
+<figure class="barlist">
+  <figcaption class="visually-hidden">{caption}</figcaption>
+  <ul role="list">
+    {
+      items.map((item, i) => {
+        const share = pct(item.value);
+        const tip = showShare ? `${fmt(item.value)} · ${formatNumber(share, lang)}%` : fmt(item.value);
+        return (
+          <li class:list={['row', { first: emphasizeFirst && i === 0 }]} tabindex="0" aria-label={`${item.label[lang]}: ${tip}`}>
+            <span class="label">{item.label[lang]}</span>
+            <span class="track" aria-hidden="true">
+              <span class="bar" style={`--w: ${Math.max(share, 1.5)}%`} />
+            </span>
+            <span class="value nums">{fmt(item.value)}</span>
+            <span class="tip" role="presentation">{tip}</span>
+          </li>
+        );
+      })
+    }
+  </ul>
+  <details class="table-view">
+    <summary>{t('common.viewTable')}</summary>
+    <div class="table-wrap">
+      <table>
+        <caption class="visually-hidden">{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('common.category')}</th>
+            <th scope="col">{t('common.value')}</th>
+            {showShare && <th scope="col">{t('common.share')}</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {
+            items.map((item) => (
+              <tr>
+                <th scope="row">{item.label[lang]}</th>
+                <td class="nums">{fmt(item.value)}</td>
+                {showShare && <td class="nums">{formatNumber(pct(item.value), lang)}%</td>}
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </details>
+</figure>
+
+<style>
+  .barlist {
+    margin: 0;
+  }
+
+  ul {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .row {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(8rem, 15rem) 1fr auto;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    padding: 0.55rem 0.75rem;
+    border-radius: 12px;
+    outline: none;
+    transition: background-color 0.15s;
+  }
+
+  .row:hover,
+  .row:focus-visible {
+    background: var(--green-50);
+  }
+
+  .row:focus-visible {
+    box-shadow: 0 0 0 3px var(--yellow);
+  }
+
+  @media (max-width: 560px) {
+    .row {
+      grid-template-columns: 1fr auto;
+    }
+
+    .track {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+  }
+
+  .label {
+    font-size: 0.98rem;
+    line-height: 1.35;
+    color: var(--ink);
+  }
+
+  .first .label,
+  .first .value {
+    font-weight: 600;
+  }
+
+  .track {
+    position: relative;
+    height: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .bar {
+    position: absolute;
+    left: 0;
+    bottom: 2px;
+    height: 16px;
+    width: var(--w);
+    border-radius: 0 4px 4px 0;
+    background: var(--series-1);
+    transform-origin: left;
+  }
+
+  .first .bar {
+    background: var(--green-700);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .bar {
+        animation: grow linear both;
+        animation-timeline: view();
+        animation-range: entry 10% cover 35%;
+      }
+    }
+  }
+
+  @keyframes grow {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  .value {
+    min-width: 4.5rem;
+    text-align: end;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .tip {
+    position: absolute;
+    right: 0.75rem;
+    bottom: calc(100% - 0.25rem);
+    z-index: 5;
+    padding: 0.3rem 0.65rem;
+    border-radius: 8px;
+    background: var(--ink);
+    color: #fff;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(4px);
+    transition:
+      opacity 0.15s,
+      transform 0.15s;
+  }
+
+  .row:hover .tip,
+  .row:focus-visible .tip {
+    opacity: 1;
+    transform: none;
+  }
+
+  .table-view {
+    margin-top: 1rem;
+    font-size: 0.95rem;
+  }
+
+  .table-view summary {
+    cursor: pointer;
+    color: var(--green-700);
+    font-weight: 600;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin-top: 0.75rem;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+    text-align: start;
+  }
+
+  td {
+    text-align: end;
+  }
+
+  thead th {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  tbody th {
+    font-weight: 400;
+    color: var(--ink);
+  }
+</style>

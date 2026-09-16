@@ -1,0 +1,12 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import View from '~/views/News.astro';
+import { useTranslations } from '~/i18n/utils';
+
+const lang = 'en';
+const t = useTranslations(lang);
+---
+
+<BaseLayout title={t('news.title')} description={t('news.intro')}>
+  <View lang={lang} />
+</BaseLayout>

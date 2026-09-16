@@ -1,0 +1,308 @@
+---
+import Icon from '~/components/Icon.astro';
+import PageHero from '~/components/PageHero.astro';
+import SectionHead from '~/components/SectionHead.astro';
+import CountUp from '~/components/CountUp.astro';
+import BarList from '~/components/charts/BarList.astro';
+import StackedBar from '~/components/charts/StackedBar.astro';
+import CtaBand from '~/components/CtaBand.astro';
+import { org } from '~/data/site';
+import { serviceStats, workforceStats, figure, type Figure } from '~/data/stats';
+import { formatDate, formatNumber, useTranslations, yearsSince, type Lang } from '~/i18n/utils';
+import type { IconName } from '~/components/icons';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const reachIcons: Record<string, IconName> = {
+  districts: 'map',
+  municipalities: 'landmark',
+  wards: 'building',
+  houses: 'house',
+  families: 'users',
+  population: 'handshake',
+};
+
+const reach: (Figure & { icon: IconName })[] = [
+  { id: 'service', icon: 'calendar', label: { en: 'Years of service', ne: 'सेवाका वर्ष' }, value: yearsSince(org.establishedOn) },
+  { id: 'experience', icon: 'briefcase', label: { en: 'Years of experience', ne: 'कार्य अनुभवका वर्ष' }, value: yearsSince(org.experienceSince) },
+  ...serviceStats.reach.map((f) => ({ ...f, icon: reachIcons[f.id] })),
+];
+
+const totalWaste = figure(serviceStats.wastePerDay, 'total');
+const totalVehicles = workforceStats.vehicles.reduce((s, v) => s + v.value, 0);
+const mt = t('common.mt');
+---
+
+<PageHero lang={lang} title={t('impact.title')} lead={t('impact.intro')} parent={{ path: '/about', label: t('nav.about') }} />
+
+<section class="section section-white" aria-labelledby="reach-title">
+  <div class="container">
+    <SectionHead title={t('impact.reachTitle')} id="reach-title">
+      <p class="asof"><Icon name="calendar" size={16} /> {t('common.dataAsOf')}: {formatDate(serviceStats.asOf, lang)}</p>
+    </SectionHead>
+    <div class="tiles">
+      {
+        reach.map((r) => (
+          <div class="tile reveal">
+            <span class="icon-tile">
+              <Icon name={r.icon} size={22} />
+            </span>
+            <CountUp value={r.value} lang={lang} class="tile-value" />
+            <span class="tile-label">{r.label[lang]}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<section class="section section-tint" aria-labelledby="waste-title">
+  <div class="container waste-grid">
+    <div class="card chart-card">
+      <h2 class="h3" id="waste-title">{t('impact.wasteTitle')}</h2>
+      <p class="muted">{t('impact.wasteIntro')}</p>
+      <BarList items={serviceStats.wastePerDay} lang={lang} caption={t('impact.wasteTitle')} max={totalWaste} unit={mt} showShare emphasizeFirst />
+    </div>
+    <div class="side">
+      <div class="card chart-card">
+        <h2 class="h4">{t('impact.familiesTitle')}</h2>
+        <p class="muted small">{t('impact.familiesIntro')}</p>
+        <StackedBar items={serviceStats.families} lang={lang} caption={t('impact.familiesTitle')} />
+      </div>
+      <div class="share-card">
+        <span class="share-value">{formatNumber(serviceStats.valleyShare, lang)}%</span>
+        <p>{t('impact.valleyShare')}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-white" aria-labelledby="workforce-title">
+  <div class="container">
+    <SectionHead title={t('impact.workforceTitle')} id="workforce-title">
+      <p class="asof"><Icon name="calendar" size={16} /> {t('common.dataAsOf')}: {formatDate(workforceStats.asOf, lang)}</p>
+    </SectionHead>
+    <div class="workforce-grid">
+      <div class="headline-card">
+        <Icon name="users" size={32} />
+        <CountUp value={workforceStats.total} lang={lang} class="headline-value" />
+        <span>{t('impact.employeesTotal')}</span>
+        <div class="gender">
+          <h3 class="h4">{t('impact.genderTitle')}</h3>
+          <StackedBar items={workforceStats.gender} lang={lang} caption={t('impact.genderTitle')} />
+        </div>
+      </div>
+      <div class="card chart-card">
+        <h3 class="h4">{t('impact.workforceIntro')}</h3>
+        <BarList items={workforceStats.roles} lang={lang} caption={t('impact.workforceTitle')} max={workforceStats.total} showShare />
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-tint" aria-labelledby="fleet-title">
+  <div class="container fleet-grid">
+    <div class="card chart-card">
+      <h2 class="h3" id="fleet-title">
+        {t('impact.fleetTitle')}
+        <span class="tag">{t('common.total')}: {formatNumber(totalVehicles, lang)}</span>
+      </h2>
+      <BarList items={workforceStats.vehicles} lang={lang} caption={t('impact.fleetTitle')} />
+    </div>
+    <div class="card chart-card">
+      <h2 class="h3">{t('impact.facilitiesTitle')}</h2>
+      <ul class="facilities">
+        {
+          workforceStats.facilities.map((f) => (
+            <li>
+              <span class="fac-value">{formatNumber(f.value, lang)}</span>
+              <span>{f.label[lang]}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+</section>
+
+<CtaBand lang={lang} />
+
+<style>
+  .asof {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--muted);
+    font-size: var(--step--1);
+  }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+    gap: 1rem;
+  }
+
+  .tile {
+    display: grid;
+    gap: 0.35rem;
+    align-content: start;
+    padding: 1.4rem;
+    border-radius: var(--radius);
+    background: var(--green-50);
+    border: 1px solid var(--green-100);
+  }
+
+  .tile .icon-tile {
+    margin-bottom: 0.5rem;
+    background: #fff;
+  }
+
+  .tile :global(.tile-value) {
+    font-family: var(--font-head);
+    font-size: clamp(1.8rem, 1.4rem + 1.4vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--green-700);
+  }
+
+  .tile-label {
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .chart-card {
+    display: grid;
+    gap: 0.75rem;
+    align-content: start;
+  }
+
+  .chart-card h2,
+  .chart-card h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.85rem;
+  }
+
+  .waste-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 960px) {
+    .waste-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .side {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .share-card {
+    display: grid;
+    gap: 0.35rem;
+    padding: clamp(1.5rem, 3vw, 2rem);
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--navy), var(--slate));
+    color: #e6e9f0;
+  }
+
+  .share-value {
+    font-family: var(--font-head);
+    font-size: 3.25rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--yellow);
+  }
+
+  .workforce-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 960px) {
+    .workforce-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .headline-card {
+    display: grid;
+    gap: 0.25rem;
+    padding: clamp(1.5rem, 3vw, 2.25rem);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(160deg, var(--green-bright), var(--green) 50%, var(--green-700));
+    color: #eef6ea;
+  }
+
+  .headline-card :global(.icon) {
+    color: var(--yellow);
+    margin-bottom: 0.5rem;
+  }
+
+  .headline-card :global(.headline-value) {
+    font-family: var(--font-head);
+    font-size: clamp(3rem, 2rem + 4vw, 4.5rem);
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+  }
+
+  .gender {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    border-radius: var(--radius);
+    background: #fff;
+    color: var(--text);
+  }
+
+  .fleet-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 960px) {
+    .fleet-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .facilities {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
+    gap: 0.75rem;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .facilities li {
+    display: grid;
+    gap: 0.2rem;
+    padding: 1rem;
+    border-radius: 14px;
+    background: var(--green-50);
+    line-height: 1.35;
+    color: var(--ink);
+  }
+
+  .fac-value {
+    font-family: var(--font-head);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--green-700);
+    line-height: 1.1;
+  }
+</style>

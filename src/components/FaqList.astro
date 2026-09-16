@@ -1,0 +1,32 @@
+---
+import Icon from './Icon.astro';
+import type { Faq } from '~/data/faq';
+import type { Lang } from '~/i18n/utils';
+
+type Props = { items: Faq[]; lang: Lang; openFirst?: boolean };
+const { items, lang, openFirst = false } = Astro.props;
+---
+
+<div class="accordion">
+  {
+    items.map((item, i) => (
+      <details id={item.id} open={openFirst && i === 0}>
+        <summary>
+          <span>{item.question[lang]}</span>
+          <Icon name="chevron-down" size={20} />
+        </summary>
+        <div class="answer">
+          <p>{item.answer[lang]}</p>
+          {item.points && (
+            <ul>
+              {item.points.map((p) => (
+                <li>{p[lang]}</li>
+              ))}
+            </ul>
+          )}
+          {item.closing && <p>{item.closing[lang]}</p>}
+        </div>
+      </details>
+    ))
+  }
+</div>

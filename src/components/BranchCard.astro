@@ -1,0 +1,106 @@
+---
+import Icon from './Icon.astro';
+import { mapLink, type Branch } from '~/data/site';
+import { telHref, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { branch: Branch; lang: Lang; featured?: boolean };
+const { branch, lang, featured = false } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<article class:list={['card', 'card-hover', 'branch', { featured }]} id={`branch-${branch.id}`}>
+  <h3 class="h4">{branch.name[lang]}</h3>
+  <ul class="details">
+    <li>
+      <Icon name="map-pin" size={18} />
+      <span>{branch.address[lang]}</span>
+    </li>
+    <li>
+      <Icon name="phone" size={18} />
+      <span>
+        {
+          branch.phones.map((p, i) => (
+            <>
+              {i > 0 && ', '}
+              <a href={telHref(p)}>{p}</a>
+            </>
+          ))
+        }
+      </span>
+    </li>
+    <li>
+      <Icon name="mail" size={18} />
+      <a href={`mailto:${branch.email}`} class="email">{branch.email}</a>
+    </li>
+  </ul>
+  <div class="links">
+    <a class="link-arrow" href={mapLink(branch.mapQuery)} target="_blank" rel="noopener">
+      {t('cta.directions')}
+      <Icon name="arrow-up-right" size={16} />
+    </a>
+    {
+      branch.facebook && (
+        <a class="link-arrow" href={branch.facebook} target="_blank" rel="noopener">
+          <Icon name="facebook" size={16} />
+          Facebook
+        </a>
+      )
+    }
+  </div>
+</article>
+
+<style>
+  .branch {
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+  }
+
+  .branch.featured {
+    border-color: var(--green-200);
+    background: linear-gradient(180deg, var(--green-50), #fff 60%);
+  }
+
+  .details {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .details li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6rem;
+    align-items: start;
+  }
+
+  .details :global(.icon) {
+    margin-top: 0.3em;
+    color: var(--green);
+  }
+
+  .details a {
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .details a:hover {
+    color: var(--green-700);
+    text-decoration: underline;
+  }
+
+  .email {
+    overflow-wrap: anywhere;
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--line);
+  }
+</style>

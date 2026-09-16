@@ -1,0 +1,59 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import Icon from '~/components/Icon.astro';
+import { ui } from '~/i18n/ui';
+---
+
+<BaseLayout title={`${ui.en['404.title']} · ${ui.ne['404.title']}`} noindex>
+  <section class="section section-tint">
+    <div class="container-narrow nf">
+      <span class="code" aria-hidden="true">404</span>
+      <div class="langs">
+        <div>
+          <h1 class="h2">{ui.en['404.title']}</h1>
+          <p>{ui.en['404.text']}</p>
+          <a class="btn btn-primary" href="/"><Icon name="house" size={18} /> {ui.en['cta.backHome']}</a>
+        </div>
+        <div lang="ne">
+          <h2 class="h2">{ui.ne['404.title']}</h2>
+          <p>{ui.ne['404.text']}</p>
+          <a class="btn btn-ghost" href="/ne/"><Icon name="house" size={18} /> {ui.ne['cta.backHome']}</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .nf {
+    display: grid;
+    gap: 2rem;
+    text-align: center;
+  }
+
+  .code {
+    font-family: var(--font-head);
+    font-size: clamp(5rem, 3rem + 10vw, 9rem);
+    font-weight: 700;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--green-bright), var(--slate));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .langs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: 1.5rem;
+  }
+
+  .langs > div {
+    display: grid;
+    gap: 0.85rem;
+    justify-items: center;
+    padding: 2rem;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+</style>

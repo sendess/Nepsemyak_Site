@@ -1,0 +1,222 @@
+---
+import type { Figure } from '~/data/stats';
+import { formatNumber, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { items: Figure[]; lang: Lang; caption: string; unit?: string };
+const { items, lang, caption, unit = '%' } = Astro.props;
+const t = useTranslations(lang);
+const total = items.reduce((sum, i) => sum + i.value, 0);
+// Categorical order is fixed: series-1, series-2, series-3.
+const colors = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'];
+const fmt = (v: number) => `${formatNumber(v, lang)}${unit}`;
+---
+
+<figure class="stacked">
+  <figcaption class="visually-hidden">{caption}</figcaption>
+  <div class="bar" role="list">
+    {
+      items.map((item, i) => (
+        <span
+          class="seg"
+          role="listitem"
+          tabindex="0"
+          style={`--share: ${(item.value / total) * 100}; --c: ${colors[i]}`}
+          aria-label={`${item.label[lang]}: ${fmt(item.value)}`}
+        >
+          <span class="tip">
+            {item.label[lang]}: {fmt(item.value)}
+          </span>
+        </span>
+      ))
+    }
+  </div>
+  <ul class="legend" role="list">
+    {
+      items.map((item, i) => (
+        <li>
+          <span class="swatch" style={`--c: ${colors[i]}`} aria-hidden="true" />
+          <span class="legend-value nums">{fmt(item.value)}</span>
+          <span class="legend-label">{item.label[lang]}</span>
+        </li>
+      ))
+    }
+  </ul>
+  <details class="table-view">
+    <summary>{t('common.viewTable')}</summary>
+    <div class="table-wrap">
+      <table>
+        <caption class="visually-hidden">{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('common.category')}</th>
+            <th scope="col">{t('common.share')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            items.map((item) => (
+              <tr>
+                <th scope="row">{item.label[lang]}</th>
+                <td class="nums">{fmt(item.value)}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </details>
+</figure>
+
+<style>
+  .stacked {
+    margin: 0;
+  }
+
+  .bar {
+    display: flex;
+    gap: 2px;
+    height: 24px;
+    background: var(--surface);
+  }
+
+  .seg {
+    position: relative;
+    flex: var(--share) 1 0;
+    min-width: 6px;
+    background: var(--c);
+    outline: none;
+    transition: filter 0.15s;
+  }
+
+  .seg:first-child {
+    border-radius: 4px 0 0 4px;
+  }
+
+  .seg:last-child {
+    border-radius: 0 4px 4px 0;
+  }
+
+  .seg:hover,
+  .seg:focus-visible {
+    filter: brightness(1.08);
+  }
+
+  .seg:focus-visible {
+    box-shadow: 0 0 0 3px var(--yellow);
+  }
+
+  .tip {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    z-index: 5;
+    padding: 0.3rem 0.65rem;
+    border-radius: 8px;
+    background: var(--ink);
+    color: #fff;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 4px);
+    transition:
+      opacity 0.15s,
+      transform 0.15s;
+  }
+
+  .seg:last-child .tip {
+    left: auto;
+    right: 0;
+    transform: translateY(4px);
+  }
+
+  .seg:hover .tip,
+  .seg:focus-visible .tip {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  .seg:last-child:hover .tip,
+  .seg:last-child:focus-visible .tip {
+    transform: none;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 2rem;
+    margin: 1.1rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .legend li {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 0 0.5rem;
+    align-items: center;
+  }
+
+  .swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: var(--c);
+  }
+
+  .legend-value {
+    font-family: var(--font-head);
+    font-weight: 700;
+    font-size: 1.35rem;
+    color: var(--ink);
+  }
+
+  .legend-label {
+    grid-column: 2;
+    font-size: 0.92rem;
+    color: var(--muted);
+    line-height: 1.3;
+  }
+
+  .table-view {
+    margin-top: 1rem;
+    font-size: 0.95rem;
+  }
+
+  .table-view summary {
+    cursor: pointer;
+    color: var(--green-700);
+    font-weight: 600;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin-top: 0.75rem;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+    text-align: start;
+  }
+
+  td {
+    text-align: end;
+  }
+
+  thead th {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  tbody th {
+    font-weight: 400;
+    color: var(--ink);
+  }
+</style>

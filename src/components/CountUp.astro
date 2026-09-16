@@ -1,0 +1,42 @@
+---
+import { formatNumber, type Lang } from '~/i18n/utils';
+
+type Props = { value: number; lang: Lang; class?: string };
+const { value, lang, class: className } = Astro.props;
+---
+
+<span class:list={['count-up', className]} data-count={value} data-locale={lang === 'ne' ? 'ne-NP-u-nu-deva' : 'en-US'}>{formatNumber(value, lang)}</span>
+
+<script>
+  // Counts up once when visible. The final number is already in the HTML,
+  // so nothing breaks without JavaScript or with reduced motion.
+  const els = document.querySelectorAll<HTMLElement>('[data-count]');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!reduce && 'IntersectionObserver' in window) {
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          io.unobserve(entry.target);
+          const el = entry.target as HTMLElement;
+          const target = Number(el.dataset.count);
+          const decimals = Number.isInteger(target) ? 0 : 1;
+          const fmt = new Intl.NumberFormat(el.dataset.locale, { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+          const final = el.textContent;
+          const start = performance.now();
+          const duration = 1400;
+          const tick = (now: number) => {
+            const p = Math.min(1, (now - start) / duration);
+            const eased = 1 - Math.pow(1 - p, 3);
+            el.textContent = p < 1 ? fmt.format(target * eased) : final;
+            if (p < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
+      },
+      { threshold: 0.6 },
+    );
+    els.forEach((el) => io.observe(el));
+  }
+</script>

@@ -117,7 +117,7 @@ const central = branches[0];
     <div class="offices">
       {branches.map((b, i) => <BranchCard branch={b} lang={lang} featured={i === 0} />)}
       <div class="map">
-        <LazyEmbed src={mapEmbed(central.mapQuery)} title={`${central.name[lang]} — Google Maps`} buttonLabel={t('cta.showMap')} icon="map" height="100%" />
+        <LazyEmbed src={mapEmbed(central.mapQuery)} title={`${central.name[lang]} — Google Maps`} icon="map" height="100%" />
       </div>
     </div>
   </div>

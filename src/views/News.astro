@@ -33,7 +33,6 @@ const t = useTranslations(lang);
   <div class="container">
     <div class="fb-head">
       <h2 class="h3" id="fb-title">{t('news.fromFacebook')}</h2>
-      <p class="privacy"><Icon name="info" size={18} /> {t('news.privacy')}</p>
     </div>
     <div class="feeds">
       {
@@ -48,7 +47,7 @@ const t = useTranslations(lang);
                 <Icon name="external-link" size={16} />
               </a>
             </header>
-            <LazyEmbed src={facebookPluginUrl(feed.pageUrl)} title={`${feed.name[lang]} — Facebook`} buttonLabel={t('cta.loadFeed')} icon="facebook" height="720px" />
+            <LazyEmbed src={facebookPluginUrl(feed.pageUrl)} title={`${feed.name[lang]} — Facebook`} icon="facebook" height="720px" />
           </article>
         ))
       }
@@ -72,14 +71,6 @@ const t = useTranslations(lang);
     align-items: baseline;
     justify-content: space-between;
     margin-bottom: 1.5rem;
-  }
-
-  .privacy {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: var(--muted);
-    font-size: var(--step--1);
   }
 
   .feeds {

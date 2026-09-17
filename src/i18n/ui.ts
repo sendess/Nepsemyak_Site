@@ -32,10 +32,7 @@ const en = {
   'cta.ourStory': 'Our story',
   'cta.allServices': 'All services',
   'cta.directions': 'Directions',
-  'cta.showMap': 'Show map',
   'cta.openFolder': 'Open folder',
-  'cta.browseHere': 'Browse here',
-  'cta.loadFeed': 'Load Facebook posts',
   'cta.backHome': 'Back to home',
 
   'common.dataAsOf': 'Data as of',
@@ -150,7 +147,6 @@ const en = {
 
   'news.title': 'News & events',
   'news.intro': 'Our offices share their latest activities, campaigns and notices on Facebook.',
-  'news.privacy': 'Facebook content loads only when you ask for it.',
   'news.latestTitle': 'Latest news',
   'news.latestIntro': 'Campaigns, trainings and updates from our offices.',
   'news.fromFacebook': 'More updates on Facebook',
@@ -259,10 +255,7 @@ const ne: Record<UiKey, string> = {
   'cta.ourStory': 'हाम्रो यात्रा',
   'cta.allServices': 'सबै सेवा',
   'cta.directions': 'बाटो हेर्नुहोस्',
-  'cta.showMap': 'नक्सा देखाउनुहोस्',
   'cta.openFolder': 'फोल्डर खोल्नुहोस्',
-  'cta.browseHere': 'यहीँ हेर्नुहोस्',
-  'cta.loadFeed': 'फेसबुक पोस्ट देखाउनुहोस्',
   'cta.backHome': 'गृहपृष्ठमा फर्कनुहोस्',
 
   'common.dataAsOf': 'तथ्याङ्क मिति',
@@ -377,7 +370,6 @@ const ne: Record<UiKey, string> = {
 
   'news.title': 'समाचार तथा गतिविधि',
   'news.intro': 'हाम्रा कार्यालयले आफ्ना पछिल्ला गतिविधि, अभियान तथा सूचना फेसबुकमार्फत सार्वजनिक गर्छन्।',
-  'news.privacy': 'तपाईंले चाहेपछि मात्र फेसबुक सामग्री खुल्छ।',
   'news.latestTitle': 'पछिल्ला समाचार',
   'news.latestIntro': 'हाम्रा कार्यालयका अभियान, तालिम तथा जानकारी।',
   'news.fromFacebook': 'फेसबुकमा थप जानकारी',

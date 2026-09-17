@@ -48,7 +48,7 @@ const t = useTranslations(lang);
               <span class="visually-hidden">{t('common.opensNewTab')}</span>
             </a>
           </div>
-          <LazyEmbed src={driveEmbedUrl(f.driveId)} title={f.title[lang]} buttonLabel={t('cta.browseHere')} icon="download" height="360px" />
+          <LazyEmbed src={driveEmbedUrl(f.driveId)} title={f.title[lang]} icon="download" height="360px" />
         </article>
       ))
     }

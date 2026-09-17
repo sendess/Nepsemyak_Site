@@ -2,40 +2,57 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
-import { dashboardCounts, getCurrentNotice } from '~/lib/content';
+import { dashboardCounts, getLiveNotices } from '~/lib/content';
+import { getAllStats, STAT_GROUP_IDS } from '~/lib/stats';
+import { formatDay } from '~/lib/admin-format';
 
 export const prerender = false;
 
-const [counts, notice] = await Promise.all([dashboardCounts(), getCurrentNotice()]);
+const [counts, live, stats] = await Promise.all([dashboardCounts(), getLiveNotices(), getAllStats()]);
 const admin = Astro.locals.admin!;
 const mediaMb = (Number(counts.media_bytes) / 1_000_000).toFixed(1);
+const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of)
+  .filter((d): d is string => !!d)
+  .sort()[0] ?? null;
 
 const tiles = [
+  { href: '/admin/stats', icon: 'chart-bar', value: STAT_GROUP_IDS.length, label: 'Statistics groups', extra: `Oldest data: ${formatDay(oldestAsOf)}` },
   { href: '/admin/news', icon: 'newspaper', value: counts.news_published, label: 'Published news posts', extra: `${counts.news_drafts} draft(s)` },
   { href: '/admin/jobs', icon: 'briefcase', value: counts.jobs_open, label: 'Open job listings', extra: 'Shown on Careers' },
   { href: '/admin/users', icon: 'users', value: counts.admins, label: 'People with admin access', extra: `${mediaMb} MB of images stored` },
 ] as const;
+
+const notices = [
+  { kind: 'Banner', notice: live.banner },
+  { kind: 'Pop-up', notice: live.popup },
+];
 ---
 
 <AdminLayout title="Dashboard">
   <p class="welcome">Namaste, {admin.name || admin.email}.</p>
 
   <section class="notice-card" aria-labelledby="notice-title">
-    <div>
-      <h2 id="notice-title">Site notice</h2>
+    <div class="notice-lines">
+      <h2 id="notice-title">Live notices</h2>
       {
-        notice ? (
+        notices.map(({ kind, notice }) => (
           <p>
-            <StatusBadge status={notice.tone} /> {notice.message_en || notice.message_ne}
+            <span class="kind">{kind}:</span>{' '}
+            {notice ? (
+              <>
+                <StatusBadge status={notice.tone} />{' '}
+                <a href={`/admin/notices/${notice.id}`}>{notice.title_en || notice.message_en || notice.title_ne || notice.message_ne}</a>
+              </>
+            ) : (
+              <span class="muted">none</span>
+            )}
           </p>
-        ) : (
-          <p class="muted">No notice is showing on the website.</p>
-        )
+        ))
       }
     </div>
     <a class="btn btn-primary btn-sm" href="/admin/notices">
       <Icon name="megaphone" size={16} />
-      {notice ? 'Manage notice' : 'Post a notice'}
+      Manage notices
     </a>
   </section>
 
@@ -91,6 +108,13 @@ const tiles = [
 
   .notice-card p {
     margin-top: 0.35rem;
+  }
+
+  .kind {
+    display: inline-block;
+    min-width: 4.2rem;
+    font-weight: 600;
+    color: var(--ink);
   }
 
   .tiles {

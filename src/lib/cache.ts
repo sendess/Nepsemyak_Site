@@ -1,6 +1,6 @@
 import { purgeCache } from '@netlify/functions';
 
-export type CacheTag = 'notice' | 'news' | 'jobs';
+export type CacheTag = 'notice' | 'news' | 'jobs' | 'stats';
 
 /**
  * Cache a public response at Netlify's edge until content changes.

@@ -1,0 +1,182 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import { getAllStats, STAT_GROUP_IDS, STAT_GROUPS } from '~/lib/stats';
+import { formatDay, formatNpt, todayNpt } from '~/lib/admin-format';
+import { formatDate } from '~/i18n/utils';
+
+export const prerender = false;
+
+const stats = await getAllStats();
+const today = Date.parse(todayNpt());
+const monthsOld = (date: string | null) => (date ? Math.floor((today - Date.parse(date)) / (30.44 * 86_400_000)) : null);
+const flash = Astro.url.searchParams.get('done');
+---
+
+<AdminLayout title="Statistics" wide>
+  {flash && <p class="flash"><Icon name="circle-check" size={20} /> {flash} updated. The website shows the new figures within seconds.</p>}
+
+  <p class="intro hint">
+    These figures appear on the home page, the Impact page and the Careers page. Each group has an <strong>“as of” date</strong> that
+    visitors see next to the numbers — update it whenever you update the figures.
+  </p>
+
+  <div class="groups">
+    {
+      STAT_GROUP_IDS.map((id) => {
+        const group = stats[id];
+        const config = STAT_GROUPS[id];
+        const age = monthsOld(group.as_of);
+        return (
+          <a class="group" href={`/admin/stats/${id}`}>
+            <div class="top">
+              <h2>{config.title}</h2>
+              <span class:list={['age', { stale: age !== null && age >= 12 }]}>
+                <Icon name="calendar" size={14} />
+                As of {formatDay(group.as_of)}
+              </span>
+            </div>
+            <p class="hint">{config.description}</p>
+            <ul class="preview">
+              {group.items.slice(0, 4).map((item) => (
+                <li>
+                  <span>{item.label_en || item.label_ne}</span>
+                  <strong>
+                    {item.value.toLocaleString('en-US')}
+                    {config.unit === 'percent' ? '%' : config.unit === 'mt' ? ' MT' : ''}
+                  </strong>
+                </li>
+              ))}
+              {group.items.length > 4 && <li class="more">+ {group.items.length - 4} more</li>}
+            </ul>
+            <div class="foot">
+              <span class="hint">
+                {config.shownOn}
+                {group.as_of && <> · Nepali: {formatDate(group.as_of, 'ne')}</>}
+              </span>
+              <span class="link-arrow">
+                Update <Icon name="arrow-right" size={16} />
+              </span>
+            </div>
+            {group.updated_by && (
+              <p class="updated">
+                Last saved by {group.updated_by} on {formatNpt(group.updated_at)}
+              </p>
+            )}
+            {age !== null && age >= 12 && <p class="stale-note">These figures are over a year old.</p>}
+          </a>
+        );
+      })
+    }
+  </div>
+</AdminLayout>
+
+<style>
+  .intro {
+    margin-bottom: 1.25rem;
+    font-size: 0.98rem;
+  }
+
+  .groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+    gap: 1rem;
+  }
+
+  .group {
+    display: grid;
+    align-content: start;
+    gap: 0.6rem;
+    padding: 1.25rem 1.35rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+    color: inherit;
+    text-decoration: none;
+    transition:
+      border-color 0.2s,
+      transform 0.2s var(--ease);
+  }
+
+  .group:hover {
+    color: inherit;
+    border-color: var(--green-200);
+    transform: translateY(-2px);
+  }
+
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.75rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .top h2 {
+    font-size: 1.1rem;
+  }
+
+  .age {
+    display: inline-flex;
+    gap: 0.3rem;
+    align-items: center;
+    padding: 0.1rem 0.6rem;
+    border-radius: 999px;
+    background: var(--green-100);
+    color: var(--green-800);
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .age.stale {
+    background: #fff4c2;
+    color: #6b5300;
+  }
+
+  .preview {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0.25rem 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.92rem;
+  }
+
+  .preview li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px dashed var(--line);
+  }
+
+  .preview strong {
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .preview .more {
+    border: 0;
+    color: var(--muted);
+  }
+
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .updated {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .stale-note {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #6b5300;
+  }
+</style>

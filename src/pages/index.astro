@@ -3,13 +3,14 @@ import BaseLayout from '~/layouts/BaseLayout.astro';
 import Home from '~/views/Home.astro';
 import { cachePublic } from '~/lib/cache';
 import { listPublishedNews } from '~/lib/content';
+import { getAllStats } from '~/lib/stats';
 
 export const prerender = false;
 
-const latestNews = await listPublishedNews(3);
-cachePublic(Astro.response.headers, ['news']);
+const [latestNews, stats] = await Promise.all([listPublishedNews(3), getAllStats()]);
+cachePublic(Astro.response.headers, ['news', 'stats']);
 ---
 
 <BaseLayout>
-  <Home lang="en" latestNews={latestNews} />
+  <Home lang="en" latestNews={latestNews} stats={stats} />
 </BaseLayout>

@@ -18,13 +18,13 @@ const state = (n: Notice) => {
 const flash = Astro.url.searchParams.get('done');
 ---
 
-<AdminLayout title="Notices">
+<AdminLayout title="Notices" wide>
   {flash && <p class="flash"><Icon name="circle-check" size={20} /> Notice {flash}. The website updates within seconds.</p>}
 
   <div class="toolbar">
     <p class="hint">
-      A notice appears as a banner at the top of every page — for collection delays, holidays or urgent updates. Only the
-      newest active notice is shown.
+      Show a <strong>banner</strong> at the top of every page, a <strong>pop-up</strong> when visitors arrive, or both. The
+      newest active notice of each kind is shown.
     </p>
     <a class="btn btn-primary" href="/admin/notices/new" id="new"><Icon name="megaphone" size={18} /> New notice</a>
   </div>
@@ -41,6 +41,7 @@ const flash = Astro.url.searchParams.get('done');
           <thead>
             <tr>
               <th scope="col">Message</th>
+              <th scope="col">Shown as</th>
               <th scope="col">Type</th>
               <th scope="col">Status</th>
               <th scope="col">Showing</th>
@@ -49,8 +50,13 @@ const flash = Astro.url.searchParams.get('done');
           <tbody>
             {notices.map((n) => (
               <tr>
-                <td>
-                  <a href={`/admin/notices/${n.id}`}>{n.message_en || n.message_ne}</a>
+                <td class="msg">
+                  {n.image_media_id && <img src={`/media/${n.image_media_id}`} alt="" width="48" height="36" loading="lazy" />}
+                  <a href={`/admin/notices/${n.id}`}>{n.title_en || n.title_ne || n.message_en || n.message_ne}</a>
+                </td>
+                <td class="nowrap">
+                  {n.show_banner && <span class="chip">Banner</span>}
+                  {n.show_popup && <span class="chip">Pop-up</span>}
                 </td>
                 <td>
                   <StatusBadge status={n.tone} />
@@ -69,3 +75,33 @@ const flash = Astro.url.searchParams.get('done');
     )
   }
 </AdminLayout>
+
+<style>
+  .msg {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+  }
+
+  .msg img {
+    flex: none;
+    width: 48px;
+    height: 36px;
+    border-radius: 6px;
+    object-fit: cover;
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .chip {
+    display: inline-block;
+    margin-inline-end: 0.3rem;
+    padding: 0.05rem 0.5rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    color: var(--ink);
+  }
+</style>

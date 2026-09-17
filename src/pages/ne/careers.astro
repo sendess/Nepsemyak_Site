@@ -3,16 +3,17 @@ import BaseLayout from '~/layouts/BaseLayout.astro';
 import Careers from '~/views/Careers.astro';
 import { cachePublic } from '~/lib/cache';
 import { listOpenJobs } from '~/lib/content';
+import { getAllStats, sumValues } from '~/lib/stats';
 import { useTranslations } from '~/i18n/utils';
 
 export const prerender = false;
 
 const lang = 'ne';
 const t = useTranslations(lang);
-const jobs = await listOpenJobs();
-cachePublic(Astro.response.headers, ['jobs']);
+const [jobs, stats] = await Promise.all([listOpenJobs(), getAllStats()]);
+cachePublic(Astro.response.headers, ['jobs', 'stats']);
 ---
 
 <BaseLayout title={t('careers.title')} description={t('careers.emptyText')}>
-  <Careers lang={lang} jobs={jobs} />
+  <Careers lang={lang} jobs={jobs} employeeTotal={sumValues(stats.workforce)} />
 </BaseLayout>

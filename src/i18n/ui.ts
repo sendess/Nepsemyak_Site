@@ -39,6 +39,7 @@ const en = {
   'cta.backHome': 'Back to home',
 
   'common.dataAsOf': 'Data as of',
+  'common.asOfDate': '*Data as of {date}',
   'common.mt': 'MT',
   'common.mtLong': 'metric tonnes',
   'common.perDay': 'per day',
@@ -56,6 +57,7 @@ const en = {
 
   'home.eyebrow': 'Solid waste management since 2009',
   'home.title': 'Clean neighborhoods start at your doorstep',
+  'home.leadFallback': 'We collect waste from homes across the Kathmandu Valley every day — and turn as much of it as we can into compost and recycled products.',
   'home.helpTitle': 'How can we help?',
   'home.help.query': 'Report a problem or ask a question',
   'home.help.queryDesc': 'Missed collection, fees or a new connection',
@@ -69,6 +71,7 @@ const en = {
   'home.stats.houses': 'households served',
   'home.stats.people': 'people benefit directly',
   'home.stats.wards': 'wards across {n} municipalities',
+  'home.stats.wardsOnly': 'wards served',
 
   'home.journey.eyebrow': 'Our process',
   'home.journey.title': 'Where your waste goes',
@@ -159,6 +162,12 @@ const en = {
   'notice.label': 'Notice',
   'notice.dismiss': 'Dismiss notice',
   'notice.more': 'Details',
+  'notice.badge.info': 'Notice',
+  'notice.badge.warning': 'Important notice',
+  'notice.badge.urgent': 'Urgent notice',
+  'notice.popupClose': 'Close',
+  'notice.readMore': 'Read more',
+  'notice.viewImage': 'Open image',
 
   'resources.title': 'Downloads',
   'resources.intro': 'Newsletters, government regulations, guides and composting manuals.',
@@ -257,6 +266,7 @@ const ne: Record<UiKey, string> = {
   'cta.backHome': 'गृहपृष्ठमा फर्कनुहोस्',
 
   'common.dataAsOf': 'तथ्याङ्क मिति',
+  'common.asOfDate': '*{date} सम्मको तथ्याङ्क',
   'common.mt': 'मे.ट.',
   'common.mtLong': 'मेट्रिक टन',
   'common.perDay': 'प्रतिदिन',
@@ -274,6 +284,7 @@ const ne: Record<UiKey, string> = {
 
   'home.eyebrow': 'वि.सं. २०६६ देखि ठोस फोहोरमैला व्यवस्थापनमा',
   'home.title': 'सफा टोल, तपाईंकै घरदैलोबाट',
+  'home.leadFallback': 'हामी काठमाडौं उपत्यकाका घरघरबाट दैनिक फोहोर सङ्कलन गर्छौं, र सकेसम्म धेरै फोहोरलाई कम्पोस्ट मल तथा पुनःप्रशोधित वस्तुमा बदल्छौं।',
   'home.helpTitle': 'हामी कसरी सहयोग गर्न सक्छौं?',
   'home.help.query': 'गुनासो वा जिज्ञासा पठाउनुहोस्',
   'home.help.queryDesc': 'फोहोर नउठेको, शुल्क वा नयाँ सेवा',
@@ -287,6 +298,7 @@ const ne: Record<UiKey, string> = {
   'home.stats.houses': 'सेवाग्राही घर',
   'home.stats.people': 'प्रत्यक्ष लाभान्वित जनसंख्या',
   'home.stats.wards': '{n} नगरपालिकाका वडामा सेवा',
+  'home.stats.wardsOnly': 'वडामा सेवा',
 
   'home.journey.eyebrow': 'हाम्रो कार्यप्रक्रिया',
   'home.journey.title': 'तपाईंको फोहोर कहाँ पुग्छ?',
@@ -377,6 +389,12 @@ const ne: Record<UiKey, string> = {
   'notice.label': 'सूचना',
   'notice.dismiss': 'सूचना बन्द गर्नुहोस्',
   'notice.more': 'विस्तृत',
+  'notice.badge.info': 'सूचना',
+  'notice.badge.warning': 'महत्त्वपूर्ण सूचना',
+  'notice.badge.urgent': 'जरुरी सूचना',
+  'notice.popupClose': 'बन्द गर्नुहोस्',
+  'notice.readMore': 'थप पढ्नुहोस्',
+  'notice.viewImage': 'तस्बिर ठूलो हेर्नुहोस्',
 
   'resources.title': 'डाउनलोड',
   'resources.intro': 'न्यूजलेटर, सरकारी ऐन-नियम, मार्गदर्शन तथा कम्पोस्ट निर्देशिका।',

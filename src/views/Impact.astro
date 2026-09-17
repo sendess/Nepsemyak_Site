@@ -3,16 +3,18 @@ import Icon from '~/components/Icon.astro';
 import PageHero from '~/components/PageHero.astro';
 import SectionHead from '~/components/SectionHead.astro';
 import CountUp from '~/components/CountUp.astro';
+import AsOf from '~/components/AsOf.astro';
 import BarList from '~/components/charts/BarList.astro';
 import StackedBar from '~/components/charts/StackedBar.astro';
 import CtaBand from '~/components/CtaBand.astro';
 import { org } from '~/data/site';
-import { serviceStats, workforceStats, figure, type Figure } from '~/data/stats';
-import { formatDate, formatNumber, useTranslations, yearsSince, type Lang } from '~/i18n/utils';
+import { findValue, sumValues, toFigures, type AllStats, type Figure } from '~/lib/stats';
+import { formatNumber, useTranslations, yearsSince, type Lang } from '~/i18n/utils';
 import type { IconName } from '~/components/icons';
 
-type Props = { lang: Lang };
-const { lang } = Astro.props;
+// Figures are edited in /admin/stats; each group carries its own "as of" date.
+type Props = { lang: Lang; stats: AllStats };
+const { lang, stats } = Astro.props;
 const t = useTranslations(lang);
 
 const reachIcons: Record<string, IconName> = {
@@ -27,11 +29,16 @@ const reachIcons: Record<string, IconName> = {
 const reach: (Figure & { icon: IconName })[] = [
   { id: 'service', icon: 'calendar', label: { en: 'Years of service', ne: 'सेवाका वर्ष' }, value: yearsSince(org.establishedOn) },
   { id: 'experience', icon: 'briefcase', label: { en: 'Years of experience', ne: 'कार्य अनुभवका वर्ष' }, value: yearsSince(org.experienceSince) },
-  ...serviceStats.reach.map((f) => ({ ...f, icon: reachIcons[f.id] })),
+  ...toFigures(stats.reach).map((f) => ({ ...f, icon: reachIcons[f.id] ?? 'chart-bar' })),
 ];
 
-const totalWaste = figure(serviceStats.wastePerDay, 'total');
-const totalVehicles = workforceStats.vehicles.reduce((s, v) => s + v.value, 0);
+// The total is drawn first and is the scale the other daily figures are compared with.
+const wasteFigures = toFigures(stats.waste);
+const totalWaste = findValue(stats.waste, 'total');
+const wasteOrdered = [...wasteFigures.filter((f) => f.id === 'total'), ...wasteFigures.filter((f) => f.id !== 'total')];
+const valleyShare = findValue(stats.coverage, 'valleyShare');
+const employeeTotal = sumValues(stats.workforce);
+const totalVehicles = sumValues(stats.vehicles);
 const mt = t('common.mt');
 ---
 
@@ -40,7 +47,7 @@ const mt = t('common.mt');
 <section class="section section-white" aria-labelledby="reach-title">
   <div class="container">
     <SectionHead title={t('impact.reachTitle')} id="reach-title">
-      <p class="asof"><Icon name="calendar" size={16} /> {t('common.dataAsOf')}: {formatDate(serviceStats.asOf, lang)}</p>
+      <AsOf date={stats.reach.as_of} lang={lang} />
     </SectionHead>
     <div class="tiles">
       {
@@ -63,18 +70,37 @@ const mt = t('common.mt');
     <div class="card chart-card">
       <h2 class="h3" id="waste-title">{t('impact.wasteTitle')}</h2>
       <p class="muted">{t('impact.wasteIntro')}</p>
-      <BarList items={serviceStats.wastePerDay} lang={lang} caption={t('impact.wasteTitle')} max={totalWaste} unit={mt} showShare emphasizeFirst />
+      {
+        wasteOrdered.length > 0 && (
+          <BarList
+            items={wasteOrdered}
+            lang={lang}
+            caption={t('impact.wasteTitle')}
+            max={totalWaste ?? undefined}
+            unit={mt}
+            showShare={totalWaste !== null}
+            emphasizeFirst={totalWaste !== null}
+          />
+        )
+      }
+      <AsOf date={stats.waste.as_of} lang={lang} />
     </div>
     <div class="side">
       <div class="card chart-card">
         <h2 class="h4">{t('impact.familiesTitle')}</h2>
         <p class="muted small">{t('impact.familiesIntro')}</p>
-        <StackedBar items={serviceStats.families} lang={lang} caption={t('impact.familiesTitle')} />
+        {stats.families.items.length > 0 && <StackedBar items={toFigures(stats.families)} lang={lang} caption={t('impact.familiesTitle')} />}
+        <AsOf date={stats.families.as_of} lang={lang} />
       </div>
-      <div class="share-card">
-        <span class="share-value">{formatNumber(serviceStats.valleyShare, lang)}%</span>
-        <p>{t('impact.valleyShare')}</p>
-      </div>
+      {
+        valleyShare !== null && (
+          <div class="share-card">
+            <span class="share-value">{formatNumber(valleyShare, lang)}%</span>
+            <p>{t('impact.valleyShare')}</p>
+            <AsOf date={stats.coverage.as_of} lang={lang} class="on-dark" />
+          </div>
+        )
+      }
     </div>
   </div>
 </section>
@@ -82,21 +108,30 @@ const mt = t('common.mt');
 <section class="section section-white" aria-labelledby="workforce-title">
   <div class="container">
     <SectionHead title={t('impact.workforceTitle')} id="workforce-title">
-      <p class="asof"><Icon name="calendar" size={16} /> {t('common.dataAsOf')}: {formatDate(workforceStats.asOf, lang)}</p>
+      <AsOf date={stats.workforce.as_of} lang={lang} />
     </SectionHead>
     <div class="workforce-grid">
       <div class="headline-card">
         <Icon name="users" size={32} />
-        <CountUp value={workforceStats.total} lang={lang} class="headline-value" />
+        <CountUp value={employeeTotal} lang={lang} class="headline-value" />
         <span>{t('impact.employeesTotal')}</span>
-        <div class="gender">
-          <h3 class="h4">{t('impact.genderTitle')}</h3>
-          <StackedBar items={workforceStats.gender} lang={lang} caption={t('impact.genderTitle')} />
-        </div>
+        {
+          stats.gender.items.length > 0 && (
+            <div class="gender">
+              <h3 class="h4">{t('impact.genderTitle')}</h3>
+              <StackedBar items={toFigures(stats.gender)} lang={lang} caption={t('impact.genderTitle')} />
+              {stats.gender.as_of !== stats.workforce.as_of && <AsOf date={stats.gender.as_of} lang={lang} />}
+            </div>
+          )
+        }
       </div>
       <div class="card chart-card">
         <h3 class="h4">{t('impact.workforceIntro')}</h3>
-        <BarList items={workforceStats.roles} lang={lang} caption={t('impact.workforceTitle')} max={workforceStats.total} showShare />
+        {
+          stats.workforce.items.length > 0 && (
+            <BarList items={toFigures(stats.workforce)} lang={lang} caption={t('impact.workforceTitle')} max={employeeTotal || undefined} showShare />
+          )
+        }
       </div>
     </div>
   </div>
@@ -109,13 +144,14 @@ const mt = t('common.mt');
         {t('impact.fleetTitle')}
         <span class="tag">{t('common.total')}: {formatNumber(totalVehicles, lang)}</span>
       </h2>
-      <BarList items={workforceStats.vehicles} lang={lang} caption={t('impact.fleetTitle')} />
+      {stats.vehicles.items.length > 0 && <BarList items={toFigures(stats.vehicles)} lang={lang} caption={t('impact.fleetTitle')} />}
+      <AsOf date={stats.vehicles.as_of} lang={lang} />
     </div>
     <div class="card chart-card">
       <h2 class="h3">{t('impact.facilitiesTitle')}</h2>
       <ul class="facilities">
         {
-          workforceStats.facilities.map((f) => (
+          toFigures(stats.facilities).map((f) => (
             <li>
               <span class="fac-value">{formatNumber(f.value, lang)}</span>
               <span>{f.label[lang]}</span>
@@ -123,6 +159,7 @@ const mt = t('common.mt');
           ))
         }
       </ul>
+      <AsOf date={stats.facilities.as_of} lang={lang} />
     </div>
   </div>
 </section>
@@ -130,12 +167,8 @@ const mt = t('common.mt');
 <CtaBand lang={lang} />
 
 <style>
-  .asof {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    color: var(--muted);
-    font-size: var(--step--1);
+  .share-card :global(.on-dark) {
+    color: #cfd3dc;
   }
 
   .tiles {

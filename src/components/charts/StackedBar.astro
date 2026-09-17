@@ -1,11 +1,11 @@
 ---
-import type { Figure } from '~/data/stats';
+import type { Figure } from '~/lib/stats';
 import { formatNumber, useTranslations, type Lang } from '~/i18n/utils';
 
 type Props = { items: Figure[]; lang: Lang; caption: string; unit?: string };
 const { items, lang, caption, unit = '%' } = Astro.props;
 const t = useTranslations(lang);
-const total = items.reduce((sum, i) => sum + i.value, 0);
+const total = items.reduce((sum, i) => sum + i.value, 0) || 1;
 // Categorical order is fixed: series-1, series-2, series-3.
 const colors = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'];
 const fmt = (v: number) => `${formatNumber(v, lang)}${unit}`;

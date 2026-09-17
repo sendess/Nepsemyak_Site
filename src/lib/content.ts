@@ -16,46 +16,98 @@ export type Notice = {
   is_active: boolean;
   starts_at: string;
   ends_at: string | null;
+  show_banner: boolean;
+  show_popup: boolean;
+  title_en: string;
+  title_ne: string;
+  details_en: string;
+  details_ne: string;
+  image_media_id: string | null;
+  image_width: number | null;
+  image_height: number | null;
   updated_by: string | null;
   updated_at: string;
 };
 
-export type NoticeInput = Pick<Notice, 'message_en' | 'message_ne' | 'link_url' | 'tone' | 'is_active' | 'ends_at'> & {
+export type NoticeInput = Pick<
+  Notice,
+  | 'message_en'
+  | 'message_ne'
+  | 'link_url'
+  | 'tone'
+  | 'is_active'
+  | 'ends_at'
+  | 'show_banner'
+  | 'show_popup'
+  | 'title_en'
+  | 'title_ne'
+  | 'details_en'
+  | 'details_ne'
+  | 'image_media_id'
+> & {
   starts_at: string | null;
 };
 
-/** The notice visitors see: active, started, not yet ended. Most recent wins. */
-export async function getCurrentNotice(): Promise<Notice | null> {
-  const rows = await sql`
-    select * from notices
-    where is_active and starts_at <= now() and (ends_at is null or ends_at > now())
-    order by starts_at desc, id desc limit 1`;
-  return (rows[0] as Notice) ?? null;
+const noticeSelect = sql`n.*, m.width as image_width, m.height as image_height
+  from notices n left join media m on m.id = n.image_media_id`;
+
+/** Notices visitors see right now: active, started and not yet ended, newest first. */
+export async function getLiveNotices(): Promise<{ banner: Notice | null; popup: Notice | null }> {
+  const rows = (await sql`
+    select ${noticeSelect}
+    where n.is_active and n.starts_at <= now() and (n.ends_at is null or n.ends_at > now())
+    order by n.starts_at desc, n.id desc limit 20`) as Notice[];
+  return {
+    banner: rows.find((n) => n.show_banner) ?? null,
+    popup: rows.find((n) => n.show_popup) ?? null,
+  };
 }
 
 export async function listNotices(): Promise<Notice[]> {
-  return (await sql`select * from notices order by is_active desc, starts_at desc, id desc`) as Notice[];
+  return (await sql`select ${noticeSelect} order by n.is_active desc, n.starts_at desc, n.id desc`) as Notice[];
 }
 
 export async function getNotice(id: number): Promise<Notice | null> {
-  return ((await sql`select * from notices where id = ${id}`)[0] as Notice) ?? null;
+  return ((await sql`select ${noticeSelect} where n.id = ${id}`)[0] as Notice) ?? null;
 }
 
 export async function saveNotice(id: number | null, input: NoticeInput, by: string): Promise<number> {
   const starts = input.starts_at ?? new Date().toISOString();
+  const n = input;
   if (id === null) {
     const [row] = await sql`
-      insert into notices (message_en, message_ne, link_url, tone, is_active, starts_at, ends_at, updated_by)
-      values (${input.message_en}, ${input.message_ne}, ${input.link_url}, ${input.tone}, ${input.is_active}, ${starts}, ${input.ends_at}, ${by})
+      insert into notices (message_en, message_ne, link_url, tone, is_active, starts_at, ends_at, show_banner, show_popup,
+        title_en, title_ne, details_en, details_ne, image_media_id, updated_by)
+      values (${n.message_en}, ${n.message_ne}, ${n.link_url}, ${n.tone}, ${n.is_active}, ${starts}, ${n.ends_at},
+        ${n.show_banner}, ${n.show_popup}, ${n.title_en}, ${n.title_ne}, ${n.details_en}, ${n.details_ne},
+        ${n.image_media_id}, ${by})
       returning id`;
     return Number(row.id);
   }
   await sql`
-    update notices set message_en = ${input.message_en}, message_ne = ${input.message_ne}, link_url = ${input.link_url},
-      tone = ${input.tone}, is_active = ${input.is_active}, starts_at = ${starts}, ends_at = ${input.ends_at},
+    update notices set message_en = ${n.message_en}, message_ne = ${n.message_ne}, link_url = ${n.link_url},
+      tone = ${n.tone}, is_active = ${n.is_active}, starts_at = ${starts}, ends_at = ${n.ends_at},
+      show_banner = ${n.show_banner}, show_popup = ${n.show_popup}, title_en = ${n.title_en}, title_ne = ${n.title_ne},
+      details_en = ${n.details_en}, details_ne = ${n.details_ne}, image_media_id = ${n.image_media_id},
       updated_by = ${by}, updated_at = now()
     where id = ${id}`;
   return id;
+}
+
+/** Shape sent to the browser for the banner and pop-up. */
+export function noticePayload(n: Notice) {
+  return {
+    id: n.id,
+    // Changes whenever the notice is edited, so an updated pop-up is shown again.
+    version: `${n.id}-${new Date(n.updated_at).getTime()}`,
+    tone: n.tone,
+    message: { en: n.message_en, ne: n.message_ne },
+    title: { en: n.title_en, ne: n.title_ne },
+    details: { en: n.details_en, ne: n.details_ne },
+    image: n.image_media_id ? { url: `/media/${n.image_media_id}`, width: n.image_width, height: n.image_height } : null,
+    link: n.link_url,
+    endsAt: n.ends_at,
+  };
 }
 
 export async function deleteNotice(id: number) {

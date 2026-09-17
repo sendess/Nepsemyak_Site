@@ -3,19 +3,18 @@ import Icon from '~/components/Icon.astro';
 import PageHero from '~/components/PageHero.astro';
 import CtaBand from '~/components/CtaBand.astro';
 import { branches } from '~/data/site';
-import { workforceStats } from '~/data/stats';
 import type { Job } from '~/lib/content';
 import { paragraphs, pickLang } from '~/lib/forms';
 import { formatDate, formatNumber, useTranslations, type Lang } from '~/i18n/utils';
 
-type Props = { lang: Lang; jobs: Job[] };
-const { lang, jobs } = Astro.props;
+type Props = { lang: Lang; jobs: Job[]; employeeTotal: number };
+const { lang, jobs, employeeTotal } = Astro.props;
 const t = useTranslations(lang);
 const facebookPages = branches.filter((b) => b.facebook);
 const pick = (en: string, ne: string) => pickLang(en, ne, lang);
 ---
 
-<PageHero lang={lang} title={t('careers.title')} lead={t('careers.intro').replace('{n}', formatNumber(workforceStats.total, lang))} />
+<PageHero lang={lang} title={t('careers.title')} lead={t('careers.intro').replace('{n}', formatNumber(employeeTotal, lang))} />
 
 <section class="section section-white">
   {

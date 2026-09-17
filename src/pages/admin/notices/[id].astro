@@ -2,6 +2,7 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import BilingualField from '~/components/admin/BilingualField.astro';
+import ImageField from '~/components/admin/ImageField.astro';
 import { deleteNotice, getNotice, NOTICE_TONES, saveNotice, type NoticeInput } from '~/lib/content';
 import { FormReader } from '~/lib/forms';
 import { parseId, toNptInput } from '~/lib/admin-format';
@@ -15,8 +16,23 @@ const existing = id === 'new' ? null : await getNotice(id);
 if (id !== 'new' && !existing) return Astro.redirect('/admin/notices', 303);
 
 let values: NoticeInput = existing
-  ? { ...existing, starts_at: existing.starts_at }
-  : { message_en: '', message_ne: '', link_url: null, tone: 'info', is_active: true, starts_at: null, ends_at: null };
+  ? { ...existing }
+  : {
+      message_en: '',
+      message_ne: '',
+      link_url: null,
+      tone: 'info',
+      is_active: true,
+      starts_at: null,
+      ends_at: null,
+      show_banner: true,
+      show_popup: false,
+      title_en: '',
+      title_ne: '',
+      details_en: '',
+      details_ne: '',
+      image_media_id: null,
+    };
 let errors: Record<string, string> = {};
 
 if (Astro.request.method === 'POST') {
@@ -30,6 +46,7 @@ if (Astro.request.method === 'POST') {
   }
 
   const f = new FormReader(form);
+  const mediaId = String(form.get('image_media_id') ?? '');
   values = {
     message_en: f.text('message_en', { max: 280, label: 'Message' }),
     message_ne: f.text('message_ne', { max: 280, label: 'Message' }),
@@ -38,49 +55,113 @@ if (Astro.request.method === 'POST') {
     is_active: f.checkbox('is_active'),
     starts_at: f.dateTime('starts_at', { label: 'Start' }),
     ends_at: f.dateTime('ends_at', { label: 'End' }),
+    show_banner: f.checkbox('show_banner'),
+    show_popup: f.checkbox('show_popup'),
+    title_en: f.text('title_en', { max: 160 }),
+    title_ne: f.text('title_ne', { max: 160 }),
+    details_en: f.text('details_en', { max: 3000 }),
+    details_ne: f.text('details_ne', { max: 3000 }),
+    image_media_id: /^[0-9a-f-]{36}$/i.test(mediaId) ? mediaId : null,
   };
   f.requireOneOf(values.message_en, values.message_ne, 'message', 'Message');
+  if (!values.show_banner && !values.show_popup) f.errors.display = 'Choose the banner, the pop-up, or both.';
   if (values.starts_at && values.ends_at && Date.parse(values.ends_at) <= Date.parse(values.starts_at)) {
     f.errors.ends_at = 'End must be after the start.';
   }
   errors = f.errors;
 
   if (f.ok) {
-    await saveNotice(existing?.id ?? null, values, by);
+    const savedId = await saveNotice(existing?.id ?? null, values, by);
     await purge(['notice']);
-    return Astro.redirect(`/admin/notices?done=${existing ? 'updated' : 'published'}`, 303);
+    return Astro.redirect(`/admin/notices/${savedId}?done=${existing ? 'updated' : 'saved'}`, 303);
   }
 }
 
+const flash = Astro.url.searchParams.get('done');
 const tones = [
   { value: 'info', label: 'Information', desc: 'General updates' },
-  { value: 'warning', label: 'Delay / warning', desc: 'Collection delays, holidays' },
+  { value: 'warning', label: 'Important', desc: 'Collection delays, holidays, fee changes' },
   { value: 'urgent', label: 'Urgent', desc: 'Strikes, landfill closures, emergencies' },
 ];
 ---
 
 <AdminLayout title={existing ? 'Edit notice' : 'New notice'}>
   <a class="link-arrow back" href="/admin/notices"><Icon name="arrow-left" size={16} /> All notices</a>
+  {
+    flash && existing && (
+      <p class="flash">
+        <Icon name="circle-check" size={20} /> Notice {flash}.{' '}
+        {existing.is_active ? 'It is live on the website within seconds.' : 'It is saved but not shown on the website.'}
+        <a class="preview-link" href={`/#notice-preview=${existing.id}`} target="_blank" rel="noopener">
+          Preview <Icon name="arrow-up-right" size={14} />
+        </a>
+      </p>
+    )
+  }
   {Object.keys(errors).length > 0 && <p class="flash error">Please fix the highlighted fields.</p>}
 
   <form method="post" class="form-grid">
     <section class="form-section">
+      <h2>Where to show it</h2>
+      <div class="displays">
+        <label class="display">
+          <input type="checkbox" name="show_banner" checked={values.show_banner} />
+          <span class="display-art banner-art" aria-hidden="true"><span></span></span>
+          <span>
+            <strong>Banner</strong>
+            <small>A slim strip above the menu on every page. Visitors can close it.</small>
+          </span>
+        </label>
+        <label class="display">
+          <input type="checkbox" name="show_popup" checked={values.show_popup} data-popup-toggle />
+          <span class="display-art popup-art" aria-hidden="true"><span></span></span>
+          <span>
+            <strong>Pop-up</strong>
+            <small>Opens once for each visitor, with an optional image and more details.</small>
+          </span>
+        </label>
+      </div>
+      {errors.display && <p class="field-error">{errors.display}</p>}
+    </section>
+
+    <section class="form-section">
       <BilingualField
         name="message"
-        label="Message"
+        label="Short message"
         values={{ en: values.message_en, ne: values.message_ne }}
         multiline
-        rows={3}
+        rows={2}
         max={280}
-        hint="Keep it short — one or two sentences."
-        error={errors.message ?? errors.message_en ?? errors.message_ne}
+        hint="One or two sentences. Shown in the banner, and in the pop-up when it has no details of its own."
+        error={errors.message}
       />
       <div class="field">
         <label for="link_url">Link (optional)</label>
         <input class="input" id="link_url" name="link_url" value={values.link_url ?? ''} placeholder="/news or https://…" />
-        <p class="hint">Visitors can click the banner to read more.</p>
+        <p class="hint">Adds a “Details” link to the banner and a “Read more” button to the pop-up.</p>
         {errors.link_url && <p class="field-error">{errors.link_url}</p>}
       </div>
+    </section>
+
+    <section class="form-section popup-section" data-popup-section>
+      <h2>Pop-up content</h2>
+      <p class="hint">Used only when “Pop-up” is ticked. Leave the title empty to use the short message as the heading.</p>
+      <BilingualField name="title" label="Pop-up title" values={{ en: values.title_en, ne: values.title_ne }} max={160} />
+      <BilingualField
+        name="details"
+        label="Details"
+        values={{ en: values.details_en, ne: values.details_ne }}
+        multiline
+        rows={5}
+        max={3000}
+        hint="Leave an empty line between paragraphs."
+      />
+      <ImageField
+        name="image_media_id"
+        label="Image (optional)"
+        mediaId={values.image_media_id}
+        hint="A photo, poster or scanned notice. Visitors can open it full size."
+      />
     </section>
 
     <section class="form-section">
@@ -112,7 +193,7 @@ const tones = [
         <div class="field">
           <label for="ends_at">End (Nepal time, optional)</label>
           <input class="input" type="datetime-local" id="ends_at" name="ends_at" value={toNptInput(values.ends_at)} />
-          <p class="hint">The banner disappears automatically after this.</p>
+          <p class="hint">The notice disappears automatically after this.</p>
           {errors.ends_at && <p class="field-error">{errors.ends_at}</p>}
         </div>
       </div>
@@ -120,13 +201,23 @@ const tones = [
         <input type="checkbox" name="is_active" checked={values.is_active} />
         Show this notice on the website
       </label>
+      <p class="hint">Untick to save it without publishing — you can still preview it.</p>
     </section>
 
     <div class="actions-bar">
-      <button class="btn btn-primary" type="submit" name="_action" value="save">
-        <Icon name="check" size={18} />
-        {existing ? 'Save changes' : 'Publish notice'}
-      </button>
+      <div class="left">
+        <button class="btn btn-primary" type="submit" name="_action" value="save">
+          <Icon name="check" size={18} />
+          {existing ? 'Save changes' : 'Save notice'}
+        </button>
+        {
+          existing && (
+            <a class="btn btn-ghost" href={`/#notice-preview=${existing.id}`} target="_blank" rel="noopener">
+              <Icon name="eye" size={18} /> Preview
+            </a>
+          )
+        }
+      </div>
       {
         existing && (
           <button class="btn btn-danger" type="submit" name="_action" value="delete" formnovalidate data-delete>
@@ -142,11 +233,110 @@ const tones = [
   document.querySelector<HTMLButtonElement>('[data-delete]')?.addEventListener('click', (e) => {
     if (!confirm('Delete this notice? This cannot be undone.')) e.preventDefault();
   });
+
+  // Dim the pop-up fields while "Pop-up" is not ticked (they stay editable and are saved).
+  const toggle = document.querySelector<HTMLInputElement>('[data-popup-toggle]');
+  const section = document.querySelector<HTMLElement>('[data-popup-section]');
+  const sync = () => section?.classList.toggle('inactive', !toggle?.checked);
+  toggle?.addEventListener('change', sync);
+  sync();
 </script>
 
 <style>
   .back {
     margin-bottom: 1rem;
+  }
+
+  .flash {
+    flex-wrap: wrap;
+  }
+
+  .preview-link {
+    display: inline-flex;
+    gap: 0.25rem;
+    align-items: center;
+    margin-inline-start: auto;
+  }
+
+  .left {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .displays {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: 0.75rem;
+  }
+
+  .display {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 0.8rem;
+    align-items: center;
+    padding: 0.9rem 1rem;
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    cursor: pointer;
+  }
+
+  .display:has(input:checked) {
+    border-color: var(--green);
+    background: var(--green-50);
+  }
+
+  .display input {
+    width: 1.2rem;
+    height: 1.2rem;
+    accent-color: var(--green);
+  }
+
+  .display span:last-child {
+    display: grid;
+    line-height: 1.35;
+  }
+
+  .display small {
+    color: var(--muted);
+  }
+
+  /* Tiny sketches of a banner and a pop-up. */
+  .display-art {
+    position: relative;
+    width: 52px;
+    height: 38px;
+    border: 1.5px solid var(--line-strong);
+    border-radius: 6px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .banner-art span {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 8px;
+    background: var(--yellow);
+  }
+
+  .popup-art {
+    background: #dfe5dc;
+  }
+
+  .popup-art span {
+    position: absolute;
+    inset: 8px 12px;
+    border-radius: 3px;
+    background: #fff;
+    border-top: 3px solid var(--green);
+  }
+
+  .popup-section {
+    transition: opacity 0.2s;
+  }
+
+  .popup-section.inactive {
+    opacity: 0.55;
   }
 
   .tones {

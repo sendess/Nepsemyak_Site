@@ -71,13 +71,22 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 
 - **Sign-in:** staff enter their email at `/admin/login` and receive a 6-digit code. Public sign-up is disabled
   in Neon Auth; only emails on the admin list can request codes.
-- **Roles:** *editors* manage notices, news and jobs; *owners* can also add and remove people under **Users**.
+- **Roles:** *editors* manage notices, statistics, news and jobs; *owners* can also add and remove people under **Users**.
+- **Statistics:** every figure on the home, Impact and Careers pages lives in `stat_groups` / `stat_items`. Each group
+  has an “as of” date shown to visitors (“*Data as of …”, Bikram Sambat on Nepali pages). Figures the home page needs
+  are marked `is_core` and cannot be removed. Totals for workforce and vehicles are calculated.
+- **Notices:** a notice can show as a banner, a pop-up, or both. Pop-ups have their own title, details and optional
+  image, open once per visitor (again after the notice is edited), and can be previewed at `/#notice-preview=<id>`
+  by a signed-in admin.
 - **Adding staff:** an owner adds them under **Users**. This creates their Neon Auth account (owners need the
   Neon Auth `admin` role: `neon neon-auth user set-role <user-id> --roles admin`).
 - **Languages:** every field has English and Nepali boxes. If one is empty, visitors see the other.
 - **Images:** resized in the browser to WebP (max 1600 px) and stored in Postgres (`media` table).
 
-Content not yet in the admin panel (statistics, team, branches, services, FAQ) is edited in `src/data/`.
+Content not yet in the admin panel (team, branches, services, FAQ) is edited in `src/data/`.
+
+`package.json` intentionally has no `"type": "module"`: the Netlify Emails integration installed on the site
+generates a CommonJS function that Netlify refuses to bundle otherwise.
 
 ## Deploying
 

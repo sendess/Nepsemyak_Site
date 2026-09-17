@@ -1,0 +1,488 @@
+---
+import Icon from './Icon.astro';
+import { useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+const badges = {
+  info: t('notice.badge.info'),
+  warning: t('notice.badge.warning'),
+  urgent: t('notice.badge.urgent'),
+};
+---
+
+<!--
+  Notices managed in /admin/notices: a slim banner above the header and an optional pop-up.
+  Loaded from /api/notice.json (cached at the edge) so pre-built pages pick up new notices
+  without rebuilding the site.
+-->
+<div class="notice-bar" data-notice data-lang={lang} role="region" aria-label={t('notice.label')} hidden>
+  <div class="container inner">
+    <span class="badge">
+      <Icon name="megaphone" size={16} />
+      {t('notice.label')}
+    </span>
+    <p class="text">
+      <span data-notice-text></span>
+      <a class="more" data-notice-link hidden>
+        {t('notice.more')}
+        <Icon name="arrow-right" size={14} />
+      </a>
+    </p>
+    <button class="close" type="button" data-notice-close aria-label={t('notice.dismiss')}>
+      <Icon name="x" size={18} />
+    </button>
+  </div>
+</div>
+
+<dialog class="notice-popup" data-notice-popup aria-labelledby="notice-popup-title" data-badges={JSON.stringify(badges)}>
+  <div class="card">
+    <button class="popup-x" type="button" data-popup-close aria-label={t('notice.popupClose')}>
+      <Icon name="x" size={22} />
+    </button>
+    <a class="figure" data-popup-figure target="_blank" rel="noopener" hidden>
+      <img data-popup-img alt="" decoding="async" />
+      <span class="zoom">{t('notice.viewImage')} <Icon name="arrow-up-right" size={14} /></span>
+    </a>
+    <div class="body">
+      <span class="popup-badge" data-popup-badge>
+        <Icon name="megaphone" size={16} />
+        <span data-popup-badge-text></span>
+      </span>
+      <h2 class="title" id="notice-popup-title" data-popup-title></h2>
+      <div class="details" data-popup-details></div>
+      <div class="actions">
+        <a class="btn btn-primary" data-popup-link hidden>
+          {t('notice.readMore')}
+          <Icon name="arrow-right" size={18} />
+        </a>
+        <button class="btn btn-ghost" type="button" data-popup-close>{t('notice.popupClose')}</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  type Localized = { en: string; ne: string };
+  type NoticePayload = {
+    id: number;
+    version: string;
+    tone: 'info' | 'warning' | 'urgent';
+    message: Localized;
+    title: Localized;
+    details: Localized;
+    image: { url: string; width: number | null; height: number | null } | null;
+    link: string | null;
+    endsAt: string | null;
+  };
+
+  const bar = document.querySelector<HTMLElement>('[data-notice]');
+  const dialog = document.querySelector<HTMLDialogElement>('[data-notice-popup]');
+  const lang = bar?.dataset.lang === 'ne' ? 'ne' : 'en';
+
+  const pick = (value: Localized) => (lang === 'ne' ? value.ne || value.en : value.en || value.ne);
+  const localLink = (href: string) =>
+    href.startsWith('/') && lang === 'ne' && !href.startsWith('/ne/') ? `/ne${href}` : href;
+  const expired = (n: NoticePayload) => !!n.endsAt && Date.parse(n.endsAt) <= Date.now();
+  const storage = {
+    get: (store: Storage, key: string) => {
+      try {
+        return store.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    set: (store: Storage, key: string) => {
+      try {
+        store.setItem(key, '1');
+      } catch {}
+    },
+  };
+
+  function showBanner(notice: NoticePayload) {
+    if (!bar || expired(notice)) return;
+    const key = `notice-banner-dismissed-${notice.version}`;
+    if (storage.get(sessionStorage, key)) return;
+
+    bar.querySelector('[data-notice-text]')!.textContent = pick(notice.message);
+    const link = bar.querySelector<HTMLAnchorElement>('[data-notice-link]')!;
+    if (notice.link) {
+      link.href = localLink(notice.link);
+      link.hidden = false;
+    }
+    bar.dataset.tone = notice.tone;
+    bar.hidden = false;
+    bar.querySelector('[data-notice-close]')?.addEventListener('click', () => {
+      bar.hidden = true;
+      storage.set(sessionStorage, key);
+    });
+  }
+
+  function showPopup(notice: NoticePayload, { preview = false } = {}) {
+    if (!dialog || typeof dialog.showModal !== 'function') return;
+    const key = `notice-popup-seen-${notice.version}`;
+    if (!preview && (expired(notice) || storage.get(localStorage, key))) return;
+
+    const badges = JSON.parse(dialog.dataset.badges ?? '{}');
+    dialog.dataset.tone = notice.tone;
+    dialog.querySelector('[data-popup-badge-text]')!.textContent = badges[notice.tone] ?? '';
+    dialog.querySelector('[data-popup-title]')!.textContent = pick(notice.title) || pick(notice.message);
+
+    // Details: blank lines separate paragraphs; the short message is used when there are no details.
+    const details = dialog.querySelector('[data-popup-details]')!;
+    const text = pick(notice.details) || (pick(notice.title) ? pick(notice.message) : '');
+    details.replaceChildren(
+      ...text
+        .split(/\n{2,}/)
+        .filter((p) => p.trim())
+        .map((p) => {
+          const el = document.createElement('p');
+          el.textContent = p.trim();
+          return el;
+        }),
+    );
+
+    const figure = dialog.querySelector<HTMLAnchorElement>('[data-popup-figure]')!;
+    const img = dialog.querySelector<HTMLImageElement>('[data-popup-img]')!;
+    if (notice.image) {
+      img.src = notice.image.url;
+      if (notice.image.width && notice.image.height) {
+        img.width = notice.image.width;
+        img.height = notice.image.height;
+      }
+      figure.href = notice.image.url;
+      figure.hidden = false;
+    } else {
+      figure.hidden = true;
+    }
+
+    const link = dialog.querySelector<HTMLAnchorElement>('[data-popup-link]')!;
+    link.hidden = !notice.link;
+    if (notice.link) link.href = localLink(notice.link);
+
+    // Cleanup runs directly from our own close actions; the dialog's `close` event
+    // (also fired by the Esc key) is only a backup, since browsers may delay it.
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      document.documentElement.classList.remove('popup-open');
+      if (!preview) storage.set(localStorage, key);
+    };
+    const close = () => {
+      dialog.close();
+      finish();
+    };
+    dialog.querySelectorAll('[data-popup-close]').forEach((btn) => btn.addEventListener('click', close));
+    // Clicking the dimmed area outside the card closes it.
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) close();
+    });
+    dialog.addEventListener('close', finish, { once: true });
+    dialog.addEventListener('cancel', finish, { once: true });
+
+    setTimeout(
+      () => {
+        document.documentElement.classList.add('popup-open');
+        dialog.showModal();
+      },
+      preview ? 0 : 700,
+    );
+  }
+
+  const previewId = location.hash.match(/^#notice-preview=(\d+)$/)?.[1];
+
+  if (previewId) {
+    // Admin preview: shows the pop-up even if it is inactive, scheduled or already seen.
+    fetch(`/api/admin/notices/${previewId}/preview`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { notice: NoticePayload } | null) => {
+        if (!data) return;
+        showBanner({ ...data.notice, version: `preview-${Date.now()}`, endsAt: null });
+        showPopup(data.notice, { preview: true });
+      })
+      .catch(() => {});
+  } else {
+    fetch('/api/notice.json')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { banner: NoticePayload | null; popup: NoticePayload | null } | null) => {
+        if (data?.banner) showBanner(data.banner);
+        if (data?.popup) showPopup(data.popup);
+      })
+      .catch(() => {});
+  }
+</script>
+
+<style>
+  /* ---------- Banner ---------- */
+  .notice-bar {
+    --tone-bg: var(--navy);
+    --tone-fg: #fff;
+    --tone-badge-bg: rgb(255 255 255 / 0.16);
+    --tone-badge-fg: #fff;
+    background: var(--tone-bg);
+    color: var(--tone-fg);
+    animation: slide-down 0.35s var(--ease);
+  }
+
+  .notice-bar[data-tone='warning'] {
+    --tone-bg: var(--yellow);
+    --tone-fg: var(--green-900);
+    --tone-badge-bg: var(--green-900);
+    --tone-badge-fg: var(--yellow);
+  }
+
+  .notice-bar[data-tone='urgent'] {
+    --tone-bg: #9b1c1c;
+    --tone-badge-bg: #fff;
+    --tone-badge-fg: #9b1c1c;
+  }
+
+  .inner {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    min-height: 2.75rem;
+    padding-block: 0.5rem;
+  }
+
+  .badge {
+    display: inline-flex;
+    flex: none;
+    gap: 0.35rem;
+    align-items: center;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    background: var(--tone-badge-bg);
+    color: var(--tone-badge-fg);
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .text {
+    flex: 1;
+    font-size: 0.98rem;
+    line-height: 1.45;
+  }
+
+  .more {
+    display: inline-flex;
+    gap: 0.25rem;
+    align-items: center;
+    margin-inline-start: 0.5rem;
+    color: inherit;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .more:hover {
+    color: inherit;
+  }
+
+  .close {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .close:hover {
+    background: rgb(0 0 0 / 0.12);
+  }
+
+  @media (max-width: 560px) {
+    .badge {
+      display: none;
+    }
+  }
+
+  @keyframes slide-down {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+  }
+
+  /* ---------- Pop-up ---------- */
+  :global(html.popup-open) {
+    overflow: hidden;
+  }
+
+  .notice-popup {
+    --accent: var(--green);
+    --badge-bg: var(--green-100);
+    --badge-fg: var(--green-800);
+    width: min(560px, calc(100% - 2rem));
+    max-height: calc(100dvh - 2rem);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 30px 80px -20px rgb(23 53 16 / 0.55);
+    overflow: hidden;
+  }
+
+  .notice-popup[data-tone='warning'] {
+    --accent: var(--yellow);
+    --badge-bg: var(--yellow);
+    --badge-fg: var(--green-900);
+  }
+
+  .notice-popup[data-tone='urgent'] {
+    --accent: #b42318;
+    --badge-bg: #fde8e6;
+    --badge-fg: #912018;
+  }
+
+  .notice-popup::backdrop {
+    background: rgb(23 35 16 / 0.62);
+    backdrop-filter: blur(3px);
+  }
+
+  .notice-popup[open] {
+    animation: pop-in 0.28s var(--ease);
+  }
+
+  .notice-popup[open]::backdrop {
+    animation: fade-in 0.28s ease;
+  }
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(16px) scale(0.97);
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 2rem);
+    border-top: 6px solid var(--accent);
+  }
+
+  .popup-x {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.92);
+    color: var(--ink);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+  }
+
+  .popup-x:hover {
+    background: #fff;
+    color: var(--green-800);
+  }
+
+  .figure {
+    position: relative;
+    display: block;
+    flex: none;
+    background: var(--green-50);
+  }
+
+  .figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: min(55dvh, 460px);
+    object-fit: contain;
+  }
+
+  /* On phones keep the title and buttons in view; the full image opens on tap. */
+  @media (max-width: 560px) {
+    .figure img {
+      max-height: 36dvh;
+    }
+  }
+
+  .zoom {
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    display: inline-flex;
+    gap: 0.25rem;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: rgb(23 35 16 / 0.72);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .figure:hover .zoom,
+  .figure:focus-visible .zoom {
+    opacity: 1;
+  }
+
+  .body {
+    display: grid;
+    gap: 0.9rem;
+    padding: clamp(1.25rem, 4vw, 1.75rem);
+    overflow-y: auto;
+  }
+
+  .popup-badge {
+    justify-self: start;
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    background: var(--badge-bg);
+    color: var(--badge-fg);
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  .title {
+    padding-right: 2.5rem;
+    font-size: clamp(1.35rem, 1.1rem + 1vw, 1.7rem);
+    line-height: 1.3;
+  }
+
+  .figure:not([hidden]) + .body .title {
+    padding-right: 0;
+  }
+
+  .details {
+    display: grid;
+    gap: 0.75rem;
+    color: var(--ink);
+    line-height: 1.7;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
+  }
+</style>

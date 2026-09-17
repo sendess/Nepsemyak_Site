@@ -1,0 +1,24 @@
+---
+import { formatDate, useTranslations, type Lang } from '~/i18n/utils';
+
+/** "*Data as of 28 October 2025" — or the Bikram Sambat date on Nepali pages. */
+type Props = { date: string | null; lang: Lang; class?: string };
+const { date, lang, class: className } = Astro.props;
+const t = useTranslations(lang);
+---
+
+{
+  date && (
+    <p class:list={['as-of', className]}>
+      <time datetime={date}>{t('common.asOfDate').replace('{date}', formatDate(date, lang))}</time>
+    </p>
+  )
+}
+
+<style>
+  .as-of {
+    font-size: var(--step--1);
+    font-style: italic;
+    color: var(--muted);
+  }
+</style>

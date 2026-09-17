@@ -1,5 +1,5 @@
 ---
-import type { Figure } from '~/data/stats';
+import type { Figure } from '~/lib/stats';
 import { formatNumber, useTranslations, type Lang } from '~/i18n/utils';
 
 type Props = {
@@ -17,7 +17,8 @@ type Props = {
 
 const { items, lang, caption, max, unit = '', showShare = false, emphasizeFirst = false } = Astro.props;
 const t = useTranslations(lang);
-const scale = max ?? Math.max(...items.map((i) => i.value));
+// `|| 1` keeps bars drawable when every figure is 0.
+const scale = (max ?? Math.max(0, ...items.map((i) => i.value))) || 1;
 const pct = (v: number) => Math.round((v / scale) * 100);
 const fmt = (v: number) => `${formatNumber(v, lang)}${unit ? ` ${unit}` : ''}`;
 ---

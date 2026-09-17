@@ -1,22 +1,22 @@
 import type { APIRoute } from 'astro';
 import { cachePublic } from '~/lib/cache';
-import { getCurrentNotice } from '~/lib/content';
+import { getLiveNotices, noticePayload } from '~/lib/content';
 
 export const prerender = false;
 
-/** The site-wide notice banner, read by every page and cached at the edge until a notice is saved. */
+/**
+ * The live banner and pop-up notices, read by every page and cached at the edge
+ * until a notice is saved in the admin panel.
+ */
 export const GET: APIRoute = async () => {
-  const notice = await getCurrentNotice();
+  const { banner, popup } = await getLiveNotices();
   const headers = new Headers({ 'content-type': 'application/json' });
   cachePublic(headers, ['notice']);
-  const body = notice
-    ? {
-        id: notice.id,
-        tone: notice.tone,
-        message: { en: notice.message_en, ne: notice.message_ne },
-        link: notice.link_url,
-        endsAt: notice.ends_at,
-      }
-    : null;
-  return new Response(JSON.stringify({ notice: body }), { headers });
+  const body = {
+    banner: banner ? noticePayload(banner) : null,
+    popup: popup ? noticePayload(popup) : null,
+    // Older cached pages read `notice`; keep it until they have expired.
+    notice: banner ? noticePayload(banner) : null,
+  };
+  return new Response(JSON.stringify(body), { headers });
 };

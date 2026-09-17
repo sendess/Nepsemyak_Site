@@ -6,32 +6,36 @@ import YouTube from '~/components/YouTube.astro';
 import FaqList from '~/components/FaqList.astro';
 import CtaBand from '~/components/CtaBand.astro';
 import NewsCard from '~/components/NewsCard.astro';
+import AsOf from '~/components/AsOf.astro';
 import type { NewsPost } from '~/lib/content';
+import { findValue, type AllStats } from '~/lib/stats';
 import { org } from '~/data/site';
-import { serviceStats, figure } from '~/data/stats';
 import { serviceGroups } from '~/data/services';
 import { journey, sortingGuide } from '~/data/home';
 import { aboutIntro, milestones, chairman } from '~/data/about';
 import { faqs } from '~/data/faq';
-import { formatDate, formatNumber, localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
+import { formatNumber, localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
 import type { IconName } from '~/components/icons';
 
-type Props = { lang: Lang; latestNews: NewsPost[] };
-const { lang, latestNews } = Astro.props;
+type Props = { lang: Lang; latestNews: NewsPost[]; stats: AllStats };
+const { lang, latestNews, stats: allStats } = Astro.props;
 const t = useTranslations(lang);
 const href = (path: string) => localizePath(path, lang);
 const n = (v: number) => formatNumber(v, lang);
 
-const collected = figure(serviceStats.wastePerDay, 'total');
-const houses = figure(serviceStats.reach, 'houses');
-const people = figure(serviceStats.reach, 'population');
-const wards = figure(serviceStats.reach, 'wards');
-const municipalities = figure(serviceStats.reach, 'municipalities');
+// Figures are edited in /admin/stats.
+const collected = findValue(allStats.waste, 'total');
+const houses = findValue(allStats.reach, 'houses');
+const people = findValue(allStats.reach, 'population');
+const wards = findValue(allStats.reach, 'wards');
+const municipalities = findValue(allStats.reach, 'municipalities');
 
 const heroLead =
-  lang === 'ne'
-    ? `हामी दैनिक ${n(municipalities)} नगरपालिकाका ${n(houses)} घरबाट ${n(collected)} मेट्रिक टन फोहोर सङ्कलन गर्छौं, र सकेसम्म धेरै फोहोरलाई कम्पोस्ट मल तथा पुनःप्रशोधित वस्तुमा बदल्छौं।`
-    : `Every day we collect ${n(collected)} tonnes of waste from ${n(houses)} homes across ${n(municipalities)} municipalities — and turn as much of it as we can into compost and recycled products.`;
+  collected !== null && houses !== null && municipalities !== null
+    ? lang === 'ne'
+      ? `हामी दैनिक ${n(municipalities)} नगरपालिकाका ${n(houses)} घरबाट ${n(collected)} मेट्रिक टन फोहोर सङ्कलन गर्छौं, र सकेसम्म धेरै फोहोरलाई कम्पोस्ट मल तथा पुनःप्रशोधित वस्तुमा बदल्छौं।`
+      : `Every day we collect ${n(collected)} tonnes of waste from ${n(houses)} homes across ${n(municipalities)} municipalities — and turn as much of it as we can into compost and recycled products.`
+    : t('home.leadFallback');
 
 const helpItems: { href: string; icon: IconName; title: string; desc: string; external?: boolean }[] = [
   { href: `${href('/contact')}#query`, icon: 'send', title: t('home.help.query'), desc: t('home.help.queryDesc') },
@@ -41,11 +45,19 @@ const helpItems: { href: string; icon: IconName; title: string; desc: string; ex
 ];
 
 const stats = [
-  { value: collected, label: t('home.stats.collected') },
-  { value: houses, label: t('home.stats.houses') },
-  { value: people, label: t('home.stats.people') },
-  { value: wards, label: t('home.stats.wards').replace('{n}', n(municipalities)) },
-];
+  { value: collected, label: t('home.stats.collected'), asOf: allStats.waste.as_of },
+  { value: houses, label: t('home.stats.houses'), asOf: allStats.reach.as_of },
+  { value: people, label: t('home.stats.people'), asOf: allStats.reach.as_of },
+  {
+    value: wards,
+    label: municipalities !== null ? t('home.stats.wards').replace('{n}', n(municipalities)) : t('home.stats.wardsOnly'),
+    asOf: allStats.reach.as_of,
+  },
+].filter((s): s is { value: number; label: string; asOf: string | null } => s.value !== null);
+
+// One footnote when all figures share a date; otherwise each figure shows its own.
+const statDates = [...new Set(stats.map((s) => s.asOf).filter(Boolean))] as string[];
+const sharedAsOf = statDates.length === 1 ? statDates[0] : null;
 ---
 
 <!-- Hero -->
@@ -113,12 +125,13 @@ const stats = [
           <div class="stat">
             <CountUp value={s.value} lang={lang} class="stat-value" />
             <span class="stat-label">{s.label}</span>
+            {!sharedAsOf && <AsOf date={s.asOf} lang={lang} />}
           </div>
         ))
       }
     </div>
     <p class="stats-foot">
-      <span>{t('common.dataAsOf')}: {formatDate(serviceStats.asOf, lang)}</span>
+      <span>{sharedAsOf && <AsOf date={sharedAsOf} lang={lang} />}</span>
       <a class="link-arrow" href={href('/impact')}>
         {t('cta.fullImpact')}
         <Icon name="arrow-right" size={16} />

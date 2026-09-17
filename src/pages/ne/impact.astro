@@ -1,12 +1,18 @@
 ---
 import BaseLayout from '~/layouts/BaseLayout.astro';
 import View from '~/views/Impact.astro';
+import { cachePublic } from '~/lib/cache';
+import { getAllStats } from '~/lib/stats';
 import { useTranslations } from '~/i18n/utils';
+
+export const prerender = false;
 
 const lang = 'ne';
 const t = useTranslations(lang);
+const stats = await getAllStats();
+cachePublic(Astro.response.headers, ['stats']);
 ---
 
 <BaseLayout title={t('impact.title')} description={t('impact.intro')}>
-  <View lang={lang} />
+  <View lang={lang} stats={stats} />
 </BaseLayout>

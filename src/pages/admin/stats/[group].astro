@@ -1,0 +1,418 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import { getStatGroup, isStatGroupId, saveStatGroup, STAT_GROUPS, UNIT_LABEL, type StatRowInput } from '~/lib/stats';
+import { FormReader } from '~/lib/forms';
+import { formatNpt } from '~/lib/admin-format';
+import { purge } from '~/lib/cache';
+import { formatDate } from '~/i18n/utils';
+
+export const prerender = false;
+
+const groupId = Astro.params.group ?? '';
+if (!isStatGroupId(groupId)) return Astro.redirect('/admin/stats', 303);
+const config = STAT_GROUPS[groupId];
+const group = await getStatGroup(groupId);
+
+type Row = { id: number | null; key: string | null; label_en: string; label_ne: string; value: string; is_core: boolean; remove: boolean; error?: string };
+
+let asOf = group.as_of ?? '';
+let rows: Row[] = group.items.map((item) => ({
+  id: item.id,
+  key: item.key,
+  label_en: item.label_en,
+  label_ne: item.label_ne,
+  value: String(item.value),
+  is_core: item.is_core,
+  remove: false,
+}));
+let errors: Record<string, string> = {};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const f = new FormReader(form);
+  asOf = f.date('as_of', { required: true, label: 'The “as of” date' }) ?? asOf;
+
+  const ids = form.getAll('row_id').map(String);
+  const labelsEn = form.getAll('row_label_en').map((v) => String(v).trim());
+  const labelsNe = form.getAll('row_label_ne').map((v) => String(v).trim());
+  const values = form.getAll('row_value').map((v) => String(v).trim());
+  const removes = form.getAll('row_remove').map(String);
+  const coreById = new Map(group.items.map((item) => [item.id, item]));
+
+  rows = ids.map((rawId, i) => {
+    const id = rawId ? Number(rawId) : null;
+    const existing = id !== null ? coreById.get(id) : undefined;
+    return {
+      id,
+      key: existing?.key ?? null,
+      label_en: (labelsEn[i] ?? '').slice(0, 160),
+      label_ne: (labelsNe[i] ?? '').slice(0, 160),
+      value: values[i] ?? '',
+      is_core: existing?.is_core ?? false,
+      remove: removes[i] === '1' && !existing?.is_core,
+    };
+  });
+
+  // New rows left completely empty are ignored.
+  rows = rows.filter((r) => r.id !== null || r.label_en || r.label_ne || r.value);
+
+  const kept = rows.filter((r) => !r.remove);
+  for (const row of kept) {
+    const n = Number(row.value);
+    if (!row.label_en && !row.label_ne) row.error = 'Add a label in English or Nepali.';
+    else if (row.value === '' || !Number.isFinite(n) || n < 0) row.error = 'Enter a number of 0 or more.';
+    else if (config.unit === 'percent' && n > 100) row.error = 'A percentage cannot be more than 100.';
+    else if (Math.round(n * 100) !== n * 100) row.error = 'Use at most 2 decimal places.';
+  }
+  if (kept.length === 0) errors.rows = 'Keep at least one figure.';
+  if (config.sumTo100 && kept.every((r) => !r.error)) {
+    const total = kept.reduce((sum, r) => sum + Number(r.value), 0);
+    if (Math.abs(total - 100) > 0.5) errors.rows = `These percentages add up to ${Math.round(total * 100) / 100}. They must add up to 100.`;
+  }
+  errors = { ...errors, ...f.errors };
+
+  if (f.ok && !errors.rows && rows.every((r) => !r.error)) {
+    const input: StatRowInput[] = rows.map((r) => ({
+      id: r.id,
+      label_en: r.label_en,
+      label_ne: r.label_ne,
+      value: Number(r.value),
+      remove: r.remove,
+    }));
+    await saveStatGroup(groupId, asOf, input, Astro.locals.admin!.email);
+    await purge(['stats']);
+    return Astro.redirect(`/admin/stats?done=${encodeURIComponent(config.title)}`, 303);
+  }
+}
+
+const unit = UNIT_LABEL[config.unit];
+const hasErrors = Object.keys(errors).length > 0 || rows.some((r) => r.error);
+---
+
+<AdminLayout title={config.title}>
+  <a class="link-arrow back" href="/admin/stats"><Icon name="arrow-left" size={16} /> All statistics</a>
+  {hasErrors && <p class="flash error">Please fix the highlighted fields.</p>}
+
+  <form method="post" class="form-grid" data-stats-form data-unit={config.unit} data-sum100={config.sumTo100 ? '1' : ''}>
+    <section class="form-section">
+      <p class="hint">{config.description} Shown on: {config.shownOn}.</p>
+      <div class="field as-of">
+        <label for="as_of">Figures are as of</label>
+        <input class="input" type="date" id="as_of" name="as_of" value={asOf} required />
+        <p class="hint">
+          Visitors see “*Data as of …”.{' '}
+          {group.as_of && <>In Nepali this shows as {formatDate(group.as_of, 'ne')} (BS).</>}
+        </p>
+        {errors.as_of && <p class="field-error">{errors.as_of}</p>}
+      </div>
+    </section>
+
+    <section class="form-section">
+      <div class="table-head">
+        <h2>Figures</h2>
+        {unit && <span class="unit">Values in {config.unit === 'mt' ? 'metric tonnes per day (MT)' : 'percent (%)'}</span>}
+      </div>
+
+      <div class="rows" data-rows>
+        <div class="row head" aria-hidden="true">
+          <span></span>
+          <span>English label</span>
+          <span>नेपाली लेबल</span>
+          <span>Value</span>
+          <span></span>
+        </div>
+        {
+          rows.map((row) => (
+            <div class:list={['row', { removed: row.remove }]} data-row>
+              <input type="hidden" name="row_id" value={row.id ?? ''} />
+              <input type="hidden" name="row_remove" value={row.remove ? '1' : '0'} data-remove-input />
+              <div class="move">
+                <button type="button" class="icon-btn" data-up aria-label="Move up">
+                  ↑
+                </button>
+                <button type="button" class="icon-btn" data-down aria-label="Move down">
+                  ↓
+                </button>
+              </div>
+              <input class="input" name="row_label_en" value={row.label_en} maxlength="160" aria-label="English label" />
+              <input class="input" name="row_label_ne" value={row.label_ne} maxlength="160" lang="ne" aria-label="Nepali label" />
+              <div class="value">
+                <input
+                  class="input"
+                  name="row_value"
+                  value={row.value}
+                  inputmode="decimal"
+                  aria-label="Value"
+                  data-value
+                />
+                {unit && <span>{unit}</span>}
+              </div>
+              <div class="actions">
+                {row.is_core ? (
+                  <span class="core" title="Used on the home page, so it cannot be removed">
+                    Always shown
+                  </span>
+                ) : (
+                  <button type="button" class="btn btn-danger btn-sm" data-remove>
+                    {row.remove ? 'Undo' : 'Remove'}
+                  </button>
+                )}
+              </div>
+              {row.error && <p class="field-error row-error">{row.error}</p>}
+            </div>
+          ))
+        }
+      </div>
+
+      <template data-row-template>
+        <div class="row new" data-row>
+          <input type="hidden" name="row_id" value="" />
+          <input type="hidden" name="row_remove" value="0" data-remove-input />
+          <div class="move">
+            <button type="button" class="icon-btn" data-up aria-label="Move up">↑</button>
+            <button type="button" class="icon-btn" data-down aria-label="Move down">↓</button>
+          </div>
+          <input class="input" name="row_label_en" maxlength="160" aria-label="English label" placeholder="e.g. Compactor trucks" />
+          <input class="input" name="row_label_ne" maxlength="160" lang="ne" aria-label="Nepali label" />
+          <div class="value">
+            <input class="input" name="row_value" inputmode="decimal" aria-label="Value" data-value />
+            {unit && <span>{unit}</span>}
+          </div>
+          <div class="actions">
+            <button type="button" class="btn btn-danger btn-sm" data-remove>Remove</button>
+          </div>
+        </div>
+      </template>
+
+      <div class="table-foot">
+        {
+          config.allowAdd ? (
+            <button type="button" class="btn btn-ghost btn-sm" data-add>
+              + Add a row
+            </button>
+          ) : (
+            <span />
+          )
+        }
+        {config.unit !== 'mt' && (
+          <p class="total" data-total-line>
+            Total: <strong data-total>—</strong>
+            {config.sumTo100 && <span class="sum-warn" data-sum-warn hidden> — must be 100</span>}
+          </p>
+        )}
+      </div>
+      {errors.rows && <p class="field-error">{errors.rows}</p>}
+    </section>
+
+    <div class="actions-bar">
+      <button class="btn btn-primary" type="submit">
+        <Icon name="check" size={18} /> Save figures
+      </button>
+      {group.updated_by && <span class="hint">Last saved by {group.updated_by} on {formatNpt(group.updated_at)}</span>}
+    </div>
+  </form>
+</AdminLayout>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-stats-form]');
+  const list = form?.querySelector<HTMLElement>('[data-rows]');
+  const template = form?.querySelector<HTMLTemplateElement>('[data-row-template]');
+
+  function updateTotal() {
+    const totalEl = form?.querySelector('[data-total]');
+    if (!form || !totalEl) return;
+    const total = [...form.querySelectorAll<HTMLElement>('[data-row]')]
+      .filter((row) => !row.classList.contains('removed'))
+      .reduce((sum, row) => sum + (Number(row.querySelector<HTMLInputElement>('[data-value]')?.value) || 0), 0);
+    const rounded = Math.round(total * 100) / 100;
+    totalEl.textContent = `${rounded.toLocaleString('en-US')}${form.dataset.unit === 'percent' ? '%' : ''}`;
+    const warn = form.querySelector<HTMLElement>('[data-sum-warn]');
+    if (warn) warn.hidden = Math.abs(rounded - 100) <= 0.5;
+  }
+
+  list?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const row = target.closest<HTMLElement>('[data-row]');
+    if (!row) return;
+    if (target.closest('[data-up]') && row.previousElementSibling?.matches('[data-row]')) {
+      row.previousElementSibling.before(row);
+    } else if (target.closest('[data-down]') && row.nextElementSibling?.matches('[data-row]')) {
+      row.nextElementSibling.after(row);
+    } else if (target.closest('[data-remove]')) {
+      const input = row.querySelector<HTMLInputElement>('[data-remove-input]')!;
+      const idInput = row.querySelector<HTMLInputElement>('input[name=row_id]')!;
+      if (!idInput.value) {
+        row.remove(); // a new row that was never saved
+      } else {
+        const removed = input.value !== '1';
+        input.value = removed ? '1' : '0';
+        row.classList.toggle('removed', removed);
+        (target.closest('[data-remove]') as HTMLElement).textContent = removed ? 'Undo' : 'Remove';
+      }
+    }
+    updateTotal();
+  });
+
+  list?.addEventListener('input', updateTotal);
+
+  form?.querySelector('[data-add]')?.addEventListener('click', () => {
+    if (!template || !list) return;
+    const row = template.content.firstElementChild!.cloneNode(true) as HTMLElement;
+    list.append(row);
+    row.querySelector<HTMLInputElement>('input[name=row_label_en]')?.focus();
+  });
+
+  updateTotal();
+</script>
+
+<style>
+  .back {
+    margin-bottom: 1rem;
+  }
+
+  .as-of {
+    max-width: 22rem;
+  }
+
+  .table-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .unit {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  .rows {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 4.25rem minmax(0, 1.3fr) minmax(0, 1.3fr) 8.5rem 7.5rem;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.4rem;
+    border-radius: 12px;
+  }
+
+  .row.head {
+    padding-block: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .row.new {
+    background: var(--green-50);
+  }
+
+  .row.removed {
+    background: #fdf1f0;
+  }
+
+  .row.removed .input {
+    text-decoration: line-through;
+    opacity: 0.55;
+  }
+
+  .row .input {
+    min-height: 2.6rem;
+    padding: 0.45rem 0.7rem;
+  }
+
+  .move {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .icon-btn:hover {
+    border-color: var(--green);
+    color: var(--green-700);
+  }
+
+  .value {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+  }
+
+  .value .input {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .value span {
+    min-width: 1.6rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .core {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .row-error {
+    grid-column: 2 / -1;
+  }
+
+  .table-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .total strong {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sum-warn {
+    color: #b42318;
+    font-weight: 600;
+  }
+
+  @media (max-width: 760px) {
+    .row {
+      grid-template-columns: 1fr 1fr;
+      padding: 0.75rem;
+      border: 1px solid var(--line);
+    }
+
+    .row.head {
+      display: none;
+    }
+
+    .move {
+      grid-column: 1 / -1;
+    }
+
+    .row-error {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

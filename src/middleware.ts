@@ -1,5 +1,4 @@
 import { defineMiddleware } from 'astro:middleware';
-import { findAdmin, getSession } from './lib/auth';
 
 const isAdminArea = (path: string) => path === '/admin' || path.startsWith('/admin/') || path.startsWith('/api/admin/');
 
@@ -8,6 +7,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
   if (context.isPrerendered || !isAdminArea(pathname)) return next();
 
+  // Loaded only for admin requests, so building static pages never needs database secrets.
+  const { findAdmin, getSession } = await import('./lib/auth');
   const { data, cookies } = await getSession(context.request);
   const signedInEmail = data.user?.email?.toLowerCase() ?? null;
   let admin = await findAdmin(signedInEmail);

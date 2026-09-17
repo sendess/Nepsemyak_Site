@@ -29,7 +29,10 @@ export type Branch = {
   address: L;
   phones: string[];
   email: string;
-  mapQuery: string;
+  /** Map pin. Taken from each office's Google Maps listing — correct it here if a pin is off. */
+  location: { lat: number; lng: number };
+  /** Short place name used as the map label. */
+  area: L;
   facebook?: string;
 };
 
@@ -40,7 +43,8 @@ export const branches: Branch[] = [
     address: { en: 'Bagdol Road, Lalitpur 44600', ne: 'बागडोल सडक, ललितपुर ४४६००' },
     phones: ['01-5441976', '01-5446926'],
     email: 'nepsemyak@gmail.com',
-    mapQuery: 'Nepsemyak Sewa Pvt. Ltd., Naya Bato, Lalitpur, Nepal',
+    location: { lat: 27.6654319, lng: 85.2976023 },
+    area: { en: 'Bagdol, Lalitpur', ne: 'बागडोल, ललितपुर' },
   },
   {
     id: 'lalitpur',
@@ -48,7 +52,8 @@ export const branches: Branch[] = [
     address: { en: 'Bagdol Road, Lalitpur 44600', ne: 'बागडोल सडक, ललितपुर ४४६००' },
     phones: ['01-5432827'],
     email: 'nepsemyak@gmail.com',
-    mapQuery: 'Nepsemyak Sewa Pvt. Ltd., Naya Bato, Lalitpur, Nepal',
+    location: { lat: 27.6654319, lng: 85.2976023 },
+    area: { en: 'Bagdol, Lalitpur', ne: 'बागडोल, ललितपुर' },
     facebook: 'https://www.facebook.com/nepsemyak.lalitpurabranch',
   },
   {
@@ -57,8 +62,9 @@ export const branches: Branch[] = [
     address: { en: 'Sano Bharyang, Kathmandu', ne: 'सानो भर्याङ, काठमाडौं' },
     phones: ['01-5384561'],
     email: 'nepsemyak@gmail.com',
-    mapQuery: '27.720215297105476,85.28953060957943',
-    facebook: 'https://www.facebook.com/profile.php?id=100064372284562',
+    location: { lat: 27.7202153, lng: 85.2895306 },
+    area: { en: 'Swoyambhu', ne: 'स्वयम्भू' },
+    facebook: 'https://www.facebook.com/NepsemyakSwayambhu',
   },
   {
     id: 'maharajgunj',
@@ -66,7 +72,8 @@ export const branches: Branch[] = [
     address: { en: 'Banshidhar Marga, Chandol, Kathmandu', ne: 'बंशीधर मार्ग, चण्डोल, काठमाडौं' },
     phones: ['01-4528800'],
     email: 'nepsemyak@gmail.com',
-    mapQuery: 'Nepsemyak Sewa Pvt. Ltd. Maharajgunj Branch, Kathmandu, Nepal',
+    location: { lat: 27.7319066, lng: 85.3404285 },
+    area: { en: 'Maharajgunj', ne: 'महाराजगञ्ज' },
   },
   {
     id: 'bhaktapur',
@@ -74,7 +81,8 @@ export const branches: Branch[] = [
     address: { en: 'Radhe Radhe, Madhyapur Thimi, Bhaktapur', ne: 'राधे राधे, मध्यपुर थिमी, भक्तपुर' },
     phones: ['01-6633167'],
     email: 'nepsemyak.bhaktapur@gmail.com',
-    mapQuery: 'Nepsemyak Sewa Pvt. Ltd., Bhaktapur Branch',
+    location: { lat: 27.673459, lng: 85.3974051 },
+    area: { en: 'Thimi, Bhaktapur', ne: 'ठिमी, भक्तपुर' },
   },
 ];
 
@@ -85,10 +93,7 @@ export const circle: { name: L; href?: string }[] = [
   { name: { en: 'Swastha Samaj', ne: 'स्वस्थ समाज' } },
 ];
 
-export function mapLink(query: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
-}
-
-export function mapEmbed(query: string): string {
-  return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
+/** Google Maps directions to an exact point (people in Nepal mostly navigate with Google Maps). */
+export function directionsUrl({ lat, lng }: Branch['location']): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }

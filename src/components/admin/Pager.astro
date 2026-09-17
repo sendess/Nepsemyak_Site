@@ -1,0 +1,65 @@
+---
+import Icon from '~/components/Icon.astro';
+import { listHref, type ListState } from '~/lib/listing';
+
+/** Item count plus previous/next links. `noun` is [singular, plural]. */
+type Props = { list: ListState; total: number; noun: [string, string] };
+const { list, total, noun } = Astro.props;
+const pages = Math.max(1, Math.ceil(total / list.pageSize));
+const from = (list.page - 1) * list.pageSize + 1;
+const to = Math.min(total, list.page * list.pageSize);
+const count = `${total} ${total === 1 ? noun[0] : noun[1]}`;
+---
+
+<div class="pager">
+  <p class="hint">{pages > 1 ? `Showing ${from}–${to} of ${count}` : count}</p>
+  {
+    pages > 1 && (
+      <nav aria-label="Pages">
+        {list.page > 1 ? (
+          <a class="btn btn-ghost btn-sm" href={listHref(list, { page: list.page - 1 })} rel="prev">
+            <Icon name="chevron-left" size={16} /> Previous
+          </a>
+        ) : (
+          <span class="btn btn-ghost btn-sm" aria-disabled="true">
+            <Icon name="chevron-left" size={16} /> Previous
+          </span>
+        )}
+        <span class="hint">
+          Page {list.page} of {pages}
+        </span>
+        {list.page < pages ? (
+          <a class="btn btn-ghost btn-sm" href={listHref(list, { page: list.page + 1 })} rel="next">
+            Next <Icon name="chevron-right" size={16} />
+          </a>
+        ) : (
+          <span class="btn btn-ghost btn-sm" aria-disabled="true">
+            Next <Icon name="chevron-right" size={16} />
+          </span>
+        )}
+      </nav>
+    )
+  }
+</div>
+
+<style>
+  .pager {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.9rem;
+  }
+
+  nav {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+  }
+
+  [aria-disabled='true'] {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+</style>

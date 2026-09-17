@@ -1,6 +1,25 @@
 // Database access for admin-managed content. Every write reports the cache tags to purge.
 import { sql } from './db';
 import type { AdminRole } from './auth';
+import { likePattern, type ListSpec, type ListState } from './listing';
+import { branches } from '~/data/site';
+
+type Fragment = ReturnType<typeof sql>;
+export type Page<T> = { rows: T[]; total: number };
+
+/** `a and b and …` (or `true` when there are no conditions). */
+const allOf = (conds: Fragment[]) => conds.reduce((acc, c) => sql`${acc} and ${c}`, sql`true`);
+
+/** Sort expression in the chosen direction; empty values always go last. */
+const orderBy = (expr: Fragment, list: ListState) => sql`${expr} ${sql.unsafe(list.dir === 'asc' ? 'asc' : 'desc')} nulls last`;
+
+const pageOf = (list: ListState) => sql`limit ${list.pageSize} offset ${(list.page - 1) * list.pageSize}`;
+
+function toPage<T>(rows: Record<string, unknown>[]): Page<T> {
+  return { rows: rows as T[], total: rows.length ? Number(rows[0].total_count) : 0 };
+}
+
+const todayInNepal = sql`(now() at time zone 'Asia/Kathmandu')::date`;
 
 /* ---------------- Notices ---------------- */
 
@@ -63,8 +82,46 @@ export async function getLiveNotices(): Promise<{ banner: Notice | null; popup: 
   };
 }
 
-export async function listNotices(): Promise<Notice[]> {
-  return (await sql`select ${noticeSelect} order by n.is_active desc, n.starts_at desc, n.id desc`) as Notice[];
+export type NoticeSort = 'message' | 'type' | 'status' | 'showing' | 'updated';
+export type NoticeFilter = 'status' | 'shown' | 'type';
+
+export const NOTICE_LIST: ListSpec<NoticeSort, NoticeFilter> = {
+  id: 'notices',
+  sorts: { message: 'asc', type: 'desc', status: 'asc', showing: 'desc', updated: 'desc' },
+  defaultSort: 'status',
+  filters: { status: ['active', 'scheduled', 'expired', 'inactive'], shown: ['banner', 'popup'], type: NOTICE_TONES },
+};
+
+// 0 active, 1 scheduled, 2 expired, 3 turned off — the same rules as the status badges.
+const noticeState = sql`case when not n.is_active then 3 when n.starts_at > now() then 1
+  when n.ends_at is not null and n.ends_at <= now() then 2 else 0 end`;
+
+export async function listNotices(list: ListState<NoticeSort, NoticeFilter>): Promise<Page<Notice>> {
+  const { status, shown, type } = list.filters;
+  const conds: Fragment[] = [];
+  if (status) conds.push(sql`${noticeState} = ${NOTICE_LIST.filters.status.indexOf(status)}`);
+  if (shown === 'banner') conds.push(sql`n.show_banner`);
+  if (shown === 'popup') conds.push(sql`n.show_popup`);
+  if (type) conds.push(sql`n.tone = ${type}`);
+  if (list.q) {
+    const like = likePattern(list.q);
+    conds.push(sql`(n.title_en ilike ${like} or n.title_ne ilike ${like} or n.message_en ilike ${like}
+      or n.message_ne ilike ${like} or n.details_en ilike ${like} or n.details_ne ilike ${like})`);
+  }
+  const sortBy = {
+    message: sql`lower(coalesce(nullif(n.title_en, ''), nullif(n.title_ne, ''), nullif(n.message_en, ''), n.message_ne))`,
+    type: sql`array_position(array['info', 'warning', 'urgent'], n.tone)`,
+    status: noticeState,
+    showing: sql`n.starts_at`,
+    updated: sql`n.updated_at`,
+  }[list.sort];
+  const rows = await sql`
+    select n.*, m.width as image_width, m.height as image_height, count(*) over()::int as total_count
+    from notices n left join media m on m.id = n.image_media_id
+    where ${allOf(conds)}
+    order by ${orderBy(sortBy, list)}, n.starts_at desc, n.id desc
+    ${pageOf(list)}`;
+  return toPage(rows);
 }
 
 export async function getNotice(id: number): Promise<Notice | null> {
@@ -187,8 +244,43 @@ export async function getPublishedNews(slug: string): Promise<NewsPost | null> {
   return (rows[0] as NewsPost) ?? null;
 }
 
-export async function listAllNews(): Promise<NewsPost[]> {
-  return (await sql`select ${newsColumns} from news_posts order by published_on desc, id desc`) as NewsPost[];
+export type NewsSort = 'title' | 'date' | 'office' | 'status' | 'updated';
+export type NewsFilter = 'status' | 'office';
+
+export const NEWS_LIST: ListSpec<NewsSort, NewsFilter> = {
+  id: 'news',
+  sorts: { title: 'asc', date: 'desc', office: 'asc', status: 'asc', updated: 'desc' },
+  defaultSort: 'date',
+  filters: { status: ['published', 'scheduled', 'draft'], office: ['company', ...branches.map((b) => b.id)] },
+};
+
+// 0 published, 1 scheduled (published with a future date), 2 draft.
+const newsState = sql`case when status = 'draft' then 2 when published_on > ${todayInNepal} then 1 else 0 end`;
+
+export async function listAllNews(list: ListState<NewsSort, NewsFilter>): Promise<Page<NewsPost>> {
+  const { status, office } = list.filters;
+  const conds: Fragment[] = [];
+  if (status) conds.push(sql`${newsState} = ${NEWS_LIST.filters.status.indexOf(status)}`);
+  if (office === 'company') conds.push(sql`branch is null`);
+  else if (office) conds.push(sql`branch = ${office}`);
+  if (list.q) {
+    const like = likePattern(list.q);
+    conds.push(sql`(title_en ilike ${like} or title_ne ilike ${like} or summary_en ilike ${like}
+      or summary_ne ilike ${like} or slug ilike ${like})`);
+  }
+  const sortBy = {
+    title: sql`lower(coalesce(nullif(title_en, ''), title_ne))`,
+    date: sql`news_posts.published_on`,
+    office: sql`branch`,
+    status: newsState,
+    updated: sql`updated_at`,
+  }[list.sort];
+  const rows = await sql`
+    select ${newsColumns}, count(*) over()::int as total_count from news_posts
+    where ${allOf(conds)}
+    order by ${orderBy(sortBy, list)}, news_posts.published_on desc, id desc
+    ${pageOf(list)}`;
+  return toPage(rows);
 }
 
 export async function getNews(id: number): Promise<NewsPost | null> {
@@ -263,8 +355,41 @@ export async function listOpenJobs(): Promise<Job[]> {
     order by deadline nulls last, id desc`) as Job[];
 }
 
-export async function listAllJobs(): Promise<Job[]> {
-  return (await sql`select ${jobColumns} from jobs order by (status = 'open') desc, updated_at desc`) as Job[];
+export type JobSort = 'position' | 'location' | 'openings' | 'deadline' | 'status' | 'updated';
+export type JobFilter = 'status';
+
+export const JOB_LIST: ListSpec<JobSort, JobFilter> = {
+  id: 'jobs',
+  sorts: { position: 'asc', location: 'asc', openings: 'desc', deadline: 'asc', status: 'asc', updated: 'desc' },
+  defaultSort: 'status',
+  filters: { status: ['open', 'expired', 'draft', 'closed'] },
+};
+
+// 0 open, 1 open but past its deadline (hidden on the website), 2 draft, 3 closed.
+const jobState = sql`case when status = 'draft' then 2 when status = 'closed' then 3
+  when jobs.deadline < ${todayInNepal} then 1 else 0 end`;
+
+export async function listAllJobs(list: ListState<JobSort, JobFilter>): Promise<Page<Job>> {
+  const conds: Fragment[] = [];
+  if (list.filters.status) conds.push(sql`${jobState} = ${JOB_LIST.filters.status.indexOf(list.filters.status)}`);
+  if (list.q) {
+    const like = likePattern(list.q);
+    conds.push(sql`(title_en ilike ${like} or title_ne ilike ${like} or location_en ilike ${like} or location_ne ilike ${like})`);
+  }
+  const sortBy = {
+    position: sql`lower(coalesce(nullif(title_en, ''), title_ne))`,
+    location: sql`lower(coalesce(nullif(location_en, ''), nullif(location_ne, '')))`,
+    openings: sql`openings`,
+    deadline: sql`jobs.deadline`,
+    status: jobState,
+    updated: sql`updated_at`,
+  }[list.sort];
+  const rows = await sql`
+    select ${jobColumns}, count(*) over()::int as total_count from jobs
+    where ${allOf(conds)}
+    order by ${orderBy(sortBy, list)}, updated_at desc, id desc
+    ${pageOf(list)}`;
+  return toPage(rows);
 }
 
 export async function getJob(id: number): Promise<Job | null> {

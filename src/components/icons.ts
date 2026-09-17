@@ -1,6 +1,8 @@
 // Only the icons the site uses are imported, so the build stays small.
+import ArrowDown from '@lucide/astro/icons/arrow-down';
 import ArrowLeft from '@lucide/astro/icons/arrow-left';
 import ArrowRight from '@lucide/astro/icons/arrow-right';
+import ArrowUp from '@lucide/astro/icons/arrow-up';
 import ArrowUpRight from '@lucide/astro/icons/arrow-up-right';
 import BookOpen from '@lucide/astro/icons/book-open';
 import Briefcase from '@lucide/astro/icons/briefcase';
@@ -10,7 +12,9 @@ import CalendarIcon from '@lucide/astro/icons/calendar';
 import ChartBar from '@lucide/astro/icons/chart-bar';
 import Check from '@lucide/astro/icons/check';
 import ChevronDown from '@lucide/astro/icons/chevron-down';
+import ChevronLeft from '@lucide/astro/icons/chevron-left';
 import ChevronRight from '@lucide/astro/icons/chevron-right';
+import ChevronsUpDown from '@lucide/astro/icons/chevrons-up-down';
 import CircleCheck from '@lucide/astro/icons/circle-check';
 import CircleQuestionMark from '@lucide/astro/icons/circle-question-mark';
 import CircleX from '@lucide/astro/icons/circle-x';
@@ -44,6 +48,7 @@ import Play from '@lucide/astro/icons/play';
 import Quote from '@lucide/astro/icons/quote';
 import Recycle from '@lucide/astro/icons/recycle';
 import Scale from '@lucide/astro/icons/scale';
+import Search from '@lucide/astro/icons/search';
 import Send from '@lucide/astro/icons/send';
 import Sparkles from '@lucide/astro/icons/sparkles';
 import Sprout from '@lucide/astro/icons/sprout';
@@ -55,8 +60,10 @@ import Warehouse from '@lucide/astro/icons/warehouse';
 import X from '@lucide/astro/icons/x';
 
 export const icons = {
+  'arrow-down': ArrowDown,
   'arrow-left': ArrowLeft,
   'arrow-right': ArrowRight,
+  'arrow-up': ArrowUp,
   'arrow-up-right': ArrowUpRight,
   'book-open': BookOpen,
   briefcase: Briefcase,
@@ -66,7 +73,9 @@ export const icons = {
   'chart-bar': ChartBar,
   check: Check,
   'chevron-down': ChevronDown,
+  'chevron-left': ChevronLeft,
   'chevron-right': ChevronRight,
+  'chevrons-up-down': ChevronsUpDown,
   'circle-check': CircleCheck,
   'circle-question-mark': CircleQuestionMark,
   'circle-x': CircleX,
@@ -100,6 +109,7 @@ export const icons = {
   quote: Quote,
   recycle: Recycle,
   scale: Scale,
+  search: Search,
   send: Send,
   sparkles: Sparkles,
   sprout: Sprout,

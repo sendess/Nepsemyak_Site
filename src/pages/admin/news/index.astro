@@ -2,13 +2,21 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
-import { listAllNews } from '~/lib/content';
+import SortTh from '~/components/admin/SortTh.astro';
+import ListControls from '~/components/admin/ListControls.astro';
+import Pager from '~/components/admin/Pager.astro';
+import { listAllNews, NEWS_LIST } from '~/lib/content';
+import { isFiltered, listHref, readList } from '~/lib/listing';
 import { branches } from '~/data/site';
-import { formatDay } from '~/lib/admin-format';
+import { formatDay, formatNpt, todayNpt } from '~/lib/admin-format';
 
 export const prerender = false;
 
-const posts = await listAllNews();
+const list = readList(Astro.url, Astro.cookies, NEWS_LIST);
+const { rows: posts, total } = await listAllNews(list);
+if (posts.length === 0 && list.page > 1) return Astro.redirect(listHref(list, { page: 1 }));
+
+const today = todayNpt();
 const branchName = (id: string | null) => branches.find((b) => b.id === id)?.name.en ?? 'Company-wide';
 const flash = Astro.url.searchParams.get('done');
 ---
@@ -22,52 +30,90 @@ const flash = Astro.url.searchParams.get('done');
   </div>
 
   {
-    posts.length === 0 ? (
+    total === 0 && !isFiltered(list) ? (
       <div class="empty-state">
         <Icon name="newspaper" size={32} />
         <p>No posts yet. Share a cleaning campaign, training or announcement.</p>
       </div>
     ) : (
-      <div class="table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th scope="col">Title</th>
-              <th scope="col">Date</th>
-              <th scope="col">Office</th>
-              <th scope="col">Status</th>
-              <th scope="col">
-                <span class="visually-hidden">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {posts.map((p) => (
-              <tr>
-                <td class="title-cell">
-                  {p.cover_media_id ? <img src={`/media/${p.cover_media_id}`} alt="" width="64" height="40" loading="lazy" /> : <span class="no-img" />}
-                  <span>
-                    <a href={`/admin/news/${p.id}`}>{p.title_en || p.title_ne}</a>
-                    {p.title_en && p.title_ne && <small lang="ne">{p.title_ne}</small>}
-                  </span>
-                </td>
-                <td class="nowrap">{formatDay(p.published_on)}</td>
-                <td>{branchName(p.branch)}</td>
-                <td>
-                  <StatusBadge status={p.status} />
-                </td>
-                <td class="nowrap">
-                  {p.status === 'published' && (
-                    <a class="link-arrow" href={`/news/${p.slug}`} target="_blank" rel="noopener">
-                      View <Icon name="arrow-up-right" size={14} />
-                    </a>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <>
+        <ListControls
+          list={list}
+          searchLabel="Search titles and summaries"
+          filters={[
+            {
+              name: 'status',
+              all: 'All statuses',
+              options: [
+                { value: 'published', label: 'Published' },
+                { value: 'scheduled', label: 'Scheduled' },
+                { value: 'draft', label: 'Draft' },
+              ],
+            },
+            {
+              name: 'office',
+              all: 'All offices',
+              options: [{ value: 'company', label: 'Company-wide' }, ...branches.map((b) => ({ value: b.id, label: b.name.en }))],
+            },
+          ]}
+        />
+        {total === 0 ? (
+          <div class="empty-state">
+            <Icon name="search" size={32} />
+            <p>No posts match this search or filter.</p>
+          </div>
+        ) : (
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <SortTh list={list} sort="title" label="Title" />
+                  <SortTh list={list} sort="date" label="Date" />
+                  <SortTh list={list} sort="office" label="Office" />
+                  <SortTh list={list} sort="status" label="Status" />
+                  <SortTh list={list} sort="updated" label="Last edited" />
+                  <th scope="col">
+                    <span class="visually-hidden">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {posts.map((p) => {
+                  const status = p.status === 'published' && p.published_on > today ? 'scheduled' : p.status;
+                  return (
+                    <tr>
+                      <td class="title-cell">
+                        {p.cover_media_id ? <img src={`/media/${p.cover_media_id}`} alt="" width="64" height="40" loading="lazy" /> : <span class="no-img" />}
+                        <span>
+                          <a href={`/admin/news/${p.id}`}>{p.title_en || p.title_ne}</a>
+                          {p.title_en && p.title_ne && <small lang="ne">{p.title_ne}</small>}
+                        </span>
+                      </td>
+                      <td class="nowrap">{formatDay(p.published_on)}</td>
+                      <td>{branchName(p.branch)}</td>
+                      <td>
+                        <StatusBadge status={status} />
+                      </td>
+                      <td class="edited">
+                        {formatNpt(p.updated_at)}
+                        {p.updated_by && <small>{p.updated_by}</small>}
+                      </td>
+                      <td class="nowrap">
+                        {status === 'published' && (
+                          <a class="link-arrow" href={`/news/${p.slug}`} target="_blank" rel="noopener">
+                            View <Icon name="arrow-up-right" size={14} />
+                          </a>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <Pager list={list} total={total} noun={['post', 'posts']} />
+      </>
     )
   }
 </AdminLayout>

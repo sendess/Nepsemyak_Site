@@ -1,10 +1,11 @@
 ---
 import Icon from './Icon.astro';
-import { mapLink, type Branch } from '~/data/site';
+import { directionsUrl, type Branch } from '~/data/site';
 import { telHref, useTranslations, type Lang } from '~/i18n/utils';
 
-type Props = { branch: Branch; lang: Lang; featured?: boolean };
-const { branch, lang, featured = false } = Astro.props;
+/** `onMap`: add a button that shows this office on the BranchMap on the same page. */
+type Props = { branch: Branch; lang: Lang; featured?: boolean; onMap?: boolean };
+const { branch, lang, featured = false, onMap = false } = Astro.props;
 const t = useTranslations(lang);
 ---
 
@@ -34,7 +35,15 @@ const t = useTranslations(lang);
     </li>
   </ul>
   <div class="links">
-    <a class="link-arrow" href={mapLink(branch.mapQuery)} target="_blank" rel="noopener">
+    {
+      onMap && (
+        <button type="button" class="link-arrow map-button" data-show-on-map={branch.id}>
+          <Icon name="map-pin" size={16} />
+          {t('contact.showOnMap')}
+        </button>
+      )
+    }
+    <a class="link-arrow" href={directionsUrl(branch.location)} target="_blank" rel="noopener">
       {t('cta.directions')}
       <Icon name="arrow-up-right" size={16} />
     </a>
@@ -93,6 +102,13 @@ const t = useTranslations(lang);
 
   .email {
     overflow-wrap: anywhere;
+  }
+
+  .map-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
   }
 
   .links {

@@ -151,6 +151,18 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
         border-bottom: 0;
       }
 
+      /* "Last edited" column: when, and by whom underneath. */
+      .admin-table .edited {
+        font-size: 0.88rem;
+        white-space: nowrap;
+        color: var(--muted);
+      }
+
+      .admin-table .edited small {
+        display: block;
+        font-size: 0.8rem;
+      }
+
       .table-wrap {
         overflow-x: auto;
         border: 1px solid var(--line);

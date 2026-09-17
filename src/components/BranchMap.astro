@@ -1,0 +1,328 @@
+---
+import 'leaflet/dist/leaflet.css';
+import Icon from './Icon.astro';
+import { branches, directionsUrl } from '~/data/site';
+import { telHref, useTranslations, type Lang } from '~/i18n/utils';
+
+/**
+ * Every office on one OpenStreetMap map (free, no API key). Offices that share a building
+ * share a pin. Leaflet loads only when the map is about to scroll into view.
+ */
+type Props = { lang: Lang; height?: string };
+const { lang, height = 'clamp(340px, 60vh, 520px)' } = Astro.props;
+const t = useTranslations(lang);
+
+const places = new Map<string, { lat: number; lng: number; area: string; featured: boolean; directions: string; offices: unknown[] }>();
+for (const b of branches) {
+  const key = `${b.location.lat},${b.location.lng}`;
+  const place = places.get(key) ?? {
+    ...b.location,
+    area: b.area[lang],
+    featured: false,
+    directions: directionsUrl(b.location),
+    offices: [],
+  };
+  place.featured ||= b.id === branches[0].id;
+  place.offices.push({
+    id: b.id,
+    name: b.name[lang],
+    address: b.address[lang],
+    phones: b.phones.map((p) => ({ text: p, href: telHref(p) })),
+  });
+  places.set(key, place);
+}
+const data = JSON.stringify([...places.values()]);
+const labels = JSON.stringify({ directions: t('cta.directions'), newTab: t('common.opensNewTab') });
+---
+
+<div class="branch-map" style={`--map-h: ${height}`} data-branch-map data-places={data} data-labels={labels}>
+  <div class="canvas" role="region" aria-label={t('contact.mapLabel')}></div>
+  <div class="placeholder" aria-hidden="true">
+    <span class="icon-tile lg"><Icon name="map" size={26} /></span>
+    <span class="dots"><span></span><span></span><span></span></span>
+  </div>
+  <button type="button" class="show-all btn btn-sm" data-map-all hidden>
+    <Icon name="map-pin" size={16} />
+    {t('contact.mapAll')}
+  </button>
+</div>
+
+<script>
+  import type { Map as LeafletMap, Marker, LatLngBounds } from 'leaflet';
+
+  type Office = { id: string; name: string; address: string; phones: { text: string; href: string }[] };
+  type Place = { lat: number; lng: number; area: string; featured: boolean; directions: string; offices: Office[] };
+  type Ready = { map: LeafletMap; bounds: LatLngBounds; markers: Map<string, Marker> };
+
+  const animate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string) {
+    const node = document.createElement(tag);
+    node.className = className;
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  function popupFor(place: Place, labels: Record<string, string>) {
+    const box = el('div', 'map-popup');
+    for (const office of place.offices) {
+      const item = el('div', 'map-office');
+      item.append(el('strong', '', office.name), el('span', '', office.address));
+      const phones = el('span', 'map-phones');
+      office.phones.forEach((p, i) => {
+        if (i > 0) phones.append(', ');
+        const a = el('a', '', p.text);
+        a.href = p.href;
+        phones.append(a);
+      });
+      item.append(phones);
+      box.append(item);
+    }
+    const link = el('a', 'map-directions', labels.directions);
+    link.href = place.directions;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.append(el('span', 'visually-hidden', ` ${labels.newTab}`));
+    box.append(link);
+    return box;
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-branch-map]').forEach((root) => {
+    const places: Place[] = JSON.parse(root.dataset.places!);
+    const labels: Record<string, string> = JSON.parse(root.dataset.labels!);
+    const showAll = root.querySelector<HTMLButtonElement>('[data-map-all]')!;
+    let ready: Promise<Ready> | undefined;
+
+    const start = () => (ready ??= init());
+
+    async function init(): Promise<Ready> {
+      const L = (await import('leaflet')).default;
+      const map = L.map(root.querySelector<HTMLElement>('.canvas')!, { scrollWheelZoom: false, zoomSnap: 0.5 });
+      // Scroll-wheel zoom only once the visitor clicks the map, so the page still scrolls normally.
+      map.on('focus', () => map.scrollWheelZoom.enable());
+      map.on('blur', () => map.scrollWheelZoom.disable());
+
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+      })
+        .once('load', () => root.classList.add('loaded'))
+        .addTo(map);
+
+      const markers = new Map<string, Marker>();
+      const bounds = L.latLngBounds([]);
+      for (const place of places) {
+        const icon = L.divIcon({
+          className: place.featured ? 'map-pin featured' : 'map-pin',
+          html: '<span></span>',
+          iconSize: [32, 40],
+          iconAnchor: [16, 39],
+          popupAnchor: [0, -36],
+          tooltipAnchor: [0, -38],
+        });
+        const marker = L.marker([place.lat, place.lng], {
+          icon,
+          title: place.offices.map((o) => o.name).join(' · '),
+          riseOnHover: true,
+        })
+          .bindTooltip(place.area, { permanent: true, direction: 'top', className: 'map-label' })
+          .bindPopup(popupFor(place, labels), { maxWidth: 280 })
+          .addTo(map);
+        place.offices.forEach((o) => markers.set(o.id, marker));
+        bounds.extend([place.lat, place.lng]);
+      }
+
+      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 });
+      showAll.hidden = false;
+      showAll.addEventListener('click', () => {
+        map.closePopup();
+        map.flyToBounds(bounds, { padding: [48, 48], maxZoom: 15, animate });
+      });
+      return { map, bounds, markers };
+    }
+
+    new IntersectionObserver(
+      (entries, observer) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          observer.disconnect();
+          start();
+        }
+      },
+      { rootMargin: '400px' },
+    ).observe(root);
+
+    // "Show on map" buttons on the office cards.
+    document.querySelectorAll<HTMLButtonElement>('[data-show-on-map]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        root.scrollIntoView({ behavior: animate ? 'smooth' : 'auto', block: 'center' });
+        const { map, markers } = await start();
+        const marker = markers.get(button.dataset.showOnMap!);
+        if (!marker) return;
+        map.flyTo(marker.getLatLng(), 16, { animate, duration: 0.8 });
+        map.once('moveend', () => marker.openPopup());
+      });
+    });
+  });
+</script>
+
+<style>
+  .branch-map {
+    position: relative;
+    height: var(--map-h);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background:
+      radial-gradient(circle at 1px 1px, var(--green-100) 1px, transparent 0) 0 0 / 18px 18px,
+      var(--green-50);
+    isolation: isolate;
+  }
+
+  .canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: transparent;
+    font: inherit;
+  }
+
+  .placeholder {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 0.9rem;
+    transition: opacity 0.3s;
+  }
+
+  .loaded .placeholder {
+    opacity: 0;
+  }
+
+  .dots {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .dots span {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--green);
+    opacity: 0.35;
+    animation: pulse 1.2s infinite ease-in-out;
+  }
+
+  .dots span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .dots span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes pulse {
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .show-all {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 2;
+    --btn-bg: #fff;
+    --btn-fg: var(--green-800);
+    --btn-border: var(--line-strong);
+    box-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
+  }
+
+  /* Leaflet creates the pins, labels and pop-ups itself, so these styles are global (scoped by .branch-map). */
+  .branch-map :global(.map-pin) {
+    background: none;
+    border: 0;
+  }
+
+  .branch-map :global(.map-pin span) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50% 50% 50% 0;
+    background: var(--green);
+    border: 2px solid #fff;
+    box-shadow: 0 3px 8px rgb(0 0 0 / 0.3);
+    /* Rotating the square turns its sharp corner into the pin's tip, 39px below the top. */
+    transform: rotate(-45deg);
+  }
+
+  .branch-map :global(.map-pin span::after) {
+    content: '';
+    position: absolute;
+    inset: 9px;
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  .branch-map :global(.map-pin.featured span::after) {
+    background: var(--yellow);
+  }
+
+  .branch-map :global(.map-label) {
+    padding: 0.15rem 0.55rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--green-900);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+  }
+
+  .branch-map :global(.map-label::before) {
+    border-top-color: var(--green-900);
+  }
+
+  .branch-map :global(.leaflet-popup-content-wrapper) {
+    border-radius: 14px;
+  }
+
+  .branch-map :global(.leaflet-popup-content) {
+    margin: 0.9rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .branch-map :global(.map-popup) {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .branch-map :global(.map-office) {
+    display: grid;
+    gap: 0.1rem;
+    color: var(--ink);
+  }
+
+  .branch-map :global(.map-office strong) {
+    font-size: 0.95rem;
+  }
+
+  .branch-map :global(.map-office + .map-office) {
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .branch-map :global(.map-phones a),
+  .branch-map :global(.map-directions) {
+    color: var(--green-700);
+    font-weight: 600;
+  }
+
+  .branch-map :global(.leaflet-control-attribution) {
+    font-size: 0.7rem;
+  }
+</style>

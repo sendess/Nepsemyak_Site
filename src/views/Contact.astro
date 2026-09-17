@@ -2,8 +2,8 @@
 import Icon from '~/components/Icon.astro';
 import PageHero from '~/components/PageHero.astro';
 import BranchCard from '~/components/BranchCard.astro';
-import LazyEmbed from '~/components/LazyEmbed.astro';
-import { org, branches, mapEmbed } from '~/data/site';
+import BranchMap from '~/components/BranchMap.astro';
+import { org, branches } from '~/data/site';
 import { localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
 
 type Props = { lang: Lang };
@@ -114,11 +114,9 @@ const central = branches[0];
 <section class="section section-tint" id="offices" aria-labelledby="offices-title">
   <div class="container">
     <h2 class="h2" id="offices-title" style="margin-bottom: 2rem">{t('contact.officesTitle')}</h2>
+    <BranchMap lang={lang} />
     <div class="offices">
-      {branches.map((b, i) => <BranchCard branch={b} lang={lang} featured={i === 0} />)}
-      <div class="map">
-        <LazyEmbed src={mapEmbed(central.mapQuery)} title={`${central.name[lang]} — Google Maps`} icon="map" height="100%" />
-      </div>
+      {branches.map((b, i) => <BranchCard branch={b} lang={lang} featured={i === 0} onMap />)}
     </div>
   </div>
 </section>
@@ -217,10 +215,6 @@ const central = branches[0];
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
     gap: 1.25rem;
-  }
-
-  .map {
-    min-height: 320px;
-    display: grid;
+    margin-top: 1.5rem;
   }
 </style>

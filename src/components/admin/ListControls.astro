@@ -1,0 +1,105 @@
+---
+import Icon from '~/components/Icon.astro';
+import { isFiltered, listHref, type ListState } from '~/lib/listing';
+
+type Filter = { name: string; all: string; options: { value: string; label: string }[] };
+type Props = { list: ListState; searchLabel: string; filters?: Filter[] };
+const { list, searchLabel, filters = [] } = Astro.props;
+const cleared = listHref(list, { q: '', filters: Object.fromEntries(filters.map((f) => [f.name, undefined])) });
+---
+
+<form class="list-controls" method="get" action={list.path} role="search" data-list-controls>
+  <input type="hidden" name="sort" value={list.sort} />
+  <input type="hidden" name="dir" value={list.dir} />
+  <label class="search">
+    <span class="visually-hidden">{searchLabel}</span>
+    <Icon name="search" size={18} />
+    <input class="input" type="search" name="q" value={list.q} placeholder={searchLabel} maxlength="100" />
+  </label>
+  {
+    filters.map((f) => (
+      <label>
+        <span class="visually-hidden">{f.all}</span>
+        <select class="select" name={f.name} data-autosubmit>
+          <option value="">{f.all}</option>
+          {f.options.map((o) => (
+            <option value={o.value} selected={list.filters[f.name] === o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    ))
+  }
+  <button class="btn btn-ghost btn-sm" type="submit">Search</button>
+  {
+    isFiltered(list) && (
+      <a class="clear" href={cleared}>
+        <Icon name="x" size={16} /> Clear
+      </a>
+    )
+  }
+</form>
+
+<script>
+  document.querySelectorAll<HTMLFormElement>('[data-list-controls]').forEach((form) => {
+    form.querySelectorAll<HTMLSelectElement>('[data-autosubmit]').forEach((select) => {
+      select.addEventListener('change', () => form.requestSubmit());
+    });
+    // Keep the address short: leave out empty search and "all" filters.
+    form.addEventListener('formdata', (e) => {
+      for (const [name, value] of [...e.formData]) if (value === '') e.formData.delete(name);
+    });
+  });
+</script>
+
+<style>
+  .list-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .list-controls .input,
+  .list-controls .select {
+    min-height: 2.6rem;
+    padding-block: 0.45rem;
+  }
+
+  .list-controls .select {
+    width: auto;
+  }
+
+  .search {
+    position: relative;
+    flex: 1 1 16rem;
+    max-width: 24rem;
+  }
+
+  .search :global(.icon) {
+    position: absolute;
+    top: 50%;
+    left: 0.8rem;
+    translate: 0 -50%;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  .search .input {
+    padding-left: 2.4rem;
+  }
+
+  .clear {
+    display: inline-flex;
+    gap: 0.25rem;
+    align-items: center;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .clear:hover {
+    color: #b42318;
+  }
+</style>

@@ -2,12 +2,19 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
-import { listAllJobs } from '~/lib/content';
-import { formatDay, todayNpt } from '~/lib/admin-format';
+import SortTh from '~/components/admin/SortTh.astro';
+import ListControls from '~/components/admin/ListControls.astro';
+import Pager from '~/components/admin/Pager.astro';
+import { listAllJobs, JOB_LIST } from '~/lib/content';
+import { isFiltered, listHref, readList } from '~/lib/listing';
+import { formatDay, formatNpt, todayNpt } from '~/lib/admin-format';
 
 export const prerender = false;
 
-const jobs = await listAllJobs();
+const list = readList(Astro.url, Astro.cookies, JOB_LIST);
+const { rows: jobs, total } = await listAllJobs(list);
+if (jobs.length === 0 && list.page > 1) return Astro.redirect(listHref(list, { page: 1 }));
+
 const today = todayNpt();
 const flash = Astro.url.searchParams.get('done');
 ---
@@ -21,43 +28,74 @@ const flash = Astro.url.searchParams.get('done');
   </div>
 
   {
-    jobs.length === 0 ? (
+    total === 0 && !isFiltered(list) ? (
       <div class="empty-state">
         <Icon name="briefcase" size={32} />
         <p>No job listings. The Careers page says there are no openings right now.</p>
       </div>
     ) : (
-      <div class="table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th scope="col">Position</th>
-              <th scope="col">Location</th>
-              <th scope="col">Openings</th>
-              <th scope="col">Deadline</th>
-              <th scope="col">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.map((j) => (
-              <tr>
-                <td>
-                  <a href={`/admin/jobs/${j.id}`}>{j.title_en || j.title_ne}</a>
-                </td>
-                <td>{j.location_en || j.location_ne || '—'}</td>
-                <td>{j.openings ?? '—'}</td>
-                <td>
-                  {formatDay(j.deadline)}
-                  {j.status === 'open' && j.deadline && j.deadline < today && <small class="expired"> (passed)</small>}
-                </td>
-                <td>
-                  <StatusBadge status={j.status} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <>
+        <ListControls
+          list={list}
+          searchLabel="Search positions and locations"
+          filters={[
+            {
+              name: 'status',
+              all: 'All statuses',
+              options: [
+                { value: 'open', label: 'Open' },
+                { value: 'expired', label: 'Open, deadline passed' },
+                { value: 'draft', label: 'Draft' },
+                { value: 'closed', label: 'Closed' },
+              ],
+            },
+          ]}
+        />
+        {total === 0 ? (
+          <div class="empty-state">
+            <Icon name="search" size={32} />
+            <p>No jobs match this search or filter.</p>
+          </div>
+        ) : (
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <SortTh list={list} sort="position" label="Position" />
+                  <SortTh list={list} sort="location" label="Location" />
+                  <SortTh list={list} sort="openings" label="Openings" />
+                  <SortTh list={list} sort="deadline" label="Deadline" />
+                  <SortTh list={list} sort="status" label="Status" />
+                  <SortTh list={list} sort="updated" label="Last edited" />
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((j) => (
+                  <tr>
+                    <td>
+                      <a href={`/admin/jobs/${j.id}`}>{j.title_en || j.title_ne}</a>
+                    </td>
+                    <td>{j.location_en || j.location_ne || '—'}</td>
+                    <td>{j.openings ?? '—'}</td>
+                    <td class="nowrap">
+                      {formatDay(j.deadline)}
+                      {j.status === 'open' && j.deadline && j.deadline < today && <small class="expired"> (passed)</small>}
+                    </td>
+                    <td>
+                      <StatusBadge status={j.status} />
+                    </td>
+                    <td class="edited">
+                      {formatNpt(j.updated_at)}
+                      {j.updated_by && <small>{j.updated_by}</small>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <Pager list={list} total={total} noun={['job', 'jobs']} />
+      </>
     )
   }
 </AdminLayout>
@@ -65,5 +103,9 @@ const flash = Astro.url.searchParams.get('done');
 <style>
   .expired {
     color: #b42318;
+  }
+
+  .nowrap {
+    white-space: nowrap;
   }
 </style>

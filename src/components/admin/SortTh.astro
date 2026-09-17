@@ -1,0 +1,42 @@
+---
+import Icon from '~/components/Icon.astro';
+import { listHref, type ListState } from '~/lib/listing';
+
+/** Column heading that sorts the list; clicking the active column flips the direction. */
+type Props = { list: ListState; sort: string; label: string };
+const { list, sort, label } = Astro.props;
+const active = list.sort === sort;
+const nextDir = active ? (list.dir === 'asc' ? 'desc' : 'asc') : list.spec.sorts[sort];
+---
+
+<th scope="col" aria-sort={active ? (list.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+  <a class:list={['sort', { active }]} href={listHref(list, { sort, dir: nextDir })}>
+    {label}
+    <Icon name={active ? (list.dir === 'asc' ? 'arrow-up' : 'arrow-down') : 'chevrons-up-down'} size={14} />
+  </a>
+</th>
+
+<style>
+  .sort {
+    display: inline-flex;
+    gap: 0.3rem;
+    align-items: center;
+    color: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .sort :global(.icon) {
+    opacity: 0.45;
+  }
+
+  .sort:hover,
+  .sort.active {
+    color: var(--green-800);
+  }
+
+  .sort:hover :global(.icon),
+  .sort.active :global(.icon) {
+    opacity: 1;
+  }
+</style>

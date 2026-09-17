@@ -1,82 +1,85 @@
 ---
-import { handleAuthProxyRequest } from '@neondatabase/auth/server';
-import { NEON_AUTH_BASE_URL, NEON_AUTH_COOKIE_SECRET } from 'astro:env/server';
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
-import StatusBadge from '~/components/admin/StatusBadge.astro';
-import { listAdmins, removeAdmin, upsertAdmin } from '~/lib/content';
+import { addSubAdmin, listAdmins, removeSubAdmin } from '~/lib/content';
+import { logEvent, requestActor } from '~/lib/audit';
+import { authUserId, callAuth, resetTwoFactor } from '~/lib/auth';
+import { sql } from '~/lib/db';
 import { FormReader } from '~/lib/forms';
 import { formatNpt } from '~/lib/admin-format';
-import type { AdminRole } from '~/lib/auth';
 
 export const prerender = false;
 
 const me = Astro.locals.admin!;
 if (me.role !== 'owner') return Astro.redirect('/admin', 303);
+const actor = requestActor(Astro, me.email);
 
-let message: { kind: 'ok' | 'error'; text: string } | null = null;
+let message: { kind: 'ok' | 'error'; text: string; steps?: string[] } | null = null;
 let errors: Record<string, string> = {};
 
-/**
- * Create the Neon Auth sign-in account. Public sign-up is disabled, so accounts are
- * created here by an owner (who has the Neon Auth "admin" role). The random password
- * is never shown or stored — staff sign in with emailed codes.
- */
-async function createSignInAccount(email: string, name: string): Promise<string | null> {
-  const password = crypto.getRandomValues(new Uint8Array(32)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
-  const headers = new Headers(Astro.request.headers);
-  headers.set('content-type', 'application/json');
-  headers.delete('content-length');
-  const request = new Request(new URL('/api/auth/admin/create-user', Astro.url), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ email, name: name || email, password, role: 'user' }),
-  });
-  const res = await handleAuthProxyRequest({
-    request,
-    path: 'admin/create-user',
-    baseUrl: NEON_AUTH_BASE_URL,
-    cookieSecret: NEON_AUTH_COOKIE_SECRET,
-    sameSite: 'lax',
-  });
-  if (res.ok) return null;
-  const data = await res.json().catch(() => ({}));
-  if (data.code === 'USER_ALREADY_EXISTS' || /already exist/i.test(data.message ?? '')) return null;
-  return data.message ?? `Neon Auth returned ${res.status}`;
+/** Neon Auth admin endpoints, called with the master admin's session (which has the Neon Auth "admin" role). */
+const neonAuth = (path: string, body: unknown) => callAuth(Astro.request, path, body);
+
+async function signOutEverywhere(email: string) {
+  await sql`delete from admin_mfa_sessions where email = ${email}`;
+  const userId = await authUserId(email);
+  if (userId) await neonAuth('admin/revoke-user-sessions', { userId });
+  return userId;
 }
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = form.get('_action');
-
-  if (action === 'remove') {
-    const email = String(form.get('email') ?? '').toLowerCase();
-    if (email === me.email) {
-      message = { kind: 'error', text: 'You cannot remove yourself.' };
-    } else {
-      await removeAdmin(email);
-      message = { kind: 'ok', text: `${email} no longer has admin access.` };
-    }
-  }
+  const target = String(form.get('email') ?? '').toLowerCase();
+  const subAdmin = (await listAdmins()).find((a) => a.email === target && a.role === 'editor');
 
   if (action === 'add') {
     const f = new FormReader(form);
     const email = f.text('email', { max: 160, required: true, label: 'Email' }).toLowerCase();
     const name = f.text('name', { max: 80 });
-    const role = f.choice<AdminRole>('role', ['owner', 'editor'], 'editor');
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) f.errors.email = 'Enter a valid email address.';
     errors = f.errors;
 
     if (f.ok) {
-      await upsertAdmin(email, name, role, me.email);
-      const problem = await createSignInAccount(email, name);
-      message = problem
-        ? {
-            kind: 'error',
-            text: `${email} was added to the admin list, but the sign-in account could not be created (${problem}). Ask the site developer to create it.`,
-          }
-        : { kind: 'ok', text: `${email} can now sign in at /admin with an emailed code.` };
+      if (!(await addSubAdmin(actor, email, name))) {
+        message = { kind: 'error', text: `${email} is already an admin.` };
+      } else {
+        // Public sign-up is off, so the sign-in account is created here with a random password they never see.
+        let problem: string | null = null;
+        if (!(await authUserId(email))) {
+          const password = crypto.getRandomValues(new Uint8Array(32)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
+          const result = await neonAuth('admin/create-user', { email, name: name || email, password, role: 'user' });
+          if (!result.ok && result.data.code !== 'USER_ALREADY_EXISTS') problem = result.data.message ?? `Neon Auth returned ${result.status}`;
+        }
+        message = problem
+          ? { kind: 'error', text: `${email} was added, but their sign-in account could not be created (${problem}). Ask the site developer.` }
+          : {
+              kind: 'ok',
+              text: `${name || email} is now a sub-admin. Send them these steps:`,
+              steps: [
+                `Open ${Astro.url.origin}/admin/reset-password and enter ${email}.`,
+                'Type the 6-digit code from the email and choose a password.',
+                'Sign in, then scan the QR code with Google Authenticator and save the recovery codes.',
+              ],
+            };
+      }
     }
+  } else if (!subAdmin) {
+    message = { kind: 'error', text: 'That person is not a sub-admin.' };
+  } else if (action === 'reset-2fa') {
+    await resetTwoFactor(subAdmin.email);
+    await signOutEverywhere(subAdmin.email);
+    await logEvent(actor, 'two_factor_reset', { target: subAdmin.email, label: `Reset two-step sign-in for ${subAdmin.email}` });
+    message = { kind: 'ok', text: `${subAdmin.email} will set up their authenticator again at their next sign-in.` };
+  } else if (action === 'sign-out') {
+    await signOutEverywhere(subAdmin.email);
+    await logEvent(actor, 'sessions_revoked', { target: subAdmin.email, label: `Signed out ${subAdmin.email} everywhere` });
+    message = { kind: 'ok', text: `${subAdmin.email} has been signed out on every device.` };
+  } else if (action === 'remove') {
+    await removeSubAdmin(actor, subAdmin.email);
+    const userId = await signOutEverywhere(subAdmin.email);
+    if (userId) await neonAuth('admin/remove-user', { userId });
+    message = { kind: 'ok', text: `${subAdmin.email} no longer has admin access and their sign-in account was deleted.` };
   }
 }
 
@@ -84,11 +87,29 @@ const admins = await listAdmins();
 ---
 
 <AdminLayout title="Users">
-  {message && <p class:list={['flash', { error: message.kind === 'error' }]}>{message.text}</p>}
+  {
+    message && (
+      <div class:list={['flash', { error: message.kind === 'error' }]}>
+        <div>
+          <p>{message.text}</p>
+          {message.steps && (
+            <ol>
+              {message.steps.map((s) => (
+                <li>{s}</li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   <section class="form-section">
-    <h2>Add someone</h2>
-    <p class="hint"><strong>Editors</strong> manage notices, news and jobs. <strong>Owners</strong> can also add and remove people.</p>
+    <h2>Add a sub-admin</h2>
+    <p class="hint">
+      Sub-admins manage notices, statistics, news and jobs. Only you (the master admin) can add or remove people and see the
+      activity log.
+    </p>
     <form method="post" class="add">
       <input type="hidden" name="_action" value="add" />
       <div class="field">
@@ -100,13 +121,6 @@ const admins = await listAdmins();
         <label for="name">Name</label>
         <input class="input" id="name" name="name" />
       </div>
-      <div class="field">
-        <label for="role">Role</label>
-        <select class="select" id="role" name="role">
-          <option value="editor">Editor</option>
-          <option value="owner">Owner</option>
-        </select>
-      </div>
       <button class="btn btn-primary" type="submit"><Icon name="check" size={18} /> Add</button>
     </form>
   </section>
@@ -117,6 +131,7 @@ const admins = await listAdmins();
         <tr>
           <th scope="col">Person</th>
           <th scope="col">Role</th>
+          <th scope="col">Two-step sign-in</th>
           <th scope="col">Last active</th>
           <th scope="col"><span class="visually-hidden">Actions</span></th>
         </tr>
@@ -130,18 +145,37 @@ const admins = await listAdmins();
                 {a.name && <small class="email">{a.email}</small>}
               </td>
               <td>
-                <StatusBadge status={a.role} />
+                <span class:list={['badge', a.role === 'owner' ? 'master' : 'sub']}>{a.role === 'owner' ? 'Master admin' : 'Sub-admin'}</span>
               </td>
+              <td class="hint">{a.totp_enabled_at ? `On since ${formatNpt(a.totp_enabled_at)}` : 'Not set up yet'}</td>
               <td class="hint">{a.last_seen_at ? formatNpt(a.last_seen_at) : 'Never signed in'}</td>
               <td>
-                {a.email !== me.email && (
-                  <form method="post" data-confirm={`Remove admin access for ${a.email}?`}>
-                    <input type="hidden" name="_action" value="remove" />
-                    <input type="hidden" name="email" value={a.email} />
-                    <button class="btn btn-danger btn-sm" type="submit">
-                      Remove
-                    </button>
-                  </form>
+                {a.role === 'owner' ? (
+                  a.email === me.email && (
+                    <a class="link-arrow" href="/admin/account">
+                      Your account <Icon name="arrow-right" size={14} />
+                    </a>
+                  )
+                ) : (
+                  <div class="row-actions">
+                    {a.totp_enabled_at && (
+                      <form method="post" data-confirm={`Reset two-step sign-in for ${a.email}? They will set up their authenticator again at next sign-in.`}>
+                        <input type="hidden" name="_action" value="reset-2fa" />
+                        <input type="hidden" name="email" value={a.email} />
+                        <button class="btn btn-ghost btn-sm" type="submit">Reset 2FA</button>
+                      </form>
+                    )}
+                    <form method="post" data-confirm={`Sign ${a.email} out on every device?`}>
+                      <input type="hidden" name="_action" value="sign-out" />
+                      <input type="hidden" name="email" value={a.email} />
+                      <button class="btn btn-ghost btn-sm" type="submit">Sign out</button>
+                    </form>
+                    <form method="post" data-confirm={`Remove ${a.email}? Their sign-in account is deleted too.`}>
+                      <input type="hidden" name="_action" value="remove" />
+                      <input type="hidden" name="email" value={a.email} />
+                      <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+                    </form>
+                  </div>
                 )}
               </td>
             </tr>
@@ -155,7 +189,7 @@ const admins = await listAdmins();
 <style>
   .add {
     display: grid;
-    grid-template-columns: 2fr 1.5fr 1fr auto;
+    grid-template-columns: 2fr 1.5fr auto;
     gap: 0.9rem;
     align-items: end;
   }
@@ -166,6 +200,16 @@ const admins = await listAdmins();
     }
   }
 
+  .flash ol {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+    font-weight: 400;
+  }
+
+  .flash p {
+    margin: 0;
+  }
+
   .list {
     margin-top: 1.25rem;
   }
@@ -173,5 +217,31 @@ const admins = await listAdmins();
   .email {
     display: block;
     color: var(--muted);
+  }
+
+  .row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: flex-end;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.1rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .master {
+    background: #fff4c2;
+    color: #6b5300;
+  }
+
+  .sub {
+    background: var(--green-100);
+    color: var(--green-800);
   }
 </style>

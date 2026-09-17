@@ -1,0 +1,61 @@
+---
+/** Freshly created recovery codes, with copy and print buttons. They are never shown again. */
+type Props = { codes: string[] };
+const { codes } = Astro.props;
+---
+
+<div class="recovery" data-recovery>
+  <ol class="codes">
+    {codes.map((code) => <li><code>{code}</code></li>)}
+  </ol>
+  <div class="actions">
+    <button class="btn btn-ghost btn-sm" type="button" data-copy>Copy codes</button>
+    <button class="btn btn-ghost btn-sm" type="button" data-print>Print</button>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-recovery]').forEach((box) => {
+    const codes = [...box.querySelectorAll('code')].map((c) => c.textContent).join('\n');
+    const copy = box.querySelector<HTMLButtonElement>('[data-copy]')!;
+    copy.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(`Nepsemyak admin recovery codes\n${codes}`).catch(() => null);
+      copy.textContent = 'Copied';
+    });
+    box.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+  });
+</script>
+
+<style>
+  .recovery {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .codes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 1rem;
+    margin: 0;
+    padding: 1rem 1rem 1rem 2.25rem;
+    border: 1px dashed var(--line-strong);
+    border-radius: 12px;
+    background: var(--green-50);
+  }
+
+  .codes code {
+    font-size: 1rem;
+    letter-spacing: 0.04em;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  @media print {
+    .actions {
+      display: none;
+    }
+  }
+</style>

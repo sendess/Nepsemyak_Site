@@ -219,6 +219,7 @@ const en = {
   'footer.help': 'Help',
   'footer.circle': 'Our circle',
   'footer.rights': 'All rights reserved.',
+  'footer.staff': 'Staff login',
 
   '404.title': 'Page not found',
   '404.text': 'The page you are looking for may have moved. Try the menu or head back home.',
@@ -446,6 +447,7 @@ const ne: Record<UiKey, string> = {
   'footer.help': 'सहयोग',
   'footer.circle': 'हाम्रा सहयात्री संस्था',
   'footer.rights': 'सर्वाधिकार सुरक्षित।',
+  'footer.staff': 'कर्मचारी लगइन',
 
   '404.title': 'पृष्ठ भेटिएन',
   '404.text': 'तपाईंले खोज्नुभएको पृष्ठ सरेको हुन सक्छ। मेनु प्रयोग गर्नुहोस् वा गृहपृष्ठमा फर्कनुहोस्।',

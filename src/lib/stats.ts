@@ -1,5 +1,6 @@
 // Facts and figures shown on the website, edited under /admin/stats.
 import { sql } from './db';
+import { asActor, type Actor } from './audit';
 import type { L } from '~/i18n/utils';
 
 export type StatUnit = 'count' | 'mt' | 'percent';
@@ -169,11 +170,11 @@ export type StatRowInput = {
  * Save a whole group in one transaction: date, edited rows, new rows and removals.
  * Core rows are never deleted. Row order follows the order submitted.
  */
-export async function saveStatGroup(groupId: StatGroupId, asOf: string, rows: StatRowInput[], by: string) {
+export async function saveStatGroup(groupId: StatGroupId, asOf: string, rows: StatRowInput[], actor: Actor) {
   const existing = await getStatGroup(groupId);
   const byId = new Map(existing.items.map((item) => [item.id, item]));
   const queries = [
-    sql`insert into stat_groups (id, as_of, updated_by, updated_at) values (${groupId}, ${asOf}, ${by}, now())
+    sql`insert into stat_groups (id, as_of, updated_by, updated_at) values (${groupId}, ${asOf}, ${actor.email}, now())
         on conflict (id) do update set as_of = excluded.as_of, updated_by = excluded.updated_by, updated_at = now()`,
   ];
 
@@ -197,5 +198,5 @@ export async function saveStatGroup(groupId: StatGroupId, asOf: string, rows: St
     }
   }
 
-  await sql.transaction(queries);
+  await asActor(actor, queries);
 }

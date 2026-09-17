@@ -1,0 +1,134 @@
+---
+import { renderSVG } from 'uqr';
+import AuthLayout from '~/layouts/AuthLayout.astro';
+import RecoveryCodes from '~/components/admin/RecoveryCodes.astro';
+import { logEvent, recentEvents, requestActor } from '~/lib/audit';
+import { LOCK_MINUTES, MAX_FAILURES_PER_EMAIL, confirmTotpSetup, markSessionVerified, pendingTotpSecret } from '~/lib/auth';
+import { groupSecret, totpUri } from '~/lib/totp';
+
+export const prerender = false;
+
+// The middleware only shows this page to admins who signed in with their password but have no authenticator yet.
+const access = Astro.locals.auth!;
+const email = access.email!;
+let error = '';
+let recoveryCodes: string[] | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const actor = requestActor(Astro, email);
+  const failures = await recentEvents('two_factor_failed', email, actor.ip, LOCK_MINUTES);
+  if (failures.byEmail >= MAX_FAILURES_PER_EMAIL) {
+    error = `Too many wrong codes. Wait ${LOCK_MINUTES} minutes and try again.`;
+  } else {
+    recoveryCodes = await confirmTotpSetup(email, String(form.get('code') ?? '').slice(0, 10));
+    if (recoveryCodes) {
+      await markSessionVerified(access);
+      await logEvent(actor, 'two_factor_enabled');
+    } else {
+      await logEvent(actor, 'two_factor_failed', { label: 'Wrong code while setting up authenticator' });
+      error = 'That code doesn’t match. Check the phone’s time is set automatically, then try the current code.';
+    }
+  }
+}
+
+const secret = recoveryCodes ? '' : await pendingTotpSecret(email);
+const qr = secret ? renderSVG(totpUri(secret, email), { border: 2, pixelSize: 6, ecc: 'M' }) : '';
+---
+
+<AuthLayout title="Set up two-step sign-in" wide>
+  {
+    recoveryCodes ? (
+      <section class="step">
+        <h1 class="h3">Authenticator is on</h1>
+        <p>
+          Save these <strong>recovery codes</strong> somewhere safe (print them or keep them in a password manager). If you lose
+          your phone, each code lets you sign in once. They won’t be shown again.
+        </p>
+        <RecoveryCodes codes={recoveryCodes} />
+        <a class="btn btn-primary" href="/admin">
+          I’ve saved them — continue
+        </a>
+      </section>
+    ) : (
+      <section class="step">
+        <h1 class="h3">Set up two-step sign-in</h1>
+        <p class="muted">Every admin signs in with a password and a code from their phone.</p>
+        <ol class="steps">
+          <li>
+            Install <strong>Google Authenticator</strong> (or Microsoft Authenticator) on your phone.
+          </li>
+          <li>
+            In the app, tap <strong>+</strong> and scan this QR code:
+            <div class="qr" role="img" aria-label="QR code for the authenticator app" set:html={qr} />
+            <details>
+              <summary>Can’t scan? Type this key instead</summary>
+              <p class="key">
+                <code>{groupSecret(secret)}</code>
+              </p>
+              <p class="hint">Account: {email} · Type: time-based</p>
+            </details>
+          </li>
+          <li>Enter the 6-digit code the app shows for Nepsemyak Admin:</li>
+        </ol>
+        <form method="post">
+          <div class="field">
+            <label for="code" class="visually-hidden">
+              6-digit code
+            </label>
+            <input class="input code-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required />
+          </div>
+          <button class="btn btn-primary" type="submit">
+            Turn on
+          </button>
+        </form>
+        <p class="message" role="alert">
+          {error}
+        </p>
+        <button class="link" type="button" data-sign-out>
+          Sign out
+        </button>
+      </section>
+    )
+  }
+</AuthLayout>
+
+<style>
+  .steps {
+    display: grid;
+    gap: 0.9rem;
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
+  .qr {
+    width: min(220px, 70vw);
+    margin: 0.75rem 0;
+    padding: 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .qr :global(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .key code {
+    display: inline-block;
+    padding: 0.4rem 0.6rem;
+    border-radius: 8px;
+    background: var(--green-50);
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    word-break: break-all;
+  }
+
+  details summary {
+    cursor: pointer;
+    color: var(--green-700);
+    font-weight: 600;
+  }
+</style>

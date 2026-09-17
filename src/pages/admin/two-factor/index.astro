@@ -1,0 +1,78 @@
+---
+import AuthLayout from '~/layouts/AuthLayout.astro';
+import { safeNext } from '~/lib/admin-routes';
+import { logEvent, recentEvents, requestActor } from '~/lib/audit';
+import { LOCK_MINUTES, MAX_FAILURES_PER_EMAIL, checkTotp, markSessionVerified, useRecoveryCode } from '~/lib/auth';
+
+export const prerender = false;
+
+// The middleware only shows this page to admins whose password was accepted but who haven't entered a code yet.
+const access = Astro.locals.auth!;
+const email = access.email!;
+const next = safeNext(Astro.url.searchParams.get('next'));
+let mode: 'app' | 'recovery' = Astro.url.searchParams.get('use') === 'recovery' ? 'recovery' : 'app';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  mode = form.get('mode') === 'recovery' ? 'recovery' : 'app';
+  const code = String(form.get('code') ?? '').slice(0, 40);
+  const actor = requestActor(Astro, email);
+
+  const failures = await recentEvents('two_factor_failed', email, actor.ip, LOCK_MINUTES);
+  if (failures.byEmail >= MAX_FAILURES_PER_EMAIL) {
+    error = `Too many wrong codes. Wait ${LOCK_MINUTES} minutes and try again.`;
+  } else if (mode === 'recovery') {
+    const left = await useRecoveryCode(email, code);
+    if (left === null) {
+      await logEvent(actor, 'two_factor_failed', { label: 'Wrong recovery code' });
+      error = 'That recovery code is not valid or was already used.';
+    } else {
+      await markSessionVerified(access);
+      await logEvent(actor, 'recovery_code_used', { label: `${left} recovery codes left` });
+      return Astro.redirect(left <= 3 ? '/admin/account?codes=low' : next, 303);
+    }
+  } else if (await checkTotp(email, code)) {
+    await markSessionVerified(access);
+    await logEvent(actor, 'two_factor_passed');
+    return Astro.redirect(next, 303);
+  } else {
+    await logEvent(actor, 'two_factor_failed', { label: 'Wrong authenticator code' });
+    error = 'That code is not right. Codes change every 30 seconds — use the one showing now.';
+  }
+}
+const other = new URL(Astro.url);
+other.searchParams.set('use', mode === 'app' ? 'recovery' : 'app');
+---
+
+<AuthLayout title="Enter code">
+  <section class="step">
+    <h1 class="h3">{mode === 'app' ? 'Enter your authenticator code' : 'Use a recovery code'}</h1>
+    <p class="muted">
+      {
+        mode === 'app'
+          ? `Open Google Authenticator (or your authenticator app) and enter the 6-digit code for Nepsemyak Admin (${email}).`
+          : 'Enter one of the recovery codes you saved when you set up your authenticator. Each code works once.'
+      }
+    </p>
+    <form method="post">
+      <input type="hidden" name="mode" value={mode} />
+      <div class="field">
+        <label for="code">{mode === 'app' ? '6-digit code' : 'Recovery code'}</label>
+        {
+          mode === 'app' ? (
+            <input class="input code-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus />
+          ) : (
+            <input class="input" id="code" name="code" autocomplete="off" spellcheck="false" placeholder="xxxxx-xxxxx" maxlength="20" required autofocus />
+          )
+        }
+      </div>
+      <button class="btn btn-primary" type="submit">Verify</button>
+    </form>
+    <p class="message" role="alert">{error}</p>
+    <a class="link" href={other.pathname + other.search}>
+      {mode === 'app' ? 'Lost your phone? Use a recovery code' : 'Use the authenticator app instead'}
+    </a>
+    <button class="link" type="button" data-sign-out>Sign out</button>
+  </section>
+</AuthLayout>

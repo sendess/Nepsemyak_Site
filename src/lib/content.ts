@@ -2,6 +2,7 @@
 import { sql } from './db';
 import type { AdminRole } from './auth';
 import { likePattern, type ListSpec, type ListState } from './listing';
+import { asActor, type Actor } from './audit';
 import { branches } from '~/data/site';
 
 type Fragment = ReturnType<typeof sql>;
@@ -128,26 +129,30 @@ export async function getNotice(id: number): Promise<Notice | null> {
   return ((await sql`select ${noticeSelect} where n.id = ${id}`)[0] as Notice) ?? null;
 }
 
-export async function saveNotice(id: number | null, input: NoticeInput, by: string): Promise<number> {
+export async function saveNotice(id: number | null, input: NoticeInput, actor: Actor): Promise<number> {
   const starts = input.starts_at ?? new Date().toISOString();
   const n = input;
   if (id === null) {
-    const [row] = await sql`
+    const [rows] = await asActor(actor, [
+      sql`
       insert into notices (message_en, message_ne, link_url, tone, is_active, starts_at, ends_at, show_banner, show_popup,
         title_en, title_ne, details_en, details_ne, image_media_id, updated_by)
       values (${n.message_en}, ${n.message_ne}, ${n.link_url}, ${n.tone}, ${n.is_active}, ${starts}, ${n.ends_at},
         ${n.show_banner}, ${n.show_popup}, ${n.title_en}, ${n.title_ne}, ${n.details_en}, ${n.details_ne},
-        ${n.image_media_id}, ${by})
-      returning id`;
-    return Number(row.id);
+        ${n.image_media_id}, ${actor.email})
+      returning id`,
+    ]);
+    return Number(rows[0].id);
   }
-  await sql`
+  await asActor(actor, [
+    sql`
     update notices set message_en = ${n.message_en}, message_ne = ${n.message_ne}, link_url = ${n.link_url},
       tone = ${n.tone}, is_active = ${n.is_active}, starts_at = ${starts}, ends_at = ${n.ends_at},
       show_banner = ${n.show_banner}, show_popup = ${n.show_popup}, title_en = ${n.title_en}, title_ne = ${n.title_ne},
       details_en = ${n.details_en}, details_ne = ${n.details_ne}, image_media_id = ${n.image_media_id},
-      updated_by = ${by}, updated_at = now()
-    where id = ${id}`;
+      updated_by = ${actor.email}, updated_at = now()
+    where id = ${id}`,
+  ]);
   return id;
 }
 
@@ -167,8 +172,8 @@ export function noticePayload(n: Notice) {
   };
 }
 
-export async function deleteNotice(id: number) {
-  await sql`delete from notices where id = ${id}`;
+export async function deleteNotice(id: number, actor: Actor) {
+  await asActor(actor, [sql`delete from notices where id = ${id}`]);
 }
 
 /* ---------------- Media ---------------- */
@@ -292,32 +297,38 @@ export async function slugTaken(slug: string, exceptId: number | null): Promise<
   return rows.length > 0;
 }
 
-export async function saveNews(id: number | null, p: NewsInput, by: string): Promise<number> {
+export async function saveNews(id: number | null, p: NewsInput, actor: Actor): Promise<number> {
   if (id === null) {
-    const [row] = await sql`
+    const [rows] = await asActor(actor, [
+      sql`
       insert into news_posts (slug, status, published_on, branch, title_en, title_ne, summary_en, summary_ne,
         body_en, body_ne, cover_media_id, updated_by)
       values (${p.slug}, ${p.status}, ${p.published_on}, ${p.branch}, ${p.title_en}, ${p.title_ne}, ${p.summary_en},
-        ${p.summary_ne}, ${p.body_en}, ${p.body_ne}, ${p.cover_media_id}, ${by})
-      returning id`;
-    return Number(row.id);
+        ${p.summary_ne}, ${p.body_en}, ${p.body_ne}, ${p.cover_media_id}, ${actor.email})
+      returning id`,
+    ]);
+    return Number(rows[0].id);
   }
-  await sql`
+  await asActor(actor, [
+    sql`
     update news_posts set slug = ${p.slug}, status = ${p.status}, published_on = ${p.published_on}, branch = ${p.branch},
       title_en = ${p.title_en}, title_ne = ${p.title_ne}, summary_en = ${p.summary_en}, summary_ne = ${p.summary_ne},
       body_en = ${p.body_en}, body_ne = ${p.body_ne}, cover_media_id = ${p.cover_media_id},
-      updated_by = ${by}, updated_at = now()
-    where id = ${id}`;
+      updated_by = ${actor.email}, updated_at = now()
+    where id = ${id}`,
+  ]);
   return id;
 }
 
-export async function deleteNews(id: number) {
+export async function deleteNews(id: number, actor: Actor) {
   // Remove the cover image too when no other post uses it.
-  await sql`
+  await asActor(actor, [
+    sql`
     with removed as (delete from news_posts where id = ${id} returning cover_media_id)
     delete from media m using removed r
     where m.id = r.cover_media_id
-      and not exists (select 1 from news_posts n where n.cover_media_id = m.id and n.id <> ${id})`;
+      and not exists (select 1 from news_posts n where n.cover_media_id = m.id and n.id <> ${id})`,
+  ]);
 }
 
 /* ---------------- Jobs ---------------- */
@@ -396,49 +407,62 @@ export async function getJob(id: number): Promise<Job | null> {
   return ((await sql`select ${jobColumns} from jobs where id = ${id}`)[0] as Job) ?? null;
 }
 
-export async function saveJob(id: number | null, j: JobInput, by: string): Promise<number> {
+export async function saveJob(id: number | null, j: JobInput, actor: Actor): Promise<number> {
   if (id === null) {
-    const [row] = await sql`
+    const [rows] = await asActor(actor, [
+      sql`
       insert into jobs (status, title_en, title_ne, location_en, location_ne, description_en, description_ne,
         how_to_apply_en, how_to_apply_ne, openings, deadline, updated_by)
       values (${j.status}, ${j.title_en}, ${j.title_ne}, ${j.location_en}, ${j.location_ne}, ${j.description_en},
-        ${j.description_ne}, ${j.how_to_apply_en}, ${j.how_to_apply_ne}, ${j.openings}, ${j.deadline}, ${by})
-      returning id`;
-    return Number(row.id);
+        ${j.description_ne}, ${j.how_to_apply_en}, ${j.how_to_apply_ne}, ${j.openings}, ${j.deadline}, ${actor.email})
+      returning id`,
+    ]);
+    return Number(rows[0].id);
   }
-  await sql`
+  await asActor(actor, [
+    sql`
     update jobs set status = ${j.status}, title_en = ${j.title_en}, title_ne = ${j.title_ne},
       location_en = ${j.location_en}, location_ne = ${j.location_ne}, description_en = ${j.description_en},
       description_ne = ${j.description_ne}, how_to_apply_en = ${j.how_to_apply_en}, how_to_apply_ne = ${j.how_to_apply_ne},
-      openings = ${j.openings}, deadline = ${j.deadline}, updated_by = ${by}, updated_at = now()
-    where id = ${id}`;
+      openings = ${j.openings}, deadline = ${j.deadline}, updated_by = ${actor.email}, updated_at = now()
+    where id = ${id}`,
+  ]);
   return id;
 }
 
-export async function deleteJob(id: number) {
-  await sql`delete from jobs where id = ${id}`;
+export async function deleteJob(id: number, actor: Actor) {
+  await asActor(actor, [sql`delete from jobs where id = ${id}`]);
 }
 
 /* ---------------- Admin users ---------------- */
 
-export type AdminRecord = { email: string; name: string; role: AdminRole; created_at: string; last_seen_at: string | null };
+export type AdminRecord = {
+  email: string;
+  name: string;
+  role: AdminRole;
+  created_at: string;
+  last_seen_at: string | null;
+  totp_enabled_at: string | null;
+};
 
 export async function listAdmins(): Promise<AdminRecord[]> {
-  return (await sql`select email, name, role, created_at, last_seen_at from admin_users order by role, email`) as AdminRecord[];
+  return (await sql`
+    select email, name, role, created_at, last_seen_at, totp_enabled_at from admin_users
+    order by role = 'owner' desc, lower(coalesce(nullif(name, ''), email))`) as AdminRecord[];
 }
 
-export async function upsertAdmin(email: string, name: string, role: AdminRole, by: string) {
-  await sql`
-    insert into admin_users (email, name, role, created_by) values (${email}, ${name}, ${role}, ${by})
-    on conflict (email) do update set name = excluded.name, role = excluded.role`;
+/** Adds a sub-admin. Returns false if the email is already an admin. */
+export async function addSubAdmin(actor: Actor, email: string, name: string): Promise<boolean> {
+  const [rows] = await asActor(actor, [
+    sql`insert into admin_users (email, name, role, created_by) values (${email}, ${name}, 'editor', ${actor.email})
+        on conflict (email) do nothing returning email`,
+  ]);
+  return rows.length === 1;
 }
 
-export async function removeAdmin(email: string) {
-  // Never remove the last owner.
-  await sql`
-    delete from admin_users
-    where email = ${email}
-      and (role <> 'owner' or (select count(*) from admin_users where role = 'owner') > 1)`;
+/** The master admin can't be removed from the website. */
+export async function removeSubAdmin(actor: Actor, email: string) {
+  await asActor(actor, [sql`delete from admin_users where email = ${email} and role = 'editor'`]);
 }
 
 /* ---------------- Dashboard ---------------- */

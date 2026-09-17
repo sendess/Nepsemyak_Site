@@ -101,7 +101,10 @@ const year = new Date().getFullYear();
   </div>
 
   <div class="container footer-bottom">
-    <p>© {formatDigits(year, lang)} {org.legalName[lang]}. {t('footer.rights')}</p>
+    <p>
+      © {formatDigits(year, lang)} {org.legalName[lang]}. {t('footer.rights')}
+      <a class="staff" href="/admin/login" rel="nofollow">{t('footer.staff')}</a>
+    </p>
     <p class="slogan">“{org.slogan[lang]}”</p>
   </div>
 </footer>
@@ -263,5 +266,20 @@ const year = new Date().getFullYear();
 
   .slogan {
     font-style: italic;
+  }
+
+  /* For office staff only, so it stays quiet: same color as the copyright line, no underline. */
+  .staff {
+    margin-inline-start: 0.5rem;
+    color: inherit;
+    font-size: 0.8rem;
+    text-decoration: none;
+    opacity: 0.7;
+  }
+
+  .staff:hover,
+  .staff:focus-visible {
+    opacity: 1;
+    text-decoration: underline;
   }
 </style>

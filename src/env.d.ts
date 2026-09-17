@@ -1,9 +1,9 @@
 declare namespace App {
   interface Locals {
-    /** Allowlisted admin for /admin requests; null elsewhere or when signed out. */
+    /** Admin who has fully signed in (password + authenticator code); null otherwise. */
     admin: import('./lib/auth').AdminUser | null;
-    /** Email of whoever is signed in, even if they are not on the allowlist. */
-    signedInEmail?: string | null;
+    /** Sign-in progress for /admin requests; null elsewhere. */
+    auth: import('./lib/auth').AdminAccess | null;
   }
 }
 

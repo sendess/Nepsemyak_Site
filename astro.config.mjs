@@ -23,6 +23,8 @@ export default defineConfig({
       DATABASE_URL: envField.string({ context: 'server', access: 'secret' }),
       NEON_AUTH_BASE_URL: envField.string({ context: 'server', access: 'secret' }),
       NEON_AUTH_COOKIE_SECRET: envField.string({ context: 'server', access: 'secret', min: 32 }),
+      // Encrypts admin authenticator-app secrets stored in the database.
+      ADMIN_SECRETS_KEY: envField.string({ context: 'server', access: 'secret', min: 32 }),
     },
   },
 

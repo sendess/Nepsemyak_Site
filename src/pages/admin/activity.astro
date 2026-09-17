@@ -1,0 +1,288 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import SortTh from '~/components/admin/SortTh.astro';
+import ListControls from '~/components/admin/ListControls.astro';
+import Pager from '~/components/admin/Pager.astro';
+import { auditListSpec, listAudit, type AuditEntry } from '~/lib/audit';
+import { listAdmins } from '~/lib/content';
+import { listHref, readList } from '~/lib/listing';
+import { formatNpt } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const me = Astro.locals.admin!;
+if (me.role !== 'owner') return Astro.redirect('/admin', 303);
+
+const admins = await listAdmins();
+const emails = admins.map((a) => a.email);
+const list = readList(Astro.url, Astro.cookies, auditListSpec(emails));
+const { rows, total } = await listAudit(list, emails);
+if (rows.length === 0 && list.page > 1) return Astro.redirect(listHref(list, { page: 1 }));
+
+const nameOf = new Map(admins.map((a) => [a.email, a.name]));
+
+const ENTITY: Record<string, { name: string; href?: (id: string) => string }> = {
+  notices: { name: 'notice', href: (id) => `/admin/notices/${id}` },
+  news_posts: { name: 'news post', href: (id) => `/admin/news/${id}` },
+  jobs: { name: 'job', href: (id) => `/admin/jobs/${id}` },
+  stat_groups: { name: 'statistics date', href: (id) => `/admin/stats/${id}` },
+  stat_items: { name: 'statistic' },
+  admin_users: { name: 'admin', href: () => '/admin/users' },
+};
+
+const EVENT: Record<string, { text: string; tone: 'good' | 'bad' | 'info' | 'muted' }> = {
+  sign_in: { text: 'Entered correct password', tone: 'muted' },
+  sign_in_failed: { text: 'Failed sign-in', tone: 'bad' },
+  sign_in_blocked: { text: 'Sign-in blocked (too many attempts)', tone: 'bad' },
+  two_factor_passed: { text: 'Signed in', tone: 'good' },
+  two_factor_failed: { text: 'Wrong authenticator code', tone: 'bad' },
+  recovery_code_used: { text: 'Signed in with a recovery code', tone: 'info' },
+  two_factor_enabled: { text: 'Set up authenticator app', tone: 'good' },
+  two_factor_reset: { text: 'Reset two-step sign-in', tone: 'info' },
+  recovery_codes_created: { text: 'Created new recovery codes', tone: 'info' },
+  password_changed: { text: 'Changed password', tone: 'info' },
+  password_change_failed: { text: 'Failed password change', tone: 'bad' },
+  password_reset_requested: { text: 'Requested a password code', tone: 'muted' },
+  password_reset: { text: 'Set a new password', tone: 'info' },
+  password_reset_failed: { text: 'Failed password reset', tone: 'bad' },
+  signed_out: { text: 'Signed out', tone: 'muted' },
+  sessions_revoked: { text: 'Signed out other sessions', tone: 'info' },
+};
+
+const VERB: Record<string, string> = { create: 'Created', update: 'Edited', delete: 'Deleted' };
+
+function describe(e: AuditEntry) {
+  if (e.entity === 'auth') return { text: EVENT[e.action]?.text ?? e.action, tone: EVENT[e.action]?.tone ?? 'muted', link: null };
+  const entity = ENTITY[e.entity ?? ''] ?? { name: e.entity ?? 'item' };
+  const link = e.action !== 'delete' && entity.href && e.entity_id ? entity.href(e.entity_id) : null;
+  return { text: `${VERB[e.action] ?? e.action} ${entity.name}`, tone: e.action === 'delete' ? 'bad' : 'muted', link };
+}
+
+/** "title_en" → "Title (English)". */
+const fieldName = (key: string) =>
+  key
+    .replace(/_en$/, ' (English)')
+    .replace(/_ne$/, ' (Nepali)')
+    .replace(/_media_id$/, ' image')
+    .replace(/_/g, ' ')
+    .replace(/^./, (c) => c.toUpperCase());
+
+const show = (v: unknown) => (v === undefined || v === null || v === '' ? '—' : typeof v === 'string' ? v : JSON.stringify(v));
+
+/** Short device description from the browser's user agent. */
+function device(ua: string | null) {
+  if (!ua) return '';
+  const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iPhone/iPad' : /Windows/.test(ua) ? 'Windows' : /Mac OS/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : '';
+  return [browser, os].filter(Boolean).join(' on ');
+}
+---
+
+<AdminLayout title="Activity" wide>
+  <div class="toolbar">
+    <p class="hint">
+      Every change to website content and every sign-in, newest first. Entries can’t be edited or deleted — not even by the
+      master admin.
+    </p>
+  </div>
+
+  <ListControls
+    list={list}
+    searchLabel="Search titles, emails, IP addresses"
+    filters={[
+      {
+        name: 'person',
+        all: 'Everyone',
+        options: [
+          ...admins.map((a) => ({ value: a.email, label: a.name || a.email })),
+          { value: 'others', label: 'Non-admins and former admins' },
+          { value: 'system', label: 'System / database' },
+        ],
+      },
+      {
+        name: 'area',
+        all: 'All areas',
+        options: [
+          { value: 'notices', label: 'Notices' },
+          { value: 'news', label: 'News' },
+          { value: 'jobs', label: 'Jobs' },
+          { value: 'stats', label: 'Statistics' },
+          { value: 'users', label: 'Admins' },
+          { value: 'auth', label: 'Sign-in & security' },
+        ],
+      },
+      {
+        name: 'kind',
+        all: 'All activity',
+        options: [
+          { value: 'changes', label: 'Content changes' },
+          { value: 'sign-ins', label: 'Sign-ins' },
+          { value: 'security', label: 'Password & 2FA' },
+        ],
+      },
+    ]}
+  />
+
+  {
+    total === 0 ? (
+      <div class="empty-state">
+        <Icon name="search" size={32} />
+        <p>No activity matches this search or filter.</p>
+      </div>
+    ) : (
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <SortTh list={list} sort="when" label="When" />
+              <th scope="col">Who</th>
+              <th scope="col">What</th>
+              <th scope="col">Where from</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((e) => {
+              const d = describe(e);
+              const changes = e.entity !== 'auth' && e.changes ? Object.entries(e.changes).filter(([key]) => key !== 'id') : [];
+              return (
+                <tr>
+                  <td class="nowrap">{formatNpt(e.at)}</td>
+                  <td>
+                    {e.actor_email ? (
+                      <>
+                        <strong>{nameOf.get(e.actor_email) || e.actor_email}</strong>
+                        {nameOf.get(e.actor_email) && <small class="sub">{e.actor_email}</small>}
+                        {!nameOf.has(e.actor_email) && <small class="sub">not a current admin</small>}
+                      </>
+                    ) : (
+                      <span class="hint">System / database</span>
+                    )}
+                  </td>
+                  <td class="what">
+                    <span class:list={['tag', d.tone]}>{d.text}</span>
+                    {e.label && (d.link ? <a href={d.link}>{e.label}</a> : <span>{e.label}</span>)}
+                    {changes.length > 0 && (
+                      <details>
+                        <summary>
+                          {changes.length} {changes.length === 1 ? 'field' : 'fields'}
+                        </summary>
+                        <table class="changes">
+                          <tbody>
+                            {changes.map(([key, c]) => (
+                              <tr>
+                                <th scope="row">{fieldName(key)}</th>
+                                {e.action !== 'create' && <td class="from">{show(c.from)}</td>}
+                                {e.action !== 'delete' && <td class="to">{show(c.to)}</td>}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </details>
+                    )}
+                  </td>
+                  <td class="hint">
+                    {e.ip ?? '—'}
+                    {device(e.user_agent) && <small class="sub">{device(e.user_agent)}</small>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+  <Pager list={list} total={total} noun={['entry', 'entries']} />
+</AdminLayout>
+
+<style>
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .sub {
+    display: block;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  .what {
+    display: grid;
+    gap: 0.3rem;
+    justify-items: start;
+    min-width: 16rem;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 0.05rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .good {
+    background: var(--green-100);
+    color: var(--green-800);
+  }
+
+  .muted {
+    background: #eef0ee;
+    color: #4b5563;
+  }
+
+  .info {
+    background: #e3eefa;
+    color: #1d4f86;
+  }
+
+  .bad {
+    background: #fde8e6;
+    color: #912018;
+  }
+
+  details summary {
+    cursor: pointer;
+    color: var(--green-700);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .changes {
+    margin-top: 0.4rem;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .changes th,
+  .changes td {
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid var(--line);
+    text-align: start;
+    vertical-align: top;
+    max-width: 22rem;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+  }
+
+  .changes th {
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    background: none;
+  }
+
+  .from {
+    background: #fdf0ee;
+    text-decoration: line-through;
+    text-decoration-color: rgb(145 32 24 / 0.35);
+  }
+
+  .to {
+    background: var(--green-50);
+  }
+</style>

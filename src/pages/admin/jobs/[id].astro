@@ -1,5 +1,6 @@
 ---
 import AdminLayout from '~/layouts/AdminLayout.astro';
+import { requestActor } from '~/lib/audit';
 import Icon from '~/components/Icon.astro';
 import BilingualField from '~/components/admin/BilingualField.astro';
 import { deleteJob, getJob, JOB_STATUSES, saveJob, type JobInput } from '~/lib/content';
@@ -34,7 +35,7 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
 
   if (form.get('_action') === 'delete' && existing) {
-    await deleteJob(existing.id);
+    await deleteJob(existing.id, requestActor(Astro, Astro.locals.admin!.email));
     await purge(['jobs']);
     return Astro.redirect('/admin/jobs?done=deleted', 303);
   }
@@ -57,7 +58,7 @@ if (Astro.request.method === 'POST') {
   errors = f.errors;
 
   if (f.ok) {
-    await saveJob(existing?.id ?? null, values, Astro.locals.admin!.email);
+    await saveJob(existing?.id ?? null, values, requestActor(Astro, Astro.locals.admin!.email));
     await purge(['jobs']);
     return Astro.redirect(`/admin/jobs?done=${existing ? 'updated' : 'added'}`, 303);
   }

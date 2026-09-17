@@ -1,0 +1,152 @@
+---
+import { Font } from 'astro:assets';
+import '~/styles/global.css';
+
+/** Centered card for the sign-in steps (outside the admin panel). */
+type Props = { title: string; wide?: boolean };
+const { title, wide = false } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} · Nepsemyak admin</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <Font cssVariable="--font-body" preload />
+    <Font cssVariable="--font-display" />
+  </head>
+  <body class="auth">
+    <main class="wrap">
+      <div class:list={['panel', { wide }]}>
+        <a class="brand" href="/">
+          <img src="/images/logo-96.webp" alt="" width="56" height="56" />
+          <span>
+            <strong>Nepsemyak</strong>
+            <small>Website admin</small>
+          </span>
+        </a>
+        <slot />
+      </div>
+    </main>
+
+    <script>
+      // "Sign out" buttons on the sign-in steps.
+      document.querySelectorAll<HTMLButtonElement>('[data-sign-out]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          await fetch('/api/auth/sign-out', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).catch(
+            () => null,
+          );
+          location.href = '/admin/login';
+        });
+      });
+    </script>
+
+    <style is:global>
+      body.auth {
+        min-height: 100vh;
+        background:
+          radial-gradient(700px 400px at 90% 0%, rgb(255 228 31 / 0.14), transparent 60%),
+          linear-gradient(160deg, var(--green-bright), var(--green) 45%, var(--slate));
+      }
+
+      .auth .step,
+      .auth form {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .auth .code-input {
+        font-size: 1.6rem;
+        letter-spacing: 0.4em;
+        text-align: center;
+      }
+
+      .auth .link {
+        justify-self: center;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--green-700);
+        text-decoration: underline;
+        cursor: pointer;
+      }
+
+      .auth .message {
+        min-height: 1.2em;
+        margin: 0;
+        color: #b42318;
+        font-weight: 600;
+      }
+
+      .auth .message.ok {
+        color: var(--green-800);
+      }
+
+      .auth .hint {
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
+
+      .auth .field-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: baseline;
+      }
+    </style>
+
+    <style>
+      .wrap {
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        padding: 1.5rem;
+      }
+
+      .panel {
+        display: grid;
+        gap: 1.5rem;
+        width: min(420px, 100%);
+        padding: clamp(1.5rem, 5vw, 2.5rem);
+        border-radius: var(--radius-lg);
+        background: #fff;
+        box-shadow: var(--shadow-lg);
+      }
+
+      .panel.wide {
+        width: min(560px, 100%);
+      }
+
+      .brand {
+        display: flex;
+        gap: 0.8rem;
+        align-items: center;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .brand img {
+        border-radius: 50%;
+      }
+
+      .brand span {
+        display: grid;
+        line-height: 1.2;
+      }
+
+      .brand strong {
+        font-family: var(--font-head);
+        font-size: 1.25rem;
+        color: var(--navy);
+      }
+
+      .brand small {
+        color: var(--muted);
+      }
+    </style>
+  </body>
+</html>

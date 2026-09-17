@@ -14,7 +14,7 @@ Visitor ──► Netlify CDN ──► pre-built pages (about, services, team�
                               ▼
                         Netlify function (Astro) ──► Neon Postgres (content, images)
 
-Staff ──► /admin ──► Netlify function ──► Neon Auth (email code sign-in) + Neon Postgres
+Staff ──► /admin ──► Netlify function ──► Neon Auth (email + password) ─► authenticator code ─► Neon Postgres
                           │
                           └── on save: purge the matching cache tag (notice / news / jobs)
 ```
@@ -33,9 +33,11 @@ neon checkout production   # writes DATABASE_URL etc. to .env.local
 npm run dev                # http://localhost:4321
 ```
 
-`.env.local` also needs `NEON_AUTH_COOKIE_SECRET` (32+ random characters; must match the value on Netlify).
+`.env.local` also needs `NEON_AUTH_COOKIE_SECRET` and `ADMIN_SECRETS_KEY` (each 32+ random characters; must match the
+values on Netlify). `ADMIN_SECRETS_KEY` encrypts authenticator secrets — if it changes, every admin must set up their
+authenticator again.
 
-To use the admin panel locally without email codes, create `.env.development.local` with
+To use the admin panel locally without signing in, create `.env.development.local` with
 `DEV_ADMIN_EMAIL=you@example.com` (an allowlisted email). This only works in `npm run dev` and is stripped from
 production builds. Remove it to test the real sign-in flow.
 
@@ -47,6 +49,7 @@ npm run check        # type-check
 npm run db:status    # migrations applied on the branch in .env.local
 npm run db:migrate   # apply pending db/migrations/*.sql
 npm run db:add-admin -- someone@example.com editor "Their Name"
+npm run db:reset-2fa -- someone@example.com   # lost phone and recovery codes
 ```
 
 Try risky changes on a throwaway database branch first: `neon checkout dev --create` (auto-deleted after
@@ -58,7 +61,8 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 |---|---|
 | `src/data/` | Fixed page content in both languages: branches, statistics, services, about, FAQ, team, downloads |
 | `src/lib/content.ts` | Database queries for notices, news, jobs, images and admin users |
-| `src/lib/auth.ts`, `src/middleware.ts` | Sign-in proxy to Neon Auth and `/admin` protection |
+| `src/lib/auth.ts`, `src/middleware.ts` | Sign-in proxy to Neon Auth, authenticator codes, lockouts and `/admin` protection |
+| `src/lib/audit.ts` | Activity log (content changes are recorded by database triggers) |
 | `src/lib/cache.ts` | Edge-cache headers and purge on save |
 | `src/pages/admin/` | Admin panel pages |
 | `src/i18n/` | Interface text and language helpers (Nepali digits, Bikram Sambat dates) |
@@ -69,17 +73,27 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 
 ## Admin panel
 
-- **Sign-in:** staff enter their email at `/admin/login` and receive a 6-digit code. Public sign-up is disabled
-  in Neon Auth; only emails on the admin list can request codes.
-- **Roles:** *editors* manage notices, statistics, news and jobs; *owners* can also add and remove people under **Users**.
+- **Sign-in:** email + password at `/admin/login`, then a 6-digit code from an authenticator app (Google Authenticator).
+  Everyone must set up the authenticator at their first sign-in and save 10 one-time recovery codes. The code is
+  asked for again after 12 hours. Five wrong passwords or codes from one device pause sign-in for 15 minutes.
+- **Passwords:** new admins (and anyone who forgot) use **Set or reset password** (`/admin/reset-password`): an emailed
+  6-digit code lets them choose a password. The authenticator is still required afterwards, so email access alone
+  isn't enough to get in. Change it under **My account**.
+- **Roles:** one *master admin* (role `owner`, enforced by the database) and any number of *sub-admins* (`editor`).
+  Sub-admins manage notices, statistics, news and jobs. The master also manages people under **Users** (add, reset
+  2FA, sign out everywhere, remove) and sees **Activity**.
+- **Activity log:** every create/edit/delete of notices, news, jobs, statistics and admins is written by database
+  triggers with who, when, IP address, browser and the changed fields; sign-ins, failed attempts and password/2FA
+  events are logged too. The `audit_log` table rejects updates and deletes.
 - **Statistics:** every figure on the home, Impact and Careers pages lives in `stat_groups` / `stat_items`. Each group
   has an “as of” date shown to visitors (“*Data as of …”, Bikram Sambat on Nepali pages). Figures the home page needs
   are marked `is_core` and cannot be removed. Totals for workforce and vehicles are calculated.
 - **Notices:** a notice can show as a banner, a pop-up, or both. Pop-ups have their own title, details and optional
   image, open once per visitor (again after the notice is edited), and can be previewed at `/#notice-preview=<id>`
   by a signed-in admin.
-- **Adding staff:** an owner adds them under **Users**. This creates their Neon Auth account (owners need the
-  Neon Auth `admin` role: `neon neon-auth user set-role <user-id> --roles admin`).
+- **Adding staff:** the master adds them under **Users**. This creates their Neon Auth account (the master needs the
+  Neon Auth `admin` role: `neon neon-auth user set-role <user-id> --roles admin`). They then set a password and
+  authenticator as above.
 - **Languages:** every field has English and Nepali boxes. If one is empty, visitors see the other.
 - **Images:** resized in the browser to WebP (max 1600 px) and stored in Postgres (`media` table).
 
@@ -97,7 +111,7 @@ Content edits made in the admin panel don't need a deploy.
 ### Netlify settings
 
 1. **Environment variables** (Site configuration → Environment variables), same values as `.env.local`:
-   `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`.
+   `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `ADMIN_SECRETS_KEY`.
 2. **HTTPS:** Domain management → HTTPS → Verify DNS configuration → Provision certificate, then *Force HTTPS*.
 3. **Contact form:** Forms → Enable form detection, and add an email notification.
 

@@ -16,6 +16,8 @@ const nav: { href: string; label: string; icon: IconName; ownerOnly?: boolean }[
   { href: '/admin/news', label: 'News', icon: 'newspaper' },
   { href: '/admin/jobs', label: 'Jobs', icon: 'briefcase' },
   { href: '/admin/users', label: 'Users', icon: 'users', ownerOnly: true },
+  { href: '/admin/activity', label: 'Activity', icon: 'clock', ownerOnly: true },
+  { href: '/admin/account', label: 'My account', icon: 'circle-check' },
 ];
 const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path === href || path.startsWith(`${href}/`));
 ---
@@ -73,7 +75,7 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
               <div class="who">
                 <span class="who-text">
                   <strong>{admin.name || admin.email}</strong>
-                  <small>{admin.role === 'owner' ? 'Owner' : 'Editor'}</small>
+                  <small>{admin.role === 'owner' ? 'Master admin' : 'Sub-admin'}</small>
                 </span>
                 <button class="btn btn-ghost btn-sm" type="button" data-sign-out>
                   Sign out

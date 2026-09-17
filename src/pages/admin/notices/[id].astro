@@ -1,5 +1,6 @@
 ---
 import AdminLayout from '~/layouts/AdminLayout.astro';
+import { requestActor } from '~/lib/audit';
 import Icon from '~/components/Icon.astro';
 import BilingualField from '~/components/admin/BilingualField.astro';
 import ImageField from '~/components/admin/ImageField.astro';
@@ -37,10 +38,10 @@ let errors: Record<string, string> = {};
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
-  const by = Astro.locals.admin!.email;
+  const by = requestActor(Astro, Astro.locals.admin!.email);
 
   if (form.get('_action') === 'delete' && existing) {
-    await deleteNotice(existing.id);
+    await deleteNotice(existing.id, by);
     await purge(['notice']);
     return Astro.redirect('/admin/notices?done=deleted', 303);
   }

@@ -1,0 +1,201 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import RecoveryCodes from '~/components/admin/RecoveryCodes.astro';
+import { logEvent, recentEvents, requestActor } from '~/lib/audit';
+import {
+  LOCK_MINUTES,
+  MAX_FAILURES_PER_EMAIL,
+  PASSWORD_MIN_LENGTH,
+  callAuth,
+  checkTotp,
+  forgetOtherSessions,
+  passwordProblem,
+  recoveryCodesLeft,
+  replaceRecoveryCodes,
+} from '~/lib/auth';
+import { sql } from '~/lib/db';
+import { formatNpt } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const me = Astro.locals.admin!;
+const access = Astro.locals.auth!;
+const actor = requestActor(Astro, me.email);
+
+let message: { kind: 'ok' | 'error'; text: string; section: string } | null = null;
+let newCodes: string[] | null = null;
+
+/** Neon Auth calls made for this person, keeping any refreshed session cookie. */
+async function authAction(path: string, body: unknown) {
+  const result = await callAuth(Astro.request, path, body);
+  for (const cookie of result.response.headers.getSetCookie()) Astro.response.headers.append('Set-Cookie', cookie);
+  return result;
+}
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('_action');
+
+  if (action === 'password') {
+    const current = String(form.get('current') ?? '');
+    const next = String(form.get('password') ?? '');
+    const problem = passwordProblem(next);
+    const failures = await recentEvents('password_change_failed', me.email, actor.ip, LOCK_MINUTES);
+    if (failures.byEmail >= MAX_FAILURES_PER_EMAIL) {
+      message = { kind: 'error', section: 'password', text: `Too many attempts. Wait ${LOCK_MINUTES} minutes.` };
+    } else if (problem) {
+      message = { kind: 'error', section: 'password', text: problem };
+    } else if (next !== form.get('confirm')) {
+      message = { kind: 'error', section: 'password', text: 'The two new passwords don’t match.' };
+    } else if (next === current) {
+      message = { kind: 'error', section: 'password', text: 'Choose a password different from the current one.' };
+    } else {
+      const result = await authAction('change-password', { currentPassword: current, newPassword: next, revokeOtherSessions: false });
+      if (result.ok) {
+        // Other devices must sign in again with the new password.
+        await authAction('revoke-other-sessions', {});
+        await forgetOtherSessions(me.email, access.sessionId);
+        await logEvent(actor, 'password_changed');
+        message = { kind: 'ok', section: 'password', text: 'Password changed. Other devices have been signed out.' };
+      } else {
+        await logEvent(actor, 'password_change_failed', { label: 'Current password was wrong' });
+        message = { kind: 'error', section: 'password', text: 'Your current password is not right.' };
+      }
+    }
+  }
+
+  if (action === 'recovery') {
+    const failures = await recentEvents('two_factor_failed', me.email, actor.ip, LOCK_MINUTES);
+    if (failures.byEmail >= MAX_FAILURES_PER_EMAIL) {
+      message = { kind: 'error', section: 'recovery', text: `Too many wrong codes. Wait ${LOCK_MINUTES} minutes.` };
+    } else if (await checkTotp(me.email, String(form.get('code') ?? '').slice(0, 10))) {
+      newCodes = await replaceRecoveryCodes(me.email);
+      await logEvent(actor, 'recovery_codes_created');
+    } else {
+      await logEvent(actor, 'two_factor_failed', { label: 'Wrong code while creating recovery codes' });
+      message = { kind: 'error', section: 'recovery', text: 'That authenticator code is not right.' };
+    }
+  }
+
+  if (action === 'sessions') {
+    await authAction('revoke-other-sessions', {});
+    await forgetOtherSessions(me.email, access.sessionId);
+    await logEvent(actor, 'sessions_revoked', { label: 'Signed out other devices' });
+    message = { kind: 'ok', section: 'sessions', text: 'All other devices are signed out.' };
+  }
+}
+
+const [row] = await sql`select totp_enabled_at from admin_users where email = ${me.email}`;
+const codesLeft = await recoveryCodesLeft(me.email);
+const lowCodes = Astro.url.searchParams.get('codes') === 'low' || codesLeft <= 3;
+const flash = (section: string) => (message?.section === section ? message : null);
+---
+
+<AdminLayout title="My account">
+  <div class="stack">
+    <section class="form-section">
+      <h2>You</h2>
+      <p>
+        <strong>{me.name || me.email}</strong> · {me.email} · {me.role === 'owner' ? 'Master admin' : 'Sub-admin'}
+      </p>
+    </section>
+
+    <section class="form-section" id="password">
+      <h2>Password</h2>
+      {flash('password') && <p class:list={['flash', { error: flash('password')!.kind === 'error' }]}>{flash('password')!.text}</p>}
+      <form method="post" class="form-grid narrow">
+        <input type="hidden" name="_action" value="password" />
+        <div class="field">
+          <label for="current">Current password</label>
+          <input class="input" id="current" name="current" type="password" autocomplete="current-password" required />
+        </div>
+        <div class="field">
+          <label for="new-password">New password</label>
+          <input class="input" id="new-password" name="password" type="password" autocomplete="new-password" minlength={PASSWORD_MIN_LENGTH} maxlength="128" required />
+          <p class="hint">At least {PASSWORD_MIN_LENGTH} characters.</p>
+        </div>
+        <div class="field">
+          <label for="confirm">New password again</label>
+          <input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" required />
+        </div>
+        <button class="btn btn-primary" type="submit"><Icon name="check" size={18} /> Change password</button>
+      </form>
+    </section>
+
+    <section class="form-section" id="recovery">
+      <h2>Two-step sign-in</h2>
+      <p>
+        <Icon name="circle-check" size={18} /> Authenticator app on since {formatNpt(row.totp_enabled_at)}.
+      </p>
+      {
+        newCodes ? (
+          <>
+            <p class="flash">New recovery codes created. Save them now — the old ones no longer work and these won’t be shown again.</p>
+            <RecoveryCodes codes={newCodes} />
+          </>
+        ) : (
+          <>
+            <p class:list={['hint', { warn: lowCodes }]}>
+              {codesLeft} unused recovery {codesLeft === 1 ? 'code' : 'codes'} left.{' '}
+              {lowCodes && 'Create new ones so you can still sign in if you lose your phone.'}
+            </p>
+            {flash('recovery') && <p class="flash error">{flash('recovery')!.text}</p>}
+            <form method="post" class="inline">
+              <input type="hidden" name="_action" value="recovery" />
+              <label for="code" class="visually-hidden">Current authenticator code</label>
+              <input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="6-digit code" required />
+              <button class="btn btn-ghost" type="submit">Create new recovery codes</button>
+            </form>
+          </>
+        )
+      }
+      <p class="hint">
+        New phone? Ask the master admin to reset your two-step sign-in, then set it up again when you next sign in.
+      </p>
+    </section>
+
+    <section class="form-section" id="sessions">
+      <h2>Other devices</h2>
+      {flash('sessions') && <p class="flash">{flash('sessions')!.text}</p>}
+      <p class="hint">Signed in on a shared or lost computer? Sign out everywhere except here.</p>
+      <form method="post">
+        <input type="hidden" name="_action" value="sessions" />
+        <button class="btn btn-ghost" type="submit">Sign out other devices</button>
+      </form>
+    </section>
+  </div>
+</AdminLayout>
+
+<style>
+  .stack {
+    display: grid;
+    gap: 1.25rem;
+    max-width: 44rem;
+  }
+
+  .narrow {
+    max-width: 24rem;
+  }
+
+  .inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .inline .code {
+    width: 10rem;
+    letter-spacing: 0.2em;
+  }
+
+  .warn {
+    color: #8a5a00;
+    font-weight: 600;
+  }
+
+  p :global(.icon) {
+    vertical-align: -3px;
+    color: var(--green);
+  }
+</style>

@@ -12,7 +12,8 @@
     "check": "astro check",
     "db:migrate": "node --env-file=.env.local scripts/db.mjs migrate",
     "db:status": "node --env-file=.env.local scripts/db.mjs status",
-    "db:add-admin": "node --env-file=.env.local scripts/db.mjs add-admin"
+    "db:add-admin": "node --env-file=.env.local scripts/db.mjs add-admin",
+    "db:reset-2fa": "node --env-file=.env.local scripts/db.mjs reset-2fa"
   },
   "dependencies": {
     "@astrojs/netlify": "^8.2.6",
@@ -25,7 +26,8 @@
     "@netlify/functions": "^5.3.0",
     "astro": "^7.3.3",
     "leaflet": "^1.9.4",
-    "nepali-date-converter": "^3.4.0"
+    "nepali-date-converter": "^3.4.0",
+    "uqr": "^0.1.2"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",

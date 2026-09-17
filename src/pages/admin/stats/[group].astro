@@ -1,5 +1,6 @@
 ---
 import AdminLayout from '~/layouts/AdminLayout.astro';
+import { requestActor } from '~/lib/audit';
 import Icon from '~/components/Icon.astro';
 import { getStatGroup, isStatGroupId, saveStatGroup, STAT_GROUPS, UNIT_LABEL, type StatRowInput } from '~/lib/stats';
 import { FormReader } from '~/lib/forms';
@@ -80,7 +81,7 @@ if (Astro.request.method === 'POST') {
       value: Number(r.value),
       remove: r.remove,
     }));
-    await saveStatGroup(groupId, asOf, input, Astro.locals.admin!.email);
+    await saveStatGroup(groupId, asOf, input, requestActor(Astro, Astro.locals.admin!.email));
     await purge(['stats']);
     return Astro.redirect(`/admin/stats?done=${encodeURIComponent(config.title)}`, 303);
   }

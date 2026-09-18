@@ -147,6 +147,11 @@ export async function updateRequest(id: number, status: RequestStatus, branch: s
   ]);
 }
 
+/** Master admin only. The full message stays in the activity log, so a deletion can still be traced. */
+export async function deleteRequest(id: number, actor: Actor) {
+  await asActor(actor, [sql`delete from service_requests where id = ${id}`]);
+}
+
 export async function addNote(requestId: number, note: string, actor: Actor) {
   await sql`insert into request_notes (request_id, author_email, note) values (${requestId}, ${actor.email}, ${note})`;
 }

@@ -92,12 +92,14 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
     </div>
 
     <script>
+      import { showBusy } from '~/scripts/busy';
+
       document.querySelector('[data-menu-btn]')?.addEventListener('click', () => {
         document.querySelector('[data-sidebar]')?.classList.toggle('open');
       });
       document.querySelector('[data-sign-out]')?.addEventListener('click', async (e) => {
         const btn = e.currentTarget as HTMLButtonElement;
-        btn.disabled = true;
+        showBusy(btn);
         await fetch('/api/auth/sign-out', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },

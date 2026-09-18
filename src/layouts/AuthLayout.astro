@@ -33,10 +33,12 @@ const { title, wide = false } = Astro.props;
     </main>
 
     <script>
+      import { showBusy } from '~/scripts/busy';
+
       // "Sign out" buttons on the sign-in steps.
       document.querySelectorAll<HTMLButtonElement>('[data-sign-out]').forEach((button) => {
         button.addEventListener('click', async () => {
-          button.disabled = true;
+          showBusy(button);
           await fetch('/api/auth/sign-out', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).catch(
             () => null,
           );

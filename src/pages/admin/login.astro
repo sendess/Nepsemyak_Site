@@ -61,6 +61,7 @@ const resetDone = Astro.url.searchParams.has('reset');
     e.preventDefault();
     const button = form.querySelector('button');
     button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
     message.textContent = '';
     const res = await fetch('/api/auth/sign-in/email', {
       method: 'POST',
@@ -73,6 +74,7 @@ const resetDone = Astro.url.searchParams.has('reset');
     }
     const data = (await res?.json().catch(() => null)) ?? {};
     button.disabled = false;
+    button.removeAttribute('aria-busy');
     form.password.value = '';
     message.textContent = data.message ?? 'Could not sign in. Check your connection and try again.';
   });

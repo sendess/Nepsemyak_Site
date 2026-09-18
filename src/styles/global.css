@@ -303,6 +303,51 @@ a:hover {
 }
 
 /* ---------- Buttons ---------- */
+/* ---------- Waiting for the server ---------- */
+/* Buttons keep their name and value (forms rely on them), so busy state is shown, not disabled. */
+.btn[aria-busy='true'],
+button[aria-busy='true'] {
+  cursor: progress;
+}
+
+.btn[aria-busy='true']::after,
+.link[aria-busy='true']::after {
+  content: '';
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spinner 0.7s linear infinite;
+}
+
+/* The other buttons in a form that is waiting. */
+[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn[aria-busy='true']::after,
+  .link[aria-busy='true']::after {
+    animation: busy-fade 1.2s ease-in-out infinite;
+    border-right-color: currentColor;
+    opacity: 0.4;
+  }
+
+  @keyframes busy-fade {
+    50% {
+      opacity: 1;
+    }
+  }
+}
+
 .btn {
   --btn-bg: var(--green);
   --btn-fg: #fff;

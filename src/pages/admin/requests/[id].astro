@@ -2,7 +2,7 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
-import { addNote, getRequest, listNotes, updateRequest, REQUEST_STATUSES, STATUS_LABEL, TOPIC_LABEL, type RequestStatus } from '~/lib/requests';
+import { addNote, deleteRequest, getRequest, listNotes, updateRequest, REQUEST_STATUSES, STATUS_LABEL, TOPIC_LABEL, type RequestStatus } from '~/lib/requests';
 import { requestActor } from '~/lib/audit';
 import { branches } from '~/data/site';
 import { formatNpt, parseId } from '~/lib/admin-format';
@@ -11,6 +11,9 @@ import { telHref } from '~/i18n/utils';
 
 export const prerender = false;
 
+const me = Astro.locals.admin!;
+const isMaster = me.role === 'owner';
+
 const id = parseId(Astro.params.id);
 if (typeof id !== 'number') return Astro.redirect('/admin/requests', 303);
 let request = await getRequest(id);
@@ -18,7 +21,15 @@ if (!request) return Astro.redirect('/admin/requests', 303);
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
-  const actor = requestActor(Astro, Astro.locals.admin!.email);
+  const actor = requestActor(Astro, me.email);
+
+  if (form.get('_action') === 'delete') {
+    // Only the master admin may remove a message for good.
+    if (!isMaster) return Astro.redirect(`/admin/requests/${request.id}`, 303);
+    await deleteRequest(request.id, actor);
+    return Astro.redirect('/admin/requests?done=deleted', 303);
+  }
+
   const status = String(form.get('status') ?? '');
   const branchValue = String(form.get('branch') ?? '');
   const note = String(form.get('note') ?? '').trim().slice(0, 2000);
@@ -104,6 +115,24 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
           <button class="btn btn-primary" type="submit"><Icon name="check" size={18} /> Save</button>
         </form>
       </section>
+
+      {
+        isMaster && (
+          <section class="form-section danger">
+            <h2>Delete this message</h2>
+            <p class="hint">
+              Only you, as master admin, can delete messages. Sub-admins can mark them as spam instead. A deleted message
+              still appears in the <a href="/admin/activity">activity log</a>, so the record is never lost.
+            </p>
+            <form method="post" data-confirm={`Delete the message from ${request.name} (${request.ref})? This cannot be undone.`}>
+              <input type="hidden" name="_action" value="delete" />
+              <button class="btn btn-danger" type="submit">
+                <Icon name="trash" size={18} /> Delete message
+              </button>
+            </form>
+          </section>
+        )
+      }
 
       {
         notes.length > 0 && (
@@ -210,6 +239,10 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
   .notes p {
     margin: 0;
     overflow-wrap: anywhere;
+  }
+
+  .danger {
+    border-color: #f3c4bf;
   }
 
   .who {

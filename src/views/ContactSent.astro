@@ -4,8 +4,9 @@ import BranchCard from '~/components/BranchCard.astro';
 import { branches } from '~/data/site';
 import { localizePath, useTranslations, type Lang } from '~/i18n/utils';
 
-type Props = { lang: Lang };
-const { lang } = Astro.props;
+/** `reference` is the code to quote when following up; absent if the page is opened directly. */
+type Props = { lang: Lang; reference?: string | null };
+const { lang, reference = null } = Astro.props;
 const t = useTranslations(lang);
 ---
 
@@ -14,6 +15,16 @@ const t = useTranslations(lang);
     <span class="check"><Icon name="circle-check" size={48} /></span>
     <h1 class="h2">{t('contact.sentTitle')}</h1>
     <p class="lead">{t('contact.sentText')}</p>
+    {
+      reference && (
+        <div class="reference">
+          <span class="ref-label">{t('contact.refLabel')}</span>
+          <strong class="ref-code">{reference}</strong>
+          <span class="small muted">{t('contact.refHelp')}</span>
+        </div>
+      )
+    }
+    <p class="muted">{t('contact.sentNext')}</p>
     <a class="btn btn-primary" href={localizePath('/', lang)}>
       <Icon name="arrow-left" size={18} />
       {t('cta.backHome')}
@@ -36,6 +47,28 @@ const t = useTranslations(lang);
     justify-items: center;
     gap: 1.1rem;
     text-align: center;
+  }
+
+  .reference {
+    display: grid;
+    gap: 0.4rem;
+    justify-items: center;
+    padding: 1.1rem 1.5rem;
+    border: 2px dashed var(--green-200);
+    border-radius: var(--radius);
+    background: #fff;
+  }
+
+  .ref-label {
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .ref-code {
+    font-family: var(--font-head);
+    font-size: clamp(1.6rem, 5vw, 2.1rem);
+    letter-spacing: 0.12em;
+    color: var(--green-800);
   }
 
   .check {

@@ -1,0 +1,236 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import StatusBadge from '~/components/admin/StatusBadge.astro';
+import { addNote, getRequest, listNotes, updateRequest, REQUEST_STATUSES, STATUS_LABEL, TOPIC_LABEL, type RequestStatus } from '~/lib/requests';
+import { requestActor } from '~/lib/audit';
+import { branches } from '~/data/site';
+import { formatNpt, parseId } from '~/lib/admin-format';
+import { paragraphs } from '~/lib/forms';
+import { telHref } from '~/i18n/utils';
+
+export const prerender = false;
+
+const id = parseId(Astro.params.id);
+if (typeof id !== 'number') return Astro.redirect('/admin/requests', 303);
+let request = await getRequest(id);
+if (!request) return Astro.redirect('/admin/requests', 303);
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const actor = requestActor(Astro, Astro.locals.admin!.email);
+  const status = String(form.get('status') ?? '');
+  const branchValue = String(form.get('branch') ?? '');
+  const note = String(form.get('note') ?? '').trim().slice(0, 2000);
+
+  if ((REQUEST_STATUSES as readonly string[]).includes(status)) {
+    const branch = branches.some((b) => b.id === branchValue) ? branchValue : null;
+    if (status !== request.status || branch !== request.branch) {
+      await updateRequest(request.id, status as RequestStatus, branch, actor);
+    }
+  }
+  if (note) await addNote(request.id, note, actor);
+  return Astro.redirect(`/admin/requests/${request.id}?saved=1`, 303);
+}
+
+const notes = await listNotes(request.id);
+const saved = Astro.url.searchParams.has('saved');
+const branchName = (bid: string | null) => branches.find((b) => b.id === bid)?.name.en ?? 'Not sure';
+const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 3_600_000);
+---
+
+<AdminLayout title={`Request ${request.ref}`}>
+  {saved && <p class="flash"><Icon name="circle-check" size={20} /> Saved.</p>}
+
+  <div class="toolbar">
+    <a class="link-arrow" href="/admin/requests"><Icon name="arrow-left" size={16} /> All requests</a>
+    <StatusBadge status={request.status} label={STATUS_LABEL[request.status]} />
+  </div>
+
+  <div class="grid">
+    <div class="stack">
+      <section class="form-section">
+        <h2>{TOPIC_LABEL[request.topic]}</h2>
+        <p class="hint">
+          {request.ref} · received {formatNpt(request.created_at)}
+          {request.status === 'new' && waitingSince >= 1 && ` · waiting ${waitingSince} hour${waitingSince === 1 ? '' : 's'}`}
+          {request.language === 'ne' && ' · written on the Nepali site'}
+        </p>
+        <div class="message">
+          {paragraphs(request.message).map((lines) => (
+            <p>
+              {lines.map((line, i) => (
+                <>
+                  {i > 0 && <br />}
+                  {line}
+                </>
+              ))}
+            </p>
+          ))}
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>What happens next</h2>
+        <form method="post" class="form-grid">
+          <div class="row-2">
+            <div class="field">
+              <label for="status">Status</label>
+              <select class="select" id="status" name="status">
+                {REQUEST_STATUSES.map((s) => (
+                  <option value={s} selected={request.status === s}>
+                    {STATUS_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div class="field">
+              <label for="branch">Office dealing with it</label>
+              <select class="select" id="branch" name="branch">
+                <option value="">Not sure / head office</option>
+                {branches.map((b) => (
+                  <option value={b.id} selected={request.branch === b.id}>
+                    {b.name.en}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="note">Add a note (optional)</label>
+            <textarea class="textarea" id="note" name="note" rows="3" maxlength="2000" placeholder="Called the customer, collection arranged for Sunday…"></textarea>
+            <p class="hint">Notes stay in the admin panel. The person who wrote in doesn’t see them.</p>
+          </div>
+          <button class="btn btn-primary" type="submit"><Icon name="check" size={18} /> Save</button>
+        </form>
+      </section>
+
+      {
+        notes.length > 0 && (
+          <section class="form-section">
+            <h2>Notes</h2>
+            <ol class="notes">
+              {notes.map((n) => (
+                <li>
+                  <p class="hint">
+                    {formatNpt(n.at)} · {n.author_email ?? 'system'}
+                  </p>
+                  <p>{n.note}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )
+      }
+    </div>
+
+    <aside class="form-section who">
+      <h2>Who wrote in</h2>
+      <p><strong>{request.name}</strong></p>
+      <p class="line">
+        <Icon name="phone" size={18} />
+        <a href={telHref(request.phone)}>{request.phone}</a>
+      </p>
+      {
+        request.email && (
+          <p class="line">
+            <Icon name="mail" size={18} />
+            <a href={`mailto:${request.email}?subject=${encodeURIComponent(`Nepsemyak — your message ${request.ref}`)}`}>{request.email}</a>
+          </p>
+        )
+      }
+      {
+        request.address && (
+          <p class="line">
+            <Icon name="map-pin" size={18} />
+            {request.address}
+          </p>
+        )
+      }
+      <p class="line">
+        <Icon name="building" size={18} />
+        {branchName(request.branch)}
+      </p>
+      {
+        request.handled_by && (
+          <p class="hint">
+            Last updated by {request.handled_by}
+            {request.handled_at && ` on ${formatNpt(request.handled_at)}`}
+          </p>
+        )
+      }
+      <p class="hint">
+        Sent from {request.ip ?? 'unknown address'}
+      </p>
+    </aside>
+  </div>
+</AdminLayout>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .stack {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .message {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem 1.1rem;
+    border-radius: var(--radius);
+    background: var(--green-50);
+    overflow-wrap: anywhere;
+  }
+
+  .notes {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .notes li {
+    padding-left: 0.9rem;
+    border-left: 3px solid var(--green-200);
+  }
+
+  .notes p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .who {
+    display: grid;
+    gap: 0.6rem;
+    align-content: start;
+  }
+
+  .who p {
+    margin: 0;
+  }
+
+  .line {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    overflow-wrap: anywhere;
+  }
+
+  .line :global(.icon) {
+    flex: none;
+    color: var(--green);
+  }
+</style>

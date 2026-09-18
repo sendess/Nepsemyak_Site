@@ -29,6 +29,7 @@ const ENTITY: Record<string, { name: string; href?: (id: string) => string }> = 
   stat_groups: { name: 'statistics date', href: (id) => `/admin/stats/${id}` },
   stat_items: { name: 'statistic' },
   admin_users: { name: 'admin', href: () => '/admin/users' },
+  service_requests: { name: 'request', href: (id) => `/admin/requests/${id}` },
 };
 
 const EVENT: Record<string, { text: string; tone: 'good' | 'bad' | 'info' | 'muted' }> = {
@@ -108,6 +109,7 @@ function device(ua: string | null) {
           { value: 'news', label: 'News' },
           { value: 'jobs', label: 'Jobs' },
           { value: 'stats', label: 'Statistics' },
+          { value: 'requests', label: 'Requests' },
           { value: 'users', label: 'Admins' },
           { value: 'auth', label: 'Sign-in & security' },
         ],

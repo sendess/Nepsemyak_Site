@@ -1,6 +1,7 @@
 ---
-type Props = { status: string };
-const { status } = Astro.props;
+/** `label` overrides the text when the stored value isn't readable on its own (e.g. "in_progress"). */
+type Props = { status: string; label?: string };
+const { status, label } = Astro.props;
 const tone: Record<string, string> = {
   published: 'good',
   open: 'good',
@@ -9,6 +10,10 @@ const tone: Record<string, string> = {
   closed: 'muted',
   inactive: 'muted',
   scheduled: 'info',
+  new: 'info',
+  in_progress: 'warn',
+  resolved: 'good',
+  spam: 'muted',
   expired: 'muted',
   owner: 'info',
   editor: 'muted',
@@ -18,7 +23,7 @@ const tone: Record<string, string> = {
 };
 ---
 
-<span class:list={['badge', tone[status] ?? 'muted']}>{status}</span>
+<span class:list={['badge', tone[status] ?? 'muted']}>{label ?? status}</span>
 
 <style>
   .badge {

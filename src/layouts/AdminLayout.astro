@@ -11,6 +11,7 @@ const path = Astro.url.pathname.replace(/\/$/, '') || '/admin';
 
 const nav: { href: string; label: string; icon: IconName; ownerOnly?: boolean }[] = [
   { href: '/admin', label: 'Dashboard', icon: 'house' },
+  { href: '/admin/requests', label: 'Requests', icon: 'messages-square' },
   { href: '/admin/notices', label: 'Notices', icon: 'megaphone' },
   { href: '/admin/stats', label: 'Statistics', icon: 'chart-bar' },
   { href: '/admin/news', label: 'News', icon: 'newspaper' },

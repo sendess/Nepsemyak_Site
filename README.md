@@ -63,6 +63,7 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 | `src/lib/content.ts` | Database queries for notices, news, jobs, images and admin users |
 | `src/lib/auth.ts`, `src/middleware.ts` | Sign-in proxy to Neon Auth, authenticator codes, lockouts and `/admin` protection |
 | `src/lib/audit.ts` | Activity log (content changes are recorded by database triggers) |
+| `src/lib/requests.ts`, `src/lib/contact-form.ts` | Contact form handling and the admin inbox |
 | `src/lib/cache.ts` | Edge-cache headers and purge on save |
 | `src/pages/admin/` | Admin panel pages |
 | `src/i18n/` | Interface text and language helpers (Nepali digits, Bikram Sambat dates) |
@@ -88,6 +89,10 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 - **Statistics:** every figure on the home, Impact and Careers pages lives in `stat_groups` / `stat_items`. Each group
   has an “as of” date shown to visitors (“*Data as of …”, Bikram Sambat on Nepali pages). Figures the home page needs
   are marked `is_core` and cannot be removed. Totals for workforce and vehicles are calculated.
+- **Requests:** the contact form saves straight to the database (no Netlify Forms). Each message gets a reference
+  code like `NS-7K4P2Q` shown to the sender, and staff work through them under **Requests** — status (new, in progress,
+  resolved, spam), which office is handling it, and internal notes. A hidden field catches bots and one visitor may
+  send five messages an hour.
 - **Notices:** a notice can show as a banner, a pop-up, or both. Pop-ups have their own title, details and optional
   image, open once per visitor (again after the notice is edited), and can be previewed at `/#notice-preview=<id>`
   by a signed-in admin.
@@ -113,7 +118,7 @@ Content edits made in the admin panel don't need a deploy.
 1. **Environment variables** (Site configuration → Environment variables), same values as `.env.local`:
    `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `ADMIN_SECRETS_KEY`.
 2. **HTTPS:** Domain management → HTTPS → Verify DNS configuration → Provision certificate, then *Force HTTPS*.
-3. **Contact form:** Forms → Enable form detection, and add an email notification.
+3. **Contact form:** nothing to configure — messages go to the database, not Netlify Forms.
 
 ### Neon Auth settings (production branch)
 

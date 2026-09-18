@@ -1,12 +1,23 @@
 ---
 import BaseLayout from '~/layouts/BaseLayout.astro';
 import View from '~/views/Contact.astro';
+import { handleContactPost, type ContactFormState } from '~/lib/contact-form';
 import { useTranslations } from '~/i18n/utils';
+
+// Messages are saved to the database, so this page is rendered per request.
+export const prerender = false;
 
 const lang = 'ne';
 const t = useTranslations(lang);
+
+let form: ContactFormState | null = null;
+if (Astro.request.method === 'POST') {
+  const result = await handleContactPost(Astro, lang);
+  if (result instanceof Response) return result;
+  form = result;
+}
 ---
 
 <BaseLayout title={t('contact.title')} description={t('contact.intro')}>
-  <View lang={lang} />
+  <View lang={lang} form={form} />
 </BaseLayout>

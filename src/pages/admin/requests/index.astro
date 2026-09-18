@@ -1,0 +1,126 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import StatusBadge from '~/components/admin/StatusBadge.astro';
+import SortTh from '~/components/admin/SortTh.astro';
+import ListControls from '~/components/admin/ListControls.astro';
+import Pager from '~/components/admin/Pager.astro';
+import { listRequests, REQUEST_LIST, REQUEST_STATUSES, REQUEST_TOPICS, STATUS_LABEL, TOPIC_LABEL } from '~/lib/requests';
+import { isFiltered, listHref, readList } from '~/lib/listing';
+import { branches } from '~/data/site';
+import { formatNpt } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const list = readList(Astro.url, Astro.cookies, REQUEST_LIST);
+const { rows, total } = await listRequests(list);
+if (rows.length === 0 && list.page > 1) return Astro.redirect(listHref(list, { page: 1 }));
+
+const branchName = (id: string | null) => branches.find((b) => b.id === id)?.name.en ?? 'Not sure';
+const flash = Astro.url.searchParams.get('done');
+---
+
+<AdminLayout title="Requests" wide>
+  {flash && <p class="flash"><Icon name="circle-check" size={20} /> Request {flash}.</p>}
+
+  <div class="toolbar">
+    <p class="hint">Queries and complaints sent from the website’s contact form. Newest first.</p>
+  </div>
+
+  {
+    total === 0 && !isFiltered(list) ? (
+      <div class="empty-state">
+        <Icon name="messages-square" size={32} />
+        <p>No messages yet. They arrive here as soon as someone uses the contact form.</p>
+      </div>
+    ) : (
+      <>
+        <ListControls
+          list={list}
+          searchLabel="Search name, phone, message, reference"
+          filters={[
+            { name: 'status', all: 'All statuses', options: REQUEST_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] })) },
+            { name: 'topic', all: 'All topics', options: REQUEST_TOPICS.map((t) => ({ value: t, label: TOPIC_LABEL[t] })) },
+            {
+              name: 'branch',
+              all: 'All offices',
+              options: [...branches.map((b) => ({ value: b.id, label: b.name.en })), { value: 'unsure', label: 'Not sure' }],
+            },
+          ]}
+        />
+        {total === 0 ? (
+          <div class="empty-state">
+            <Icon name="search" size={32} />
+            <p>No messages match this search or filter.</p>
+          </div>
+        ) : (
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <SortTh list={list} sort="received" label="Received" />
+                  <SortTh list={list} sort="name" label="From" />
+                  <SortTh list={list} sort="topic" label="About" />
+                  <SortTh list={list} sort="branch" label="Office" />
+                  <SortTh list={list} sort="status" label="Status" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr class:list={{ unread: r.status === 'new' }}>
+                    <td class="nowrap">
+                      <a href={`/admin/requests/${r.id}`}>{formatNpt(r.created_at)}</a>
+                      <small class="sub">{r.ref}</small>
+                    </td>
+                    <td>
+                      <strong>{r.name}</strong>
+                      <small class="sub">{r.phone}</small>
+                    </td>
+                    <td>
+                      {TOPIC_LABEL[r.topic]}
+                      <small class="sub message">{r.message}</small>
+                    </td>
+                    <td class="hint">{branchName(r.branch)}</td>
+                    <td>
+                      <StatusBadge status={r.status} label={STATUS_LABEL[r.status]} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <Pager list={list} total={total} noun={['message', 'messages']} />
+      </>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .sub {
+    display: block;
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+
+  .message {
+    display: -webkit-box;
+    max-width: 28rem;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .unread strong,
+  .unread a {
+    font-weight: 700;
+  }
+
+  .unread td:first-child {
+    box-shadow: inset 3px 0 0 var(--green);
+  }
+</style>

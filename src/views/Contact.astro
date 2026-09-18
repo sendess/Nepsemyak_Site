@@ -4,11 +4,15 @@ import PageHero from '~/components/PageHero.astro';
 import BranchCard from '~/components/BranchCard.astro';
 import BranchMap from '~/components/BranchMap.astro';
 import { org, branches } from '~/data/site';
-import { localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
+import type { ContactFormState } from '~/lib/contact-form';
+import { telHref, useTranslations, type Lang } from '~/i18n/utils';
 
-type Props = { lang: Lang };
-const { lang } = Astro.props;
+/** `form` is set when a submission came back with something to correct. */
+type Props = { lang: Lang; form?: ContactFormState | null };
+const { lang, form = null } = Astro.props;
 const t = useTranslations(lang);
+const errors = form?.errors ?? {};
+const value = (name: keyof ContactFormState['values']) => form?.values[name] ?? '';
 
 // Option values stay in English so submissions read the same from both languages.
 const topics = [
@@ -30,22 +34,23 @@ const central = branches[0];
       <h2 class="h3">{t('contact.formTitle')}</h2>
       <p class="muted">{t('contact.formIntro')}</p>
 
-      <!-- Handled by Netlify Forms. Submissions appear under Forms in the Netlify dashboard. -->
-      <form name="query" method="POST" action={localizePath('/contact/sent/', lang)} data-netlify="true" netlify-honeypot="bot-field">
-        <input type="hidden" name="form-name" value="query" />
-        <input type="hidden" name="language" value={lang} />
+      <!-- Saved in the database and worked on under Requests in the admin panel. -->
+      <form method="POST" novalidate>
         <p class="visually-hidden" aria-hidden="true">
-          <label>Leave empty <input name="bot-field" tabindex="-1" autocomplete="off" /></label>
+          <label>Leave this empty <input name="company" tabindex="-1" autocomplete="off" /></label>
         </p>
+        {errors.form && <p class="form-error" role="alert">{errors.form}</p>}
 
         <div class="row">
           <div class="field">
             <label for="q-name">{t('contact.name')} *</label>
-            <input class="input" id="q-name" name="name" type="text" autocomplete="name" required maxlength="120" />
+            <input class="input" id="q-name" name="name" type="text" autocomplete="name" required maxlength="120" value={value('name')} aria-invalid={errors.name ? 'true' : undefined} aria-describedby={errors.name ? 'q-name-error' : undefined} />
+            {errors.name && <p class="field-error" id="q-name-error">{errors.name}</p>}
           </div>
           <div class="field">
             <label for="q-phone">{t('contact.phone')} *</label>
-            <input class="input" id="q-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required minlength="7" maxlength="20" />
+            <input class="input" id="q-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required minlength="7" maxlength="20" value={value('phone')} aria-invalid={errors.phone ? 'true' : undefined} aria-describedby={errors.phone ? 'q-phone-error' : undefined} />
+            {errors.phone && <p class="field-error" id="q-phone-error">{errors.phone}</p>}
           </div>
         </div>
 
@@ -54,13 +59,21 @@ const central = branches[0];
             <label for="q-branch">{t('contact.branch')}</label>
             <select class="select" id="q-branch" name="branch">
               <option value="not-sure">{t('contact.branchUnsure')}</option>
-              {branches.map((b) => <option value={b.id}>{b.name[lang]}</option>)}
+              {branches.map((b) => (
+                <option value={b.id} selected={value('branch') === b.id}>
+                  {b.name[lang]}
+                </option>
+              ))}
             </select>
           </div>
           <div class="field">
             <label for="q-topic">{t('contact.topic')}</label>
             <select class="select" id="q-topic" name="topic">
-              {topics.map((tp) => <option value={tp.value}>{tp.label}</option>)}
+              {topics.map((tp) => (
+                <option value={tp.value} selected={value('topic') === tp.value}>
+                  {tp.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -68,17 +81,19 @@ const central = branches[0];
         <div class="row">
           <div class="field">
             <label for="q-email">{t('contact.emailOptional')}</label>
-            <input class="input" id="q-email" name="email" type="email" autocomplete="email" maxlength="120" />
+            <input class="input" id="q-email" name="email" type="email" autocomplete="email" maxlength="120" value={value('email')} aria-invalid={errors.email ? 'true' : undefined} aria-describedby={errors.email ? 'q-email-error' : undefined} />
+            {errors.email && <p class="field-error" id="q-email-error">{errors.email}</p>}
           </div>
           <div class="field">
             <label for="q-address">{t('contact.address')}</label>
-            <input class="input" id="q-address" name="address" type="text" autocomplete="street-address" maxlength="160" />
+            <input class="input" id="q-address" name="address" type="text" autocomplete="street-address" maxlength="160" value={value('address')} />
           </div>
         </div>
 
         <div class="field">
           <label for="q-message">{t('contact.message')} *</label>
-          <textarea class="textarea" id="q-message" name="message" required maxlength="2000" rows="5"></textarea>
+          <textarea class="textarea" id="q-message" name="message" required maxlength="2000" rows="5" aria-invalid={errors.message ? 'true' : undefined} aria-describedby={errors.message ? 'q-message-error' : undefined} set:text={value('message')} />
+          {errors.message && <p class="field-error" id="q-message-error">{errors.message}</p>}
         </div>
 
         <div class="submit">
@@ -133,6 +148,26 @@ const central = branches[0];
     .contact-grid {
       grid-template-columns: 1fr;
     }
+  }
+
+  .field-error {
+    margin-top: 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #b42318;
+  }
+
+  .input[aria-invalid],
+  .textarea[aria-invalid] {
+    border-color: #b42318;
+  }
+
+  .form-error {
+    padding: 0.8rem 1rem;
+    border-radius: 12px;
+    background: #fde8e6;
+    color: #7a1d12;
+    font-weight: 600;
   }
 
   .form-card {

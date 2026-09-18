@@ -3,10 +3,15 @@ import BaseLayout from '~/layouts/BaseLayout.astro';
 import View from '~/views/ContactSent.astro';
 import { useTranslations } from '~/i18n/utils';
 
+export const prerender = false;
+
 const lang = 'ne';
+// Only the shape this site creates, so nothing else can be shown on the page.
+const refParam = Astro.url.searchParams.get('ref') ?? '';
+const reference = /^NS-[23456789CFGHJKLMNPQRSTVWXZ]{6}$/.test(refParam) ? refParam : null;
 const t = useTranslations(lang);
 ---
 
 <BaseLayout title={t('contact.sentTitle')} description={t('contact.sentText')} noindex>
-  <View lang={lang} />
+  <View lang={lang} reference={reference} />
 </BaseLayout>

@@ -3,19 +3,31 @@ import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
 import { dashboardCounts, getLiveNotices } from '~/lib/content';
+import { requestCounts } from '~/lib/requests';
 import { getAllStats, STAT_GROUP_IDS } from '~/lib/stats';
 import { formatDay } from '~/lib/admin-format';
 
 export const prerender = false;
 
-const [counts, live, stats] = await Promise.all([dashboardCounts(), getLiveNotices(), getAllStats()]);
+const [counts, live, stats, requests] = await Promise.all([dashboardCounts(), getLiveNotices(), getAllStats(), requestCounts()]);
 const admin = Astro.locals.admin!;
 const mediaMb = (Number(counts.media_bytes) / 1_000_000).toFixed(1);
 const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of)
   .filter((d): d is string => !!d)
   .sort()[0] ?? null;
 
+const waitingHours = requests.oldest_new ? Math.round((Date.now() - Date.parse(requests.oldest_new)) / 3_600_000) : 0;
+
 const tiles = [
+  {
+    href: '/admin/requests',
+    icon: 'messages-square',
+    value: requests.new,
+    label: 'New queries waiting',
+    extra: requests.new
+      ? `Longest wait: ${waitingHours < 1 ? 'under an hour' : `${waitingHours} hour${waitingHours === 1 ? '' : 's'}`}`
+      : `${requests.in_progress} in progress · ${requests.this_week} arrived this week`,
+  },
   { href: '/admin/stats', icon: 'chart-bar', value: STAT_GROUP_IDS.length, label: 'Statistics groups', extra: `Oldest data: ${formatDay(oldestAsOf)}` },
   { href: '/admin/news', icon: 'newspaper', value: counts.news_published, label: 'Published news posts', extra: `${counts.news_drafts} draft(s)` },
   { href: '/admin/jobs', icon: 'briefcase', value: counts.jobs_open, label: 'Open job listings', extra: 'Shown on Careers' },

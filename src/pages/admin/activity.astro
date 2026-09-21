@@ -51,6 +51,7 @@ const EVENT: Record<string, { text: string; tone: 'good' | 'bad' | 'info' | 'mut
   password_reset_failed: { text: 'Failed password reset', tone: 'bad' },
   signed_out: { text: 'Signed out', tone: 'muted' },
   sessions_revoked: { text: 'Signed out other sessions', tone: 'info' },
+  alert_test_sent: { text: 'Sent a test alert email', tone: 'muted' },
 };
 
 const VERB: Record<string, string> = { create: 'Created', update: 'Edited', delete: 'Deleted' };
@@ -66,7 +67,7 @@ function describe(e: AuditEntry) {
 
 /** "title_en" → "Title (English)". */
 /** Readable names for columns that aren't content. */
-const COLUMN_NAME: Record<string, string> = { position: 'Order on page', visible: 'Shown on website' };
+const COLUMN_NAME: Record<string, string> = { position: 'Order on page', visible: 'Shown on website', notify_requests: 'Email alerts for new queries' };
 
 const fieldName = (key: string) =>
   COLUMN_NAME[key] ??

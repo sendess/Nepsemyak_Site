@@ -2,7 +2,7 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
-import ColumnChart from '~/components/admin/ColumnChart.astro';
+import LineChart from '~/components/admin/LineChart.astro';
 import ShareBars from '~/components/admin/ShareBars.astro';
 import type { IconName } from '~/components/icons';
 import { contentFigures, recentChanges, requestFigures, securityFigures, type RecentEntry } from '~/lib/dashboard';
@@ -13,13 +13,14 @@ import { formatBytes, storageSummary, STORAGE_LIMIT_BYTES } from '~/lib/files';
 import { formatDay, formatNpt, todayNpt } from '~/lib/admin-format';
 import { formatDate } from '~/i18n/utils';
 import { visitorFigures } from '~/lib/visitors';
+import { emailConfigured, failedAlerts } from '~/lib/notify';
 
 export const prerender = false;
 
 const me = Astro.locals.admin!;
 const isMaster = me.role === 'owner';
 
-const [req, content, live, stats, codesLeft, security, admins, storage, recent, visitors] = await Promise.all([
+const [req, content, live, stats, codesLeft, security, admins, storage, recent, visitors, alertsFailed] = await Promise.all([
   requestFigures(),
   contentFigures(),
   getLiveNotices(),
@@ -30,6 +31,7 @@ const [req, content, live, stats, codesLeft, security, admins, storage, recent, 
   isMaster ? storageSummary() : null,
   isMaster ? recentChanges(8) : null,
   visitorFigures(),
+  isMaster ? failedAlerts() : null,
 ]);
 
 /* ---------- Helpers ---------- */
@@ -91,6 +93,11 @@ if (isMaster && admins && security && storage) {
     const names = no2fa.map((a) => (a.email === me.email ? 'You' : a.name || a.email));
     const verb = no2fa.length === 1 && names[0] !== 'You' ? 'hasn’t' : 'haven’t';
     attention.push({ tone: 'warn', icon: 'users', text: `${names.join(', ')} ${verb} set up two-step sign-in yet`, href: no2fa.some((a) => a.email === me.email) && no2fa.length === 1 ? '/admin/account' : '/admin/users', action: 'See users' });
+  }
+  if (!emailConfigured()) {
+    attention.push({ tone: 'info', icon: 'mail', text: 'Email alerts for new queries are not set up yet, so staff must check Requests themselves', href: '/admin/account#alerts', action: 'See how' });
+  } else if (alertsFailed?.count) {
+    attention.push({ tone: 'bad', icon: 'mail', text: `Email alerts failed for ${plural(alertsFailed.count, 'query', 'queries')} this week${alertsFailed.latest ? ` (${alertsFailed.latest})` : ''}`, href: '/admin/account#alerts', action: 'Send a test' });
   }
   if (security.failed24h >= 5) {
     attention.push({ tone: 'bad', icon: 'circle-x', text: `${security.failed24h} failed sign-in attempts in the last 24 hours`, href: '/admin/activity?kind=sign-ins', action: 'Check activity' });
@@ -248,7 +255,7 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
               <div class="card-block">
                 <h3>Visits per day</h3>
                 <p class="hint">Last 30 days. Figures are Cloudflare’s estimates and may be rounded.</p>
-                <ColumnChart points={visitPoints} caption="Website visits per day over the last 30 days" unit={['visit', 'visits']} tableHead={['Day', 'Visits']} labelEvery={7} />
+                <LineChart points={visitPoints} caption="Website visits per day over the last 30 days" unit={['visit', 'visits']} tableHead={['Day', 'Visits']} labelEvery={7} />
               </div>
               <div class="card-block">
                 <h3>Most viewed pages</h3>
@@ -301,8 +308,8 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
     <div class="charts">
       <div class="card-block">
         <h3>Queries per week</h3>
-        <p class="hint">Last 12 weeks, spam excluded. This week is highlighted.</p>
-        <ColumnChart points={weekPoints} caption="Queries received per week over the last 12 weeks" unit={['query', 'queries']} tableHead={['Week', 'Queries']} />
+        <p class="hint">Last 12 weeks, spam excluded. The last point is this week, so far.</p>
+        <LineChart points={weekPoints} caption="Queries received per week over the last 12 weeks" unit={['query', 'queries']} tableHead={['Week', 'Queries']} />
       </div>
       <div class="card-block">
         <h3>What people write about</h3>

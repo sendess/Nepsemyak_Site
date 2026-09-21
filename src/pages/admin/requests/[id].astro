@@ -8,6 +8,7 @@ import { branches } from '~/data/site';
 import { formatNpt, parseId } from '~/lib/admin-format';
 import { paragraphs } from '~/lib/forms';
 import { telHref } from '~/i18n/utils';
+import { alertFor } from '~/lib/notify';
 
 export const prerender = false;
 
@@ -44,7 +45,7 @@ if (Astro.request.method === 'POST') {
   return Astro.redirect(`/admin/requests/${request.id}?saved=1`, 303);
 }
 
-const notes = await listNotes(request.id);
+const [notes, alert] = await Promise.all([listNotes(request.id), alertFor(request.id)]);
 const saved = Astro.url.searchParams.has('saved');
 const branchName = (bid: string | null) => branches.find((b) => b.id === bid)?.name.en ?? 'Not sure';
 const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 3_600_000);
@@ -67,6 +68,18 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
           {request.status === 'new' && waitingSince >= 1 && ` · waiting ${waitingSince} hour${waitingSince === 1 ? '' : 's'}`}
           {request.language === 'ne' && ' · written on the Nepali site'}
         </p>
+        {
+          alert && (
+            <p class:list={['hint', { 'alert-failed': alert.error }]}>
+              <Icon name="mail" size={16} />{' '}
+              {alert.error
+                ? `The email alert could not be sent: ${alert.error}`
+                : alert.sent_to
+                  ? `Email alert sent to ${alert.sent_to} admin${alert.sent_to === 1 ? '' : 's'}.`
+                  : 'No email alert went out: nobody had alerts turned on.'}
+            </p>
+          )
+        }
         <div class="message">
           {paragraphs(request.message).map((lines) => (
             <p>
@@ -196,6 +209,10 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
 </AdminLayout>
 
 <style>
+  .alert-failed {
+    color: #a61b1b;
+  }
+
   .grid {
     display: grid;
     grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);

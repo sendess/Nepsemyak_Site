@@ -2,6 +2,7 @@
 import type { APIContext } from 'astro';
 import { branches } from '~/data/site';
 import { localizePath, useTranslations, type Lang } from '~/i18n/utils';
+import { alertNewRequest } from './notify';
 import { createRequest, recentFromIp, REQUEST_TOPICS, type RequestTopic } from './requests';
 
 export type ContactFormState = {
@@ -65,14 +66,19 @@ export async function handleContactPost(context: APIContext, lang: Lang): Promis
   const topic: RequestTopic = (REQUEST_TOPICS as readonly string[]).includes(values.topic) ? (values.topic as RequestTopic) : 'other';
   const branch = branches.some((b) => b.id === values.branch) ? values.branch : null;
 
+  const input = { ...values, topic, branch, language: lang };
+  let saved: { id: number; ref: string };
   try {
-    const ref = await createRequest(
-      { ...values, topic, branch, language: lang },
-      ip,
-      context.request.headers.get('user-agent')?.slice(0, 300) ?? null,
-    );
-    return context.redirect(`${sentPath}?ref=${encodeURIComponent(ref)}`, 303);
+    saved = await createRequest(input, ip, context.request.headers.get('user-agent')?.slice(0, 300) ?? null);
   } catch {
     return { errors: { form: t('contact.err.failed') }, values };
   }
+
+  // Email the admins. On Netlify this finishes after the visitor has been sent on, so they never wait for it.
+  const alert = alertNewRequest({ ...input, ...saved });
+  const netlify = context.locals.netlify?.context;
+  if (netlify) netlify.waitUntil(alert);
+  else await alert;
+
+  return context.redirect(`${sentPath}?ref=${encodeURIComponent(saved.ref)}`, 303);
 }

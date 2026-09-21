@@ -48,7 +48,8 @@ export type AuthEvent =
   | 'password_reset'
   | 'password_reset_failed'
   | 'signed_out'
-  | 'sessions_revoked';
+  | 'sessions_revoked'
+  | 'alert_test_sent';
 
 export async function logEvent(actor: Actor, action: AuthEvent, detail: { label?: string; target?: string } = {}) {
   await sql`

@@ -59,8 +59,8 @@ function newReference(): string {
   return `NS-${code}`;
 }
 
-/** Saves the request and returns its reference code. */
-export async function createRequest(input: RequestInput, ip: string | null, userAgent: string | null): Promise<string> {
+/** Saves the request and returns its id and reference code. */
+export async function createRequest(input: RequestInput, ip: string | null, userAgent: string | null): Promise<{ id: number; ref: string }> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const ref = newReference();
     const rows = await sql`
@@ -68,8 +68,8 @@ export async function createRequest(input: RequestInput, ip: string | null, user
       values (${ref}, ${input.topic}, ${input.branch}, ${input.name}, ${input.phone}, ${input.email}, ${input.address},
         ${input.message}, ${input.language}, ${ip}, ${userAgent})
       on conflict (ref) do nothing
-      returning ref`;
-    if (rows.length === 1) return String(rows[0].ref);
+      returning id, ref`;
+    if (rows.length === 1) return { id: Number(rows[0].id), ref: String(rows[0].ref) };
   }
   throw new Error('Could not create a reference code');
 }

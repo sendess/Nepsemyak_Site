@@ -4,6 +4,8 @@ declare namespace App {
     admin: import('./lib/auth').AdminUser | null;
     /** Sign-in progress for /admin requests; null elsewhere. */
     auth: import('./lib/auth').AdminAccess | null;
+    /** Set by the Netlify adapter (used for work that may finish after the response, e.g. email alerts). */
+    netlify?: import('@astrojs/netlify').NetlifyLocals['netlify'];
   }
 }
 

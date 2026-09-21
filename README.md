@@ -95,6 +95,15 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
   code like `NS-7K4P2Q` shown to the sender, and staff work through them under **Requests** — status (new, in progress,
   resolved, spam), which office is handling it, and internal notes. A hidden field catches bots and one visitor may
   send five messages an hour.
+- **Email alerts:** when someone sends the contact form, every admin who has alerts on (**My account**, on by default)
+  gets one email with the details and a link to the query; replying to it writes to the customer. Sent through
+  [Resend](https://resend.com) (free: 3,000 emails a month, 100 a day) from `no-reply@nepsemyak.com.np`, after the
+  visitor has already been shown the thank-you page. Each query page says whether its alert went out, and the
+  dashboard warns the master if alerts are failing or not set up. Without `RESEND_API_KEY` nothing is sent.
+- **Dashboard:** things needing attention, query figures (weekly line chart, topics, offices), what is live on the
+  site, and for the master: team, sign-ins, storage and recent changes. **Website visitors** (daily line chart, top
+  pages, referrers, devices, countries) come from Cloudflare Web Analytics — IDs in `src/data/analytics.ts`, read with
+  the `CF_ANALYTICS_TOKEN` secret (Account Analytics: Read).
 - **Pages:** About us and Our team are built from sections (intro, timeline, chairman's message, team members…).
   Admins edit their text and photos in both languages, hide/show and reorder them, and add their own text-and-photo
   sections. Only edited sections are stored (`page_sections`); everything else shows the original text from
@@ -126,13 +135,19 @@ Content edits made in the admin panel don't need a deploy.
 ### Netlify settings
 
 1. **Environment variables** (Site configuration → Environment variables), same values as `.env.local`:
-   `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `ADMIN_SECRETS_KEY`.
+   `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `ADMIN_SECRETS_KEY`. Optional:
+   `CF_ANALYTICS_TOKEN` (visitor numbers) and `RESEND_API_KEY` (email alerts). Mark them all as secret.
 2. **HTTPS:** Domain management → HTTPS → Verify DNS configuration → Provision certificate, then *Force HTTPS*.
 3. **Contact form:** nothing to configure — messages go to the database, not Netlify Forms.
+4. **Email alerts:** in Resend, add the domain `nepsemyak.com.np` and put the DNS records it lists into Netlify DNS
+   (Domains → nepsemyak.com.np → DNS records). The domain has no mailbox, so these don't affect any existing email.
+   Once Resend shows the domain as verified, create an API key with *Sending access* for that domain only and save it
+   in Netlify as `RESEND_API_KEY`, then redeploy. Check with **My account → Send me a test email**.
 
 ### Neon Auth settings (production branch)
 
 - Trusted domains: `https://nepsemyak.com.np`, `https://www.nepsemyak.com.np` (`neon neon-auth domain list`).
 - Sign-up disabled (`neon neon-auth config email-password get`).
 - Emails currently use Neon's shared sender. Before inviting many staff, configure your own SMTP:
-  `neon neon-auth config email-provider update …`.
+  `neon neon-auth config email-provider update …` (Resend also offers SMTP: `smtp.resend.com`, user `resend`,
+  password = an API key).

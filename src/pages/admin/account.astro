@@ -2,7 +2,7 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import RecoveryCodes from '~/components/admin/RecoveryCodes.astro';
-import { logEvent, recentEvents, requestActor } from '~/lib/audit';
+import { asActor, logEvent, recentEvents, requestActor } from '~/lib/audit';
 import {
   LOCK_MINUTES,
   MAX_FAILURES_PER_EMAIL,
@@ -16,6 +16,7 @@ import {
 } from '~/lib/auth';
 import { sql } from '~/lib/db';
 import { formatNpt } from '~/lib/admin-format';
+import { emailConfigured, sendTestEmail } from '~/lib/notify';
 
 export const prerender = false;
 
@@ -78,6 +79,28 @@ if (Astro.request.method === 'POST') {
     }
   }
 
+  if (action === 'alerts') {
+    const on = form.get('notify') === 'on';
+    await asActor(actor, [sql`update admin_users set notify_requests = ${on} where email = ${me.email}`]);
+    message = { kind: 'ok', section: 'alerts', text: on ? 'Email alerts are on.' : 'Email alerts are off. You can still see every query under Requests.' };
+  }
+
+  if (action === 'alert-test') {
+    // Each test uses up one of the free plan's 100 emails a day.
+    const recent = await recentEvents('alert_test_sent', me.email, actor.ip, 60);
+    if (recent.byEmail >= 3) {
+      message = { kind: 'error', section: 'alerts', text: 'You have sent 3 test emails in the last hour. Try again later.' };
+    } else {
+      const result = await sendTestEmail(me.email);
+      if (result.ok) {
+        await logEvent(actor, 'alert_test_sent', { label: `Test alert email to ${me.email}` });
+        message = { kind: 'ok', section: 'alerts', text: `Test email sent to ${me.email}. It usually arrives within a minute; check spam if it doesn’t.` };
+      } else {
+        message = { kind: 'error', section: 'alerts', text: `The test email could not be sent: ${result.error}` };
+      }
+    }
+  }
+
   if (action === 'sessions') {
     await authAction('revoke-other-sessions', {});
     await forgetOtherSessions(me.email, access.sessionId);
@@ -86,7 +109,8 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-const [row] = await sql`select totp_enabled_at from admin_users where email = ${me.email}`;
+const [row] = await sql`select totp_enabled_at, notify_requests from admin_users where email = ${me.email}`;
+const canEmail = emailConfigured();
 const codesLeft = await recoveryCodesLeft(me.email);
 const lowCodes = Astro.url.searchParams.get('codes') === 'low' || codesLeft <= 3;
 const flash = (section: string) => (message?.section === section ? message : null);
@@ -99,6 +123,37 @@ const flash = (section: string) => (message?.section === section ? message : nul
       <p>
         <strong>{me.name || me.email}</strong> · {me.email} · {me.role === 'owner' ? 'Master admin' : 'Sub-admin'}
       </p>
+    </section>
+
+    <section class="form-section" id="alerts">
+      <h2>Email alerts</h2>
+      {flash('alerts') && <p class:list={['flash', { error: flash('alerts')!.kind === 'error' }]}>{flash('alerts')!.text}</p>}
+      <p class="hint">
+        Get an email at <strong>{me.email}</strong> each time someone sends the contact form, with their details and a link to the query.
+      </p>
+      {
+        !canEmail && (
+          <p class="hint warn">
+            Email sending isn’t set up on the website yet, so no alerts go out for now.
+            {me.role === 'owner' ? ' Add the RESEND_API_KEY setting in Netlify (see the admin guide).' : ' The master admin needs to finish the set-up.'}
+          </p>
+        )
+      }
+      <form method="post" class="inline">
+        <input type="hidden" name="_action" value="alerts" />
+        <label class="check-row">
+          <input type="checkbox" name="notify" checked={row.notify_requests} /> Email me about new queries
+        </label>
+        <button class="btn btn-ghost" type="submit">Save</button>
+      </form>
+      {
+        canEmail && (
+          <form method="post">
+            <input type="hidden" name="_action" value="alert-test" />
+            <button class="btn btn-ghost" type="submit"><Icon name="send" size={18} /> Send me a test email</button>
+          </form>
+        )
+      }
     </section>
 
     <section class="form-section" id="password">

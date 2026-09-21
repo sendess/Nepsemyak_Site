@@ -1,0 +1,334 @@
+---
+/**
+ * Smooth line (spline) for one count over time: a single series, so no legend — the card title names it.
+ * The curve is monotone (it never dips below zero or overshoots between points). Hovering or using the
+ * arrow keys moves a crosshair that snaps to the nearest point; the latest value is labelled at the end;
+ * the table view lists every value.
+ */
+export type LinePoint = { label: string; value: number; tip: string };
+type Props = {
+  points: LinePoint[];
+  caption: string;
+  unit: [string, string];
+  tableHead: [string, string];
+  /** Show every n-th x-axis label, counting back from the latest. */
+  labelEvery?: number;
+};
+const { points, caption, unit, tableHead, labelEvery = 3 } = Astro.props;
+
+const W = 1000;
+const H = 200;
+const PAD_TOP = 14;
+const max = Math.max(0, ...points.map((p) => p.value));
+// A round top close to the highest value, with a whole-number halfway line: 4, 6, 8, 10, 20, 30, 40, 50, 60, 80…
+const niceTop = (v: number) => {
+  if (v <= 4) return 4;
+  const pow = 10 ** Math.floor(Math.log10(v));
+  return [1, 2, 3, 4, 5, 6, 8, 10].map((s) => s * pow).find((top) => top >= v && Number.isInteger(top / 2))!;
+};
+const top = niceTop(max);
+const ticks = [top, top / 2, 0];
+const n = points.length;
+const xs = points.map((_, i) => (n === 1 ? W / 2 : (i / (n - 1)) * W));
+const ys = points.map((p) => H - (p.value / top) * (H - PAD_TOP));
+
+// Monotone cubic interpolation (the same rule as d3.curveMonotoneX).
+const sign = (v: number) => (v < 0 ? -1 : 1);
+function tangents(): number[] {
+  const t = new Array<number>(n).fill(0);
+  for (let i = 1; i < n - 1; i++) {
+    const h0 = xs[i] - xs[i - 1];
+    const h1 = xs[i + 1] - xs[i];
+    const s0 = (ys[i] - ys[i - 1]) / h0;
+    const s1 = (ys[i + 1] - ys[i]) / h1;
+    const p = (s0 * h1 + s1 * h0) / (h0 + h1);
+    t[i] = (sign(s0) + sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p)) || 0;
+  }
+  if (n > 2) {
+    t[0] = (3 * (ys[1] - ys[0])) / (xs[1] - xs[0]) / 2 - t[1] / 2;
+    t[n - 1] = (3 * (ys[n - 1] - ys[n - 2])) / (xs[n - 1] - xs[n - 2]) / 2 - t[n - 2] / 2;
+  } else if (n === 2) {
+    t[0] = t[1] = (ys[1] - ys[0]) / (xs[1] - xs[0]);
+  }
+  return t;
+}
+const t = tangents();
+let line = n ? `M${xs[0].toFixed(1)},${ys[0].toFixed(1)}` : '';
+for (let i = 1; i < n; i++) {
+  const dx = (xs[i] - xs[i - 1]) / 3;
+  line += ` C${(xs[i - 1] + dx).toFixed(1)},${(ys[i - 1] + dx * t[i - 1]).toFixed(1)} ${(xs[i] - dx).toFixed(1)},${(ys[i] - dx * t[i]).toFixed(1)} ${xs[i].toFixed(1)},${ys[i].toFixed(1)}`;
+}
+const area = n > 1 ? `${line} L${W},${H} L0,${H} Z` : '';
+const count = (v: number) => `${v.toLocaleString('en')} ${v === 1 ? unit[0] : unit[1]}`;
+const last = n - 1;
+// Where each point sits, in % of the plot, for the HTML markers and the crosshair script.
+const pos = points.map((p, i) => ({ x: (xs[i] / W) * 100, y: (ys[i] / H) * 100, text: count(p.value), tip: p.tip }));
+---
+
+<figure class="line-chart" data-line-chart data-points={JSON.stringify(pos)}>
+  <figcaption class="visually-hidden">{caption}</figcaption>
+  <div class="plot" tabindex="0" aria-label={`${caption}. Latest: ${points[last]?.tip ?? ''}, ${count(points[last]?.value ?? 0)}. Use the arrow keys to read each point.`}>
+    <div class="grid" aria-hidden="true">
+      {ticks.map((tk) => <span class="tick" style={`--y: ${(tk / top) * ((H - PAD_TOP) / H) * 100}%`}><span class="tick-label">{tk.toLocaleString('en')}</span></span>)}
+    </div>
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      {area && <path class="area" d={area} />}
+      {line && <path class="line" d={line} />}
+    </svg>
+    {
+      n > 0 && (
+        <>
+          <span class="end-dot" style={`left: ${pos[last].x}%; top: ${pos[last].y}%`} aria-hidden="true" />
+          <span class="end-label" style={`left: ${pos[last].x}%; top: ${pos[last].y}%`} aria-hidden="true">
+            {points[last].value.toLocaleString('en')}
+          </span>
+        </>
+      )
+    }
+    <span class="crosshair" data-crosshair hidden aria-hidden="true" />
+    <span class="hover-dot" data-hover-dot hidden aria-hidden="true" />
+    <span class="tip" data-tip hidden role="status">
+      <strong data-tip-value></strong>
+      <span data-tip-label></span>
+    </span>
+  </div>
+  <ol class="x-labels" aria-hidden="true">
+    {points.map((p, i) => <li class:list={{ show: (last - i) % labelEvery === 0 }} style={`left: ${pos[i].x}%`}>{p.label}</li>)}
+  </ol>
+  <details class="table-view">
+    <summary>View as table</summary>
+    <table>
+      <caption class="visually-hidden">{caption}</caption>
+      <thead>
+        <tr><th scope="col">{tableHead[0]}</th><th scope="col">{tableHead[1]}</th></tr>
+      </thead>
+      <tbody>
+        {points.map((p) => <tr><th scope="row">{p.tip}</th><td class="nums">{p.value.toLocaleString('en')}</td></tr>)}
+      </tbody>
+    </table>
+  </details>
+</figure>
+
+<script>
+  type Pos = { x: number; y: number; text: string; tip: string };
+
+  document.querySelectorAll<HTMLElement>('[data-line-chart]').forEach((chart) => {
+    const points: Pos[] = JSON.parse(chart.dataset.points ?? '[]');
+    if (!points.length) return;
+    const plot = chart.querySelector<HTMLElement>('.plot')!;
+    const cross = chart.querySelector<HTMLElement>('[data-crosshair]')!;
+    const dot = chart.querySelector<HTMLElement>('[data-hover-dot]')!;
+    const tip = chart.querySelector<HTMLElement>('[data-tip]')!;
+    const value = chart.querySelector<HTMLElement>('[data-tip-value]')!;
+    const label = chart.querySelector<HTMLElement>('[data-tip-label]')!;
+    let current = points.length - 1;
+
+    const show = (i: number) => {
+      current = Math.max(0, Math.min(points.length - 1, i));
+      const p = points[current];
+      cross.style.left = dot.style.left = `${p.x}%`;
+      dot.style.top = `${p.y}%`;
+      value.textContent = p.text; // text only: labels never become HTML
+      label.textContent = p.tip;
+      tip.style.left = `${p.x}%`;
+      // Past the middle the tooltip opens to the left, so it never runs off a phone screen.
+      tip.classList.toggle('flip', p.x > 55);
+      cross.hidden = dot.hidden = tip.hidden = false;
+      chart.classList.add('reading');
+    };
+    const hide = () => {
+      cross.hidden = dot.hidden = tip.hidden = true;
+      chart.classList.remove('reading');
+    };
+
+    // The crosshair snaps to the nearest point, so the reader aims at a date, not a thin line.
+    plot.addEventListener('pointermove', (e) => {
+      const box = plot.getBoundingClientRect();
+      const x = ((e.clientX - box.left) / box.width) * 100;
+      let nearest = 0;
+      points.forEach((p, i) => {
+        if (Math.abs(p.x - x) < Math.abs(points[nearest].x - x)) nearest = i;
+      });
+      show(nearest);
+    });
+    plot.addEventListener('pointerleave', () => {
+      if (document.activeElement !== plot) hide();
+    });
+    plot.addEventListener('focus', () => show(current));
+    plot.addEventListener('blur', hide);
+    plot.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        show(current + (e.key === 'ArrowRight' ? 1 : -1));
+      } else if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault();
+        show(e.key === 'Home' ? 0 : points.length - 1);
+      }
+    });
+  });
+</script>
+
+<style>
+  .line-chart {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+  }
+
+  .plot {
+    position: relative;
+    height: 11rem;
+    margin: 0.75rem 1.25rem 0 1.75rem;
+    outline: none;
+    cursor: crosshair;
+    touch-action: pan-y;
+  }
+
+  .plot:focus-visible {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--green-700);
+    border-radius: 4px;
+  }
+
+  .grid {
+    position: absolute;
+    inset: 0;
+  }
+
+  .tick {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: var(--y);
+    border-top: 1px solid #e6e9e4;
+  }
+
+  .tick-label {
+    position: absolute;
+    right: calc(100% + 0.4rem);
+    top: -0.55rem;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+
+  svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .line {
+    fill: none;
+    stroke: #459a2e;
+    stroke-width: 2px;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .area {
+    fill: #459a2e;
+    opacity: 0.1;
+  }
+
+  .end-dot,
+  .hover-dot {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #459a2e;
+    box-shadow: 0 0 0 2px #fff;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .end-label {
+    position: absolute;
+    transform: translate(-50%, calc(-100% - 0.55rem));
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--ink);
+    pointer-events: none;
+  }
+
+  /* The tooltip carries the number while someone is reading the chart. */
+  .reading .end-label {
+    opacity: 0;
+  }
+
+  .crosshair {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #aab3a6;
+    pointer-events: none;
+  }
+
+  .tip {
+    position: absolute;
+    top: -0.5rem;
+    z-index: 2;
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 8px;
+    background: var(--ink, #1f2a24);
+    color: #fff;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    transform: translate(0.6rem, -100%);
+    pointer-events: none;
+  }
+
+  .tip.flip {
+    transform: translate(calc(-100% - 0.6rem), -100%);
+  }
+
+  .x-labels {
+    position: relative;
+    height: 1.1rem;
+    margin: 0 1.25rem 0 1.75rem;
+    padding: 0;
+    list-style: none;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .x-labels li {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+
+  .x-labels li:not(.show) {
+    display: none;
+  }
+
+  .table-view summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--green-700);
+  }
+
+  .table-view table {
+    margin-top: 0.5rem;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .table-view th,
+  .table-view td {
+    padding: 0.2rem 0.75rem 0.2rem 0;
+    text-align: start;
+    font-weight: 400;
+  }
+
+  .nums {
+    font-variant-numeric: tabular-nums;
+  }
+</style>

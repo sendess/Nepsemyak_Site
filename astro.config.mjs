@@ -27,6 +27,8 @@ export default defineConfig({
       ADMIN_SECRETS_KEY: envField.string({ context: 'server', access: 'secret', min: 32 }),
       // Read-only Cloudflare API token for visitor numbers on the admin dashboard (optional).
       CF_ANALYTICS_TOKEN: envField.string({ context: 'server', access: 'secret', optional: true }),
+      // Resend API key for emailing admins about new contact-form queries (optional).
+      RESEND_API_KEY: envField.string({ context: 'server', access: 'secret', optional: true }),
     },
   },
 

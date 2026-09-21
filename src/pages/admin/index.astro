@@ -2,7 +2,7 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
-import WeeklyColumns from '~/components/admin/WeeklyColumns.astro';
+import ColumnChart from '~/components/admin/ColumnChart.astro';
 import ShareBars from '~/components/admin/ShareBars.astro';
 import type { IconName } from '~/components/icons';
 import { contentFigures, recentChanges, requestFigures, securityFigures, type RecentEntry } from '~/lib/dashboard';
@@ -12,13 +12,14 @@ import { recoveryCodesLeft } from '~/lib/auth';
 import { formatBytes, storageSummary, STORAGE_LIMIT_BYTES } from '~/lib/files';
 import { formatDay, formatNpt, todayNpt } from '~/lib/admin-format';
 import { formatDate } from '~/i18n/utils';
+import { visitorFigures } from '~/lib/visitors';
 
 export const prerender = false;
 
 const me = Astro.locals.admin!;
 const isMaster = me.role === 'owner';
 
-const [req, content, live, stats, codesLeft, security, admins, storage, recent] = await Promise.all([
+const [req, content, live, stats, codesLeft, security, admins, storage, recent, visitors] = await Promise.all([
   requestFigures(),
   contentFigures(),
   getLiveNotices(),
@@ -28,6 +29,7 @@ const [req, content, live, stats, codesLeft, security, admins, storage, recent] 
   isMaster ? listAdmins() : null,
   isMaster ? storageSummary() : null,
   isMaster ? recentChanges(8) : null,
+  visitorFigures(),
 ]);
 
 /* ---------- Helpers ---------- */
@@ -138,6 +140,32 @@ const kpis = [
   },
 ] as const;
 
+/* ---------- Charts ---------- */
+
+const shortDate = (day: string) =>
+  new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`));
+const longDate = (day: string) =>
+  new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`));
+const weekPoints = req.weeks.map((w, i) => ({
+  label: shortDate(w.week_start),
+  value: w.n,
+  tip: `Week of ${shortDate(w.week_start)}${i === req.weeks.length - 1 ? ' (this week)' : ''}`,
+}));
+
+/* ---------- Visitors (Cloudflare Web Analytics) ---------- */
+
+const v = visitors.status === 'ok' ? visitors.data : null;
+const visitPoints = v ? v.days.map((d) => ({ label: shortDate(d.date), value: d.visits, tip: longDate(d.date) })) : [];
+const change = (now: number, before: number) => (before ? `${now >= before ? '+' : '−'}${Math.abs(Math.round(((now - before) / before) * 100))}% vs the week before` : 'No visits the week before');
+const visitorKpis = v
+  ? [
+      { label: 'Visits · last 7 days', value: v.visits7.toLocaleString('en'), note: change(v.visits7, v.visitsPrev7) },
+      { label: 'Page views · last 7 days', value: v.views7.toLocaleString('en'), note: `${v.views30.toLocaleString('en')} in the last 30 days` },
+      { label: 'Visits · last 30 days', value: v.visits30.toLocaleString('en'), note: `About ${Math.round(v.visits30 / 30).toLocaleString('en')} a day` },
+      { label: 'Pages per visit', value: v.visits30 ? (v.views30 / v.visits30).toFixed(1) : '—', note: 'Last 30 days' },
+    ]
+  : [];
+
 /* ---------- Recent changes (master) ---------- */
 
 const ENTITY: Record<string, string> = {
@@ -199,6 +227,63 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
     }
   </section>
 
+  {
+    (v || visitors.status === 'error' || isMaster) && (
+      <section aria-labelledby="visitors-title">
+        <h2 class="block-title" id="visitors-title">
+          Website visitors
+        </h2>
+        {v ? (
+          <>
+            <div class="kpis">
+              {visitorKpis.map((k) => (
+                <div class="kpi neutral">
+                  <span class="kpi-label">{k.label}</span>
+                  <span class="kpi-value">{k.value}</span>
+                  <span class="kpi-note">{k.note}</span>
+                </div>
+              ))}
+            </div>
+            <div class="charts">
+              <div class="card-block">
+                <h3>Visits per day</h3>
+                <p class="hint">Last 30 days. Figures are Cloudflare’s estimates and may be rounded.</p>
+                <ColumnChart points={visitPoints} caption="Website visits per day over the last 30 days" unit={['visit', 'visits']} tableHead={['Day', 'Visits']} labelEvery={7} />
+              </div>
+              <div class="card-block">
+                <h3>Most viewed pages</h3>
+                <p class="hint">Page views, last 30 days</p>
+                <ShareBars items={v.pages} caption="Most viewed pages, last 30 days" empty="No page views yet." />
+              </div>
+            </div>
+            <div class="content-grid visitor-extra">
+              <div class="card-block">
+                <h3>Where visitors come from</h3>
+                <p class="hint">Other websites that sent visits (search engines, Facebook…)</p>
+                <ShareBars items={v.referrers} caption="Visits from other websites, last 30 days" empty="No visits from other websites yet — most people typed the address or used a bookmark." />
+              </div>
+              <div class="card-block">
+                <h3>Devices</h3>
+                <ShareBars items={v.devices} caption="Page views by device, last 30 days" empty="No data yet." />
+              </div>
+              <div class="card-block">
+                <h3>Countries</h3>
+                <ShareBars items={v.countries} caption="Page views by country, last 30 days" empty="No data yet." />
+              </div>
+            </div>
+          </>
+        ) : visitors.status === 'error' ? (
+          <p class="card-block hint">Visitor numbers can’t be shown right now ({visitors.message}). The rest of the dashboard is up to date.</p>
+        ) : (
+          <p class="card-block hint">
+            Visitor counting isn’t connected yet. Once Cloudflare Web Analytics is set up, daily visits, the most viewed pages and where
+            visitors come from appear here.
+          </p>
+        )}
+      </section>
+    )
+  }
+
   <section aria-labelledby="queries-title">
     <h2 class="block-title" id="queries-title">Queries from the website</h2>
     <div class="kpis">
@@ -217,7 +302,7 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
       <div class="card-block">
         <h3>Queries per week</h3>
         <p class="hint">Last 12 weeks, spam excluded. This week is highlighted.</p>
-        <WeeklyColumns weeks={req.weeks} caption="Queries received per week over the last 12 weeks" unit={['query', 'queries']} />
+        <ColumnChart points={weekPoints} caption="Queries received per week over the last 12 weeks" unit={['query', 'queries']} tableHead={['Week', 'Queries']} />
       </div>
       <div class="card-block">
         <h3>What people write about</h3>
@@ -582,6 +667,10 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
     .charts {
       grid-template-columns: 1fr;
     }
+  }
+
+  .visitor-extra {
+    margin-top: 0.75rem;
   }
 
   .sub-title {

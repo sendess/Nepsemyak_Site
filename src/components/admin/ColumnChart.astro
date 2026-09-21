@@ -1,15 +1,21 @@
 ---
-import type { WeekCount } from '~/lib/dashboard';
-
 /**
- * Columns for one count per week (single series, so no legend: the card title names it).
- * The busiest week and the current week carry direct labels; every column has a hover/focus
+ * Columns for one count per period (single series, so no legend: the card title names it).
+ * The highest and the latest columns carry direct labels; every column has a hover/focus
  * tooltip, and the table view lists all values.
  */
-type Props = { weeks: WeekCount[]; caption: string; unit: [string, string] };
-const { weeks, caption, unit } = Astro.props;
+export type Point = { label: string; value: number; tip: string };
+type Props = {
+  points: Point[];
+  caption: string;
+  unit: [string, string];
+  tableHead: [string, string];
+  /** Show every n-th x-axis label, counting back from the latest. */
+  labelEvery?: number;
+};
+const { points, caption, unit, tableHead, labelEvery = 3 } = Astro.props;
 
-const max = Math.max(0, ...weeks.map((w) => w.n));
+const max = Math.max(0, ...points.map((p) => p.value));
 // A clean top for the scale: 1–5 → 5, then 10, 20, 50…
 const niceTop = (v: number) => {
   if (v <= 5) return 5;
@@ -19,30 +25,28 @@ const niceTop = (v: number) => {
 };
 const top = niceTop(max);
 const ticks = [top, top / 2, 0];
-const label = (d: string) =>
-  new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
-const count = (n: number) => `${n} ${n === 1 ? unit[0] : unit[1]}`;
-const busiest = weeks.findIndex((w) => w.n === max && max > 0);
-const last = weeks.length - 1;
+const count = (n: number) => `${n.toLocaleString('en')} ${n === 1 ? unit[0] : unit[1]}`;
+const highest = points.findIndex((p) => p.value === max && max > 0);
+const last = points.length - 1;
 ---
 
-<figure class="columns-chart">
+<figure class="columns-chart" style={`--n: ${points.length}`}>
   <figcaption class="visually-hidden">{caption}</figcaption>
   <div class="plot" aria-hidden="true">
     <div class="grid">
-      {ticks.map((t) => <span class="tick" style={`--y: ${(t / top) * 100}%`}><span class="tick-label">{t}</span></span>)}
+      {ticks.map((t) => <span class="tick" style={`--y: ${(t / top) * 100}%`}><span class="tick-label">{t.toLocaleString('en')}</span></span>)}
     </div>
     <ol class="bars">
       {
-        weeks.map((w, i) => (
-          <li class="col" tabindex="0" aria-label={`Week of ${label(w.week_start)}: ${count(w.n)}`}>
+        points.map((p, i) => (
+          <li class="col" tabindex="0" aria-label={`${p.tip}: ${count(p.value)}`}>
             <span class="bar-slot">
-              {(i === busiest || i === last) && w.n > 0 && <span class="value">{w.n}</span>}
-              <span class:list={['bar', { current: i === last, empty: w.n === 0 }]} style={`--h: ${(w.n / top) * 100}%`} />
+              {(i === highest || i === last) && p.value > 0 && <span class="value">{p.value.toLocaleString('en')}</span>}
+              <span class:list={['bar', { current: i === last, empty: p.value === 0 }]} style={`--h: ${(p.value / top) * 100}%`} />
             </span>
             <span class="tip" role="presentation">
-              <strong>{count(w.n)}</strong>
-              <span>week of {label(w.week_start)}{i === last ? ' (this week)' : ''}</span>
+              <strong>{count(p.value)}</strong>
+              <span>{p.tip}</span>
             </span>
           </li>
         ))
@@ -50,17 +54,17 @@ const last = weeks.length - 1;
     </ol>
   </div>
   <ol class="x-labels" aria-hidden="true">
-    {weeks.map((w, i) => <li class:list={{ show: i % 3 === last % 3 }}>{label(w.week_start)}</li>)}
+    {points.map((p, i) => <li class:list={{ show: (last - i) % labelEvery === 0 }}>{p.label}</li>)}
   </ol>
   <details class="table-view">
     <summary>View as table</summary>
     <table>
       <caption class="visually-hidden">{caption}</caption>
       <thead>
-        <tr><th scope="col">Week starting</th><th scope="col">Queries</th></tr>
+        <tr><th scope="col">{tableHead[0]}</th><th scope="col">{tableHead[1]}</th></tr>
       </thead>
       <tbody>
-        {weeks.map((w) => <tr><th scope="row">{label(w.week_start)}</th><td class="nums">{w.n}</td></tr>)}
+        {points.map((p) => <tr><th scope="row">{p.tip}</th><td class="nums">{p.value.toLocaleString('en')}</td></tr>)}
       </tbody>
     </table>
   </details>
@@ -105,7 +109,7 @@ const last = weeks.length - 1;
     position: absolute;
     inset: 0;
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--n), minmax(0, 1fr));
     margin: 0;
     padding: 0;
     list-style: none;
@@ -201,7 +205,7 @@ const last = weeks.length - 1;
 
   .x-labels {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--n), minmax(0, 1fr));
     margin: 0 0 0 1.75rem;
     padding: 0;
     list-style: none;

@@ -25,6 +25,8 @@ export default defineConfig({
       NEON_AUTH_COOKIE_SECRET: envField.string({ context: 'server', access: 'secret', min: 32 }),
       // Encrypts admin authenticator-app secrets stored in the database.
       ADMIN_SECRETS_KEY: envField.string({ context: 'server', access: 'secret', min: 32 }),
+      // Read-only Cloudflare API token for visitor numbers on the admin dashboard (optional).
+      CF_ANALYTICS_TOKEN: envField.string({ context: 'server', access: 'secret', optional: true }),
     },
   },
 

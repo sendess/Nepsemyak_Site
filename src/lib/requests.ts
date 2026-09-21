@@ -155,14 +155,3 @@ export async function deleteRequest(id: number, actor: Actor) {
 export async function addNote(requestId: number, note: string, actor: Actor) {
   await sql`insert into request_notes (request_id, author_email, note) values (${requestId}, ${actor.email}, ${note})`;
 }
-
-/** Counts for the dashboard: waiting, being worked on, and how long the oldest new one has waited. */
-export async function requestCounts() {
-  const [row] = await sql`
-    select count(*) filter (where status = 'new')::int as new,
-           count(*) filter (where status = 'in_progress')::int as in_progress,
-           min(created_at) filter (where status = 'new') as oldest_new,
-           count(*) filter (where created_at > now() - interval '7 days')::int as this_week
-    from service_requests`;
-  return row as { new: number; in_progress: number; oldest_new: string | null; this_week: number };
-}

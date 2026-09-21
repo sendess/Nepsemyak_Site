@@ -466,16 +466,3 @@ export async function addSubAdmin(actor: Actor, email: string, name: string): Pr
 export async function removeSubAdmin(actor: Actor, email: string) {
   await asActor(actor, [sql`delete from admin_users where email = ${email} and role = 'editor'`]);
 }
-
-/* ---------------- Dashboard ---------------- */
-
-export async function dashboardCounts() {
-  const [row] = await sql`
-    select
-      (select count(*) from news_posts where status = 'published')::int as news_published,
-      (select count(*) from news_posts where status = 'draft')::int as news_drafts,
-      (select count(*) from jobs where status = 'open')::int as jobs_open,
-      (select count(*) from admin_users)::int as admins,
-      (select coalesce(sum(size_bytes), 0) from media)::bigint as media_bytes`;
-  return row as { news_published: number; news_drafts: number; jobs_open: number; admins: number; media_bytes: number };
-}

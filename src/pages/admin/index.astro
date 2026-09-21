@@ -2,177 +2,766 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
-import { dashboardCounts, getLiveNotices } from '~/lib/content';
-import { requestCounts } from '~/lib/requests';
-import { getAllStats, STAT_GROUP_IDS } from '~/lib/stats';
-import { formatDay } from '~/lib/admin-format';
+import WeeklyColumns from '~/components/admin/WeeklyColumns.astro';
+import ShareBars from '~/components/admin/ShareBars.astro';
+import type { IconName } from '~/components/icons';
+import { contentFigures, recentChanges, requestFigures, securityFigures, type RecentEntry } from '~/lib/dashboard';
+import { getLiveNotices, listAdmins } from '~/lib/content';
+import { getAllStats, STAT_GROUP_IDS, STAT_GROUPS } from '~/lib/stats';
+import { recoveryCodesLeft } from '~/lib/auth';
+import { formatBytes, storageSummary, STORAGE_LIMIT_BYTES } from '~/lib/files';
+import { formatDay, formatNpt, todayNpt } from '~/lib/admin-format';
+import { formatDate } from '~/i18n/utils';
 
 export const prerender = false;
 
-const [counts, live, stats, requests] = await Promise.all([dashboardCounts(), getLiveNotices(), getAllStats(), requestCounts()]);
-const admin = Astro.locals.admin!;
-const mediaMb = (Number(counts.media_bytes) / 1_000_000).toFixed(1);
-const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of)
-  .filter((d): d is string => !!d)
-  .sort()[0] ?? null;
+const me = Astro.locals.admin!;
+const isMaster = me.role === 'owner';
 
-const waitingHours = requests.oldest_new ? Math.round((Date.now() - Date.parse(requests.oldest_new)) / 3_600_000) : 0;
+const [req, content, live, stats, codesLeft, security, admins, storage, recent] = await Promise.all([
+  requestFigures(),
+  contentFigures(),
+  getLiveNotices(),
+  getAllStats(),
+  recoveryCodesLeft(me.email),
+  isMaster ? securityFigures() : null,
+  isMaster ? listAdmins() : null,
+  isMaster ? storageSummary() : null,
+  isMaster ? recentChanges(8) : null,
+]);
 
-const tiles = [
+/* ---------- Helpers ---------- */
+
+const now = Date.now();
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const hoursSince = (iso: string) => (now - Date.parse(iso)) / 3_600_000;
+/** Days since a "YYYY-MM-DD" date in Nepal time. */
+const daysSince = (day: string) => Math.floor((now - Date.parse(`${day}T00:00:00+05:45`)) / 86_400_000);
+const ago = (iso: string) => {
+  const h = hoursSince(iso);
+  if (h < 1) return 'under an hour';
+  if (h < 48) return plural(Math.round(h), 'hour');
+  return plural(Math.round(h / 24), 'day');
+};
+const duration = (hours: number) =>
+  hours < 1 ? `${Math.max(1, Math.round(hours * 60))} min` : hours < 48 ? `${hours < 10 ? hours.toFixed(1) : Math.round(hours)} h` : `${(hours / 24).toFixed(1)} days`;
+
+const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Asia/Kathmandu' }).format(now));
+const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+const todayEn = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kathmandu' }).format(now);
+const todayBs = formatDate(todayNpt(), 'ne');
+
+/* ---------- Things that need someone ---------- */
+
+type Attention = { tone: 'bad' | 'warn' | 'info'; icon: IconName; text: string; href: string; action: string };
+const attention: Attention[] = [];
+
+if (req.overdue) {
+  attention.push({ tone: 'bad', icon: 'messages-square', text: `${plural(req.overdue, 'query', 'queries')} waiting more than a day for a reply`, href: '/admin/requests?status=new', action: 'Answer' });
+} else if (req.waiting) {
+  attention.push({ tone: 'warn', icon: 'messages-square', text: `${plural(req.waiting, 'new query', 'new queries')} to answer`, href: '/admin/requests?status=new', action: 'Answer' });
+}
+if (content.jobs.expired) {
+  attention.push({ tone: 'warn', icon: 'briefcase', text: `${plural(content.jobs.expired, 'job')} past the deadline but still marked open (already hidden from Careers)`, href: '/admin/jobs?status=expired', action: 'Close or extend' });
+}
+if (content.closingJobs.length) {
+  attention.push({ tone: 'info', icon: 'clock', text: `${plural(content.closingJobs.length, 'job')} closing within 7 days`, href: '/admin/jobs?status=open', action: 'See jobs' });
+}
+const STALE_DAYS = 180;
+const staleStats = STAT_GROUP_IDS.filter((id) => !stats[id].as_of || daysSince(stats[id].as_of!) > STALE_DAYS);
+if (staleStats.length) {
+  attention.push({ tone: 'warn', icon: 'chart-bar', text: `${plural(staleStats.length, 'statistics group')} not updated for over 6 months: ${staleStats.map((id) => STAT_GROUPS[id].title).join(', ')}`, href: '/admin/stats', action: 'Update figures' });
+}
+const newsAge = content.news.lastPublished ? daysSince(content.news.lastPublished) : null;
+if (newsAge === null || newsAge > 30) {
+  attention.push({ tone: 'info', icon: 'newspaper', text: newsAge === null ? 'No news published yet' : `No news posted for ${newsAge} days`, href: '/admin/news/new', action: 'Write a post' });
+}
+if (content.notices.endingSoon) {
+  attention.push({ tone: 'info', icon: 'megaphone', text: `${plural(content.notices.endingSoon, 'notice')} ending within 3 days`, href: '/admin/notices', action: 'Review' });
+}
+// Recovery codes only exist once the authenticator is set up.
+if (me.totpEnabled && codesLeft <= 3) {
+  attention.push({ tone: 'warn', icon: 'circle-check', text: `Only ${plural(codesLeft, 'recovery code')} left for your account`, href: '/admin/account#recovery', action: 'Create new codes' });
+}
+if (isMaster && admins && security && storage) {
+  const no2fa = admins.filter((a) => !a.totp_enabled_at);
+  if (no2fa.length) {
+    const names = no2fa.map((a) => (a.email === me.email ? 'You' : a.name || a.email));
+    const verb = no2fa.length === 1 && names[0] !== 'You' ? 'hasn’t' : 'haven’t';
+    attention.push({ tone: 'warn', icon: 'users', text: `${names.join(', ')} ${verb} set up two-step sign-in yet`, href: no2fa.some((a) => a.email === me.email) && no2fa.length === 1 ? '/admin/account' : '/admin/users', action: 'See users' });
+  }
+  if (security.failed24h >= 5) {
+    attention.push({ tone: 'bad', icon: 'circle-x', text: `${security.failed24h} failed sign-in attempts in the last 24 hours`, href: '/admin/activity?kind=sign-ins', action: 'Check activity' });
+  }
+  if (storage.removableFiles) {
+    attention.push({ tone: 'info', icon: 'folder-open', text: `${plural(storage.removableFiles, 'unused image')} (${formatBytes(storage.removableBytes)}) can be cleaned up`, href: '/admin/files?usage=unused', action: 'Clean up' });
+  }
+  if (storage.dbBytes / STORAGE_LIMIT_BYTES > 0.7) {
+    attention.push({ tone: 'bad', icon: 'folder-open', text: `Database is ${Math.round((storage.dbBytes / STORAGE_LIMIT_BYTES) * 100)}% full`, href: '/admin/files', action: 'Free up space' });
+  }
+}
+const toneOrder = { bad: 0, warn: 1, info: 2 };
+attention.sort((a, b) => toneOrder[a.tone] - toneOrder[b.tone]);
+
+/* ---------- Headline figures ---------- */
+
+const monthDelta = req.thisMonth - req.lastMonth;
+const resolvedRate = req.last30 ? Math.round((req.resolved30 / req.last30) * 100) : null;
+const kpis = [
   {
-    href: '/admin/requests',
-    icon: 'messages-square',
-    value: requests.new,
-    label: 'New queries waiting',
-    extra: requests.new
-      ? `Longest wait: ${waitingHours < 1 ? 'under an hour' : `${waitingHours} hour${waitingHours === 1 ? '' : 's'}`}`
-      : `${requests.in_progress} in progress · ${requests.this_week} arrived this week`,
+    label: 'Queries waiting',
+    value: String(req.waiting),
+    note: req.waiting && req.oldestWaiting ? `Oldest has waited ${ago(req.oldestWaiting)}` : `${req.inProgress} in progress`,
+    tone: req.overdue ? 'bad' : req.waiting ? 'warn' : 'good',
+    href: '/admin/requests?status=new',
   },
-  { href: '/admin/stats', icon: 'chart-bar', value: STAT_GROUP_IDS.length, label: 'Statistics groups', extra: `Oldest data: ${formatDay(oldestAsOf)}` },
-  { href: '/admin/news', icon: 'newspaper', value: counts.news_published, label: 'Published news posts', extra: `${counts.news_drafts} draft(s)` },
-  { href: '/admin/jobs', icon: 'briefcase', value: counts.jobs_open, label: 'Open job listings', extra: 'Shown on Careers' },
-  { href: '/admin/users', icon: 'users', value: counts.admins, label: 'People with admin access', extra: `${mediaMb} MB of images stored` },
+  {
+    label: 'Queries this month',
+    value: String(req.thisMonth),
+    note: req.lastMonth || req.thisMonth ? `${monthDelta >= 0 ? '+' : '−'}${Math.abs(monthDelta)} vs last month (${req.lastMonth})` : 'None yet',
+    tone: 'neutral',
+    href: '/admin/requests',
+  },
+  {
+    label: 'Typical first reply',
+    value: req.medianResponseHours === null ? '—' : duration(req.medianResponseHours),
+    note: req.total90 ? `${req.answered90} of ${plural(req.total90, 'query', 'queries')} answered · last 90 days` : 'No queries in the last 90 days',
+    tone: req.medianResponseHours === null ? 'neutral' : req.medianResponseHours <= 24 ? 'good' : 'warn',
+    href: '/admin/requests',
+  },
+  {
+    label: 'Resolved',
+    value: resolvedRate === null ? '—' : `${resolvedRate}%`,
+    note: req.last30 ? `${req.resolved30} of ${plural(req.last30, 'query', 'queries')} · last 30 days` : 'No queries in the last 30 days',
+    tone: 'neutral',
+    href: '/admin/requests?status=resolved',
+  },
 ] as const;
 
-const notices = [
-  { kind: 'Banner', notice: live.banner },
-  { kind: 'Pop-up', notice: live.popup },
-];
+/* ---------- Recent changes (master) ---------- */
+
+const ENTITY: Record<string, string> = {
+  notices: 'notice',
+  news_posts: 'news post',
+  jobs: 'job',
+  stat_groups: 'statistics',
+  stat_items: 'statistic',
+  admin_users: 'admin',
+  service_requests: 'request',
+  page_sections: 'page section',
+  media: 'image',
+};
+const VERB: Record<string, string> = { create: 'added', update: 'edited', delete: 'deleted' };
+const describe = (e: RecentEntry) => `${VERB[e.action] ?? e.action} ${ENTITY[e.entity ?? ''] ?? e.entity ?? 'item'}`;
+const nameOf = new Map((admins ?? []).map((a) => [a.email, a.name || a.email]));
+
+const usedPct = storage ? Math.min(100, (storage.dbBytes / STORAGE_LIMIT_BYTES) * 100) : 0;
+const imagesPct = storage ? Math.min(usedPct, (storage.mediaBytes / STORAGE_LIMIT_BYTES) * 100) : 0;
+const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is string => !!d).sort()[0] ?? null;
 ---
 
-<AdminLayout title="Dashboard">
-  <p class="welcome">Namaste, {admin.name || admin.email}.</p>
+<AdminLayout title="Dashboard" wide>
+  <header class="hello">
+    <div>
+      <p class="greeting">{greeting}, {me.name || me.email}.</p>
+      <p class="hint">{todayEn} · <span lang="ne">{todayBs}</span></p>
+    </div>
+    <a class="btn btn-ghost btn-sm" href="/" target="_blank" rel="noopener">
+      View website <Icon name="external-link" size={16} />
+    </a>
+  </header>
 
-  <section class="notice-card" aria-labelledby="notice-title">
-    <div class="notice-lines">
-      <h2 id="notice-title">Live notices</h2>
+  <section class="card-block attention" aria-labelledby="attention-title">
+    <h2 id="attention-title">Needs attention</h2>
+    {
+      attention.length === 0 ? (
+        <p class="all-clear">
+          <Icon name="circle-check" size={22} /> All caught up — nothing needs you right now.
+        </p>
+      ) : (
+        <ul class="todo" role="list">
+          {attention.map((a) => (
+            <li class:list={['todo-item', a.tone]}>
+              <span class="todo-icon" aria-hidden="true">
+                <Icon name={a.icon} size={18} />
+              </span>
+              <span class="todo-text">
+                <span class="visually-hidden">{a.tone === 'bad' ? 'Urgent: ' : a.tone === 'warn' ? 'Needs action: ' : 'For information: '}</span>
+                {a.text}
+              </span>
+              <a class="btn btn-ghost btn-sm" href={a.href}>
+                {a.action}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+
+  <section aria-labelledby="queries-title">
+    <h2 class="block-title" id="queries-title">Queries from the website</h2>
+    <div class="kpis">
       {
-        notices.map(({ kind, notice }) => (
-          <p>
-            <span class="kind">{kind}:</span>{' '}
-            {notice ? (
-              <>
-                <StatusBadge status={notice.tone} />{' '}
-                <a href={`/admin/notices/${notice.id}`}>{notice.title_en || notice.message_en || notice.title_ne || notice.message_ne}</a>
-              </>
-            ) : (
-              <span class="muted">none</span>
-            )}
-          </p>
+        kpis.map((k) => (
+          <a class:list={['kpi', k.tone]} href={k.href}>
+            <span class="kpi-label">{k.label}</span>
+            <span class="kpi-value">{k.value}</span>
+            <span class="kpi-note">{k.note}</span>
+          </a>
         ))
       }
     </div>
-    <a class="btn btn-primary btn-sm" href="/admin/notices">
-      <Icon name="megaphone" size={16} />
-      Manage notices
-    </a>
+
+    <div class="charts">
+      <div class="card-block">
+        <h3>Queries per week</h3>
+        <p class="hint">Last 12 weeks, spam excluded. This week is highlighted.</p>
+        <WeeklyColumns weeks={req.weeks} caption="Queries received per week over the last 12 weeks" unit={['query', 'queries']} />
+      </div>
+      <div class="card-block">
+        <h3>What people write about</h3>
+        <p class="hint">Last 90 days</p>
+        <ShareBars items={req.topics} caption="Queries by topic, last 90 days" href={(key) => `/admin/requests?topic=${key}`} empty="No queries in the last 90 days." />
+        <h3 class="sub-title">Which office</h3>
+        <ShareBars items={req.offices} caption="Queries by office, last 90 days" href={(key) => `/admin/requests?branch=${key}`} empty="No queries in the last 90 days." />
+      </div>
+    </div>
   </section>
 
-  <div class="tiles">
-    {
-      tiles.map((tile) => (
-        <a class="tile" href={tile.href}>
-          <span class="icon-tile">
-            <Icon name={tile.icon} size={22} />
-          </span>
-          <strong>{tile.value}</strong>
-          <span>{tile.label}</span>
-          <small>{tile.extra}</small>
-        </a>
-      ))
-    }
-  </div>
+  <section aria-labelledby="content-title">
+    <h2 class="block-title" id="content-title">On the website now</h2>
+    <div class="content-grid">
+      <a class="card-block mini" href="/admin/notices">
+        <span class="mini-head"><Icon name="megaphone" size={18} /> Notices</span>
+        {
+          [
+            ['Banner', live.banner],
+            ['Pop-up', live.popup],
+          ].map(([kind, n]) => (
+            <span class="line">
+              <span class="kind">{kind as string}</span>
+              {n && typeof n === 'object' ? (
+                <>
+                  <StatusBadge status={n.tone} /> <span class="clip">{n.title_en || n.message_en || n.title_ne || n.message_ne}</span>
+                </>
+              ) : (
+                <span class="muted">none</span>
+              )}
+            </span>
+          ))
+        }
+        {content.notices.scheduled > 0 && <span class="hint">{plural(content.notices.scheduled, 'notice')} scheduled</span>}
+      </a>
 
-  <section class="form-section quick">
-    <h2>Quick actions</h2>
-    <div class="quick-links">
-      <a class="btn btn-ghost" href="/admin/news/new"><Icon name="newspaper" size={18} /> Write a news post</a>
-      <a class="btn btn-ghost" href="/admin/jobs/new"><Icon name="briefcase" size={18} /> Add a job</a>
-      <a class="btn btn-ghost" href="/admin/notices#new"><Icon name="megaphone" size={18} /> Post a notice</a>
+      <a class="card-block mini" href="/admin/news">
+        <span class="mini-head"><Icon name="newspaper" size={18} /> News</span>
+        <span class="big">{content.news.published}</span>
+        <span class="hint">published · {content.news.drafts} draft{content.news.drafts === 1 ? '' : 's'}{content.news.scheduled ? ` · ${content.news.scheduled} scheduled` : ''}</span>
+        <span class="hint">{content.news.lastPublished ? `Latest: ${formatDay(content.news.lastPublished)} (${newsAge === 0 ? 'today' : plural(newsAge!, 'day') + ' ago'})` : 'Nothing published yet'}</span>
+      </a>
+
+      <a class="card-block mini" href="/admin/jobs">
+        <span class="mini-head"><Icon name="briefcase" size={18} /> Jobs</span>
+        <span class="big">{content.jobs.open}</span>
+        <span class="hint">open on Careers · {content.jobs.drafts} draft{content.jobs.drafts === 1 ? '' : 's'}</span>
+        {content.closingJobs.map((j) => <span class="hint">Closes {formatDay(j.deadline)}: {j.title}</span>)}
+      </a>
+
+      <a class="card-block mini" href="/admin/stats">
+        <span class="mini-head"><Icon name="chart-bar" size={18} /> Statistics</span>
+        <span class="big">{STAT_GROUP_IDS.length - staleStats.length}/{STAT_GROUP_IDS.length}</span>
+        <span class="hint">groups updated in the last 6 months</span>
+        <span class="hint">Oldest figures: {formatDay(oldestAsOf)}</span>
+      </a>
+
+      <a class="card-block mini" href="/admin/pages">
+        <span class="mini-head"><Icon name="file-text" size={18} /> Pages</span>
+        <span class="big">{content.pages.edited}</span>
+        <span class="hint">{content.pages.edited === 1 ? 'section' : 'sections'} changed from the original</span>
+        <span class="hint">{content.pages.lastEdit ? `Last edit ${formatNpt(content.pages.lastEdit)}` : 'Showing the original text'}</span>
+      </a>
     </div>
-    <p class="hint">
-      Changes appear on the website within a few seconds of saving. Everything can be written in English, Nepali or both —
-      if one language is empty, visitors see the other.
-    </p>
+  </section>
+
+  {
+    isMaster && admins && security && storage && recent && (
+      <section aria-labelledby="team-title">
+        <h2 class="block-title" id="team-title">Team, security and storage</h2>
+        <div class="master-grid">
+          <div class="card-block">
+            <h3>Admins</h3>
+            <ul class="people" role="list">
+              {admins.map((a) => (
+                <li>
+                  <span>
+                    <strong>{a.name || a.email}</strong>
+                    <small class="hint">{a.role === 'owner' ? 'Master admin' : 'Sub-admin'}</small>
+                  </span>
+                  <span class="person-meta">
+                    {a.totp_enabled_at ? (
+                      <span class="pill good">
+                        <Icon name="check" size={12} /> 2FA on
+                      </span>
+                    ) : (
+                      <span class="pill warn">2FA not set up</span>
+                    )}
+                    <small class="hint">{a.last_seen_at ? `Active ${ago(a.last_seen_at)} ago` : 'Never signed in'}</small>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <a class="link-arrow" href="/admin/users">
+              Manage users <Icon name="arrow-right" size={14} />
+            </a>
+          </div>
+
+          <div class="card-block">
+            <h3>Sign-ins · last 7 days</h3>
+            <div class="trio">
+              <div>
+                <span class="big">{security.signIns}</span>
+                <span class="hint">successful</span>
+              </div>
+              <div>
+                <span class:list={['big', { alert: security.failed > 0 }]}>{security.failed}</span>
+                <span class="hint">failed{security.failedIps ? ` · from ${plural(security.failedIps, 'address', 'addresses')}` : ''}</span>
+              </div>
+              <div>
+                <span class:list={['big', { alert: security.blocked > 0 }]}>{security.blocked}</span>
+                <span class="hint">blocked</span>
+              </div>
+            </div>
+            <a class="link-arrow" href="/admin/activity?kind=sign-ins">
+              See sign-ins <Icon name="arrow-right" size={14} />
+            </a>
+          </div>
+
+          <div class="card-block">
+            <h3>Storage</h3>
+            <div class="meter" role="img" aria-label={`${usedPct.toFixed(1)}% of the free database space used`}>
+              <span class="fill images" style={`width: ${imagesPct}%`} />
+              <span class="fill other" style={`width: ${Math.max(0, usedPct - imagesPct)}%`} />
+            </div>
+            <p class="hint">
+              <strong class="ink">{formatBytes(storage.dbBytes)}</strong> of about {formatBytes(STORAGE_LIMIT_BYTES)} ({usedPct.toFixed(1)}%)
+            </p>
+            <p class="hint">
+              <span class="key images" /> Images {formatBytes(storage.mediaBytes)} ({storage.files}) <span class="key other" /> Everything else{' '}
+              {formatBytes(Math.max(0, storage.dbBytes - storage.mediaBytes))}
+            </p>
+            <a class="link-arrow" href="/admin/files">
+              Manage files <Icon name="arrow-right" size={14} />
+            </a>
+          </div>
+
+          <div class="card-block recent">
+            <h3>Recent changes</h3>
+            {recent.length === 0 ? (
+              <p class="hint">No changes yet.</p>
+            ) : (
+              <ul class="changes" role="list">
+                {recent.map((e) => (
+                  <li>
+                    <span>
+                      <strong>{e.actor_email ? (nameOf.get(e.actor_email) ?? e.actor_email) : 'System'}</strong> {describe(e)}
+                      {e.label && <span class="clip"> “{e.label}”</span>}
+                    </span>
+                    <small class="hint">{ago(e.at)} ago</small>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <a class="link-arrow" href="/admin/activity">
+              Full activity log <Icon name="arrow-right" size={14} />
+            </a>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <section class="card-block quick" aria-labelledby="quick-title">
+    <h2 id="quick-title">Quick actions</h2>
+    <div class="quick-links">
+      <a class="btn btn-ghost" href="/admin/requests?status=new"><Icon name="messages-square" size={18} /> Answer queries</a>
+      <a class="btn btn-ghost" href="/admin/news/new"><Icon name="newspaper" size={18} /> Write a news post</a>
+      <a class="btn btn-ghost" href="/admin/notices#new"><Icon name="megaphone" size={18} /> Post a notice</a>
+      <a class="btn btn-ghost" href="/admin/jobs/new"><Icon name="briefcase" size={18} /> Add a job</a>
+      <a class="btn btn-ghost" href="/admin/stats"><Icon name="chart-bar" size={18} /> Update figures</a>
+      <a class="btn btn-ghost" href="/admin/pages"><Icon name="file-text" size={18} /> Edit pages</a>
+    </div>
   </section>
 </AdminLayout>
 
 <style>
-  .welcome {
-    margin-bottom: 1.25rem;
-    font-size: 1.1rem;
-    color: var(--ink);
-  }
-
-  .notice-card {
+  .hello {
     display: flex;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 0.75rem 1.5rem;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 1.25rem;
-    padding: 1.25rem 1.5rem;
-    border-radius: var(--radius);
-    background: #fff;
-    border: 1px solid var(--line);
-    border-left: 4px solid var(--yellow);
   }
 
-  .notice-card p {
-    margin-top: 0.35rem;
+  .greeting {
+    margin: 0;
+    font-family: var(--font-head);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .hello .hint {
+    margin: 0.15rem 0 0;
+  }
+
+  section + section,
+  .card-block + section {
+    margin-top: 1.75rem;
+  }
+
+  .block-title {
+    margin: 0 0 0.75rem;
+    font-size: 1.05rem !important;
+    color: var(--ink);
+  }
+
+  .card-block {
+    display: grid;
+    gap: 0.6rem;
+    align-content: start;
+    padding: 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+  }
+
+  .card-block h2,
+  .card-block h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--ink);
+  }
+
+  .card-block .hint {
+    margin: 0;
+  }
+
+  /* Needs attention */
+  .all-clear {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin: 0;
+    font-weight: 600;
+    color: var(--green-800);
+  }
+
+  .todo {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .todo-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.6rem 0.75rem;
+    border-radius: 12px;
+    border-left: 4px solid;
+  }
+
+  .todo-item.bad {
+    background: #fdf1ef;
+    border-color: #c4320a;
+  }
+
+  .todo-item.warn {
+    background: #fff9e0;
+    border-color: #b58500;
+  }
+
+  .todo-item.info {
+    background: #f1f6fb;
+    border-color: #3b7dc4;
+  }
+
+  .todo-icon {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: #fff;
+    color: var(--ink);
+  }
+
+  .todo-text {
+    font-size: 0.95rem;
+    color: var(--ink);
+  }
+
+  @media (max-width: 640px) {
+    .todo-item {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .todo-item .btn {
+      grid-column: 2;
+      justify-self: start;
+    }
+  }
+
+  /* Headline figures */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .kpi {
+    display: grid;
+    gap: 0.2rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: #fff;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .kpi:hover {
+    border-color: var(--green-200);
+  }
+
+  .kpi.good {
+    border-top-color: var(--green);
+  }
+
+  .kpi.warn {
+    border-top-color: #b58500;
+  }
+
+  .kpi.bad {
+    border-top-color: #c4320a;
+  }
+
+  .kpi-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .kpi-value {
+    font-family: var(--font-head);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--ink);
+  }
+
+  .kpi-note {
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  .charts {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 1000px) {
+    .charts {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .sub-title {
+    margin-top: 0.75rem !important;
+  }
+
+  /* On the website now */
+  .content-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: 0.75rem;
+  }
+
+  .mini {
+    min-width: 0;
+    gap: 0.35rem;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .mini:hover {
+    border-color: var(--green-200);
+  }
+
+  .mini-head {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .mini-head :global(.icon) {
+    color: var(--green);
+  }
+
+  .big {
+    font-family: var(--font-head);
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--ink);
+  }
+
+  .big.alert {
+    color: #b42318;
+  }
+
+  .line {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    min-width: 0;
+    font-size: 0.9rem;
   }
 
   .kind {
-    display: inline-block;
-    min-width: 4.2rem;
+    flex: none;
+    width: 3.6rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    color: var(--ink);
+    color: var(--muted);
   }
 
-  .tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-    gap: 1rem;
-    margin-bottom: 1.25rem;
+  .clip {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .tile {
+  /* Master only */
+  .master-grid {
     display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 0.75rem;
+  }
+
+  .people,
+  .changes {
+    display: grid;
+    gap: 0.55rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .people li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .people li > span {
+    display: grid;
+  }
+
+  .person-meta {
+    justify-items: end;
+  }
+
+  .pill {
+    display: inline-flex;
     gap: 0.2rem;
-    padding: 1.25rem;
-    border-radius: var(--radius);
-    background: #fff;
-    border: 1px solid var(--line);
-    color: var(--muted);
-    text-decoration: none;
-    transition: border-color 0.2s, transform 0.2s var(--ease);
-  }
-
-  .tile:hover {
-    border-color: var(--green-200);
-    transform: translateY(-2px);
-    color: var(--muted);
-  }
-
-  .tile .icon-tile {
-    margin-bottom: 0.5rem;
-  }
-
-  .tile strong {
-    font-family: var(--font-head);
-    font-size: 2rem;
-    line-height: 1.1;
-    color: var(--green-700);
-  }
-
-  .tile span {
-    color: var(--ink);
+    align-items: center;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
     font-weight: 600;
+  }
+
+  .pill.good {
+    background: var(--green-100);
+    color: var(--green-800);
+  }
+
+  .pill.warn {
+    background: #fff4c2;
+    color: #6b5300;
+  }
+
+  .trio {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .trio div {
+    display: grid;
+  }
+
+  .meter {
+    display: flex;
+    height: 0.75rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #eef0ee;
+  }
+
+  .fill.images,
+  .key.images {
+    background: #459a2e;
+  }
+
+  .fill.other,
+  .key.other {
+    background: #8b8a99;
+  }
+
+  .key {
+    display: inline-block;
+    width: 0.65rem;
+    height: 0.65rem;
+    margin-inline: 0.2rem 0.1rem;
+    border-radius: 3px;
+    vertical-align: -1px;
+  }
+
+  .ink {
+    color: var(--ink);
+  }
+
+  .changes li {
+    display: grid;
+    gap: 0.05rem;
+    font-size: 0.9rem;
+    min-width: 0;
+  }
+
+  .changes li > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .quick-links {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.6rem;
+    gap: 0.5rem;
   }
 </style>

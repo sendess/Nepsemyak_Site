@@ -1,0 +1,115 @@
+---
+import SectionHead from '~/components/SectionHead.astro';
+import YouTube from '~/components/YouTube.astro';
+import { org } from '~/data/site';
+import { items, paras, pick, type Content } from '~/lib/pages';
+import { useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { content: Content; lang: Lang; tone: 'white' | 'tint'; id: string };
+const { content, lang, tone, id } = Astro.props;
+const t = useTranslations(lang);
+const milestones = items(content, 'items');
+---
+
+<section class:list={['section', `section-${tone}`]} aria-labelledby={`${id}-title`}>
+  <div class="container">
+    <SectionHead title={pick(content, 'title', lang)} id={`${id}-title`} center />
+    {
+      milestones.length > 0 && (
+        <ol class="timeline" style={`--cols: ${Math.min(Math.max(milestones.length, 1), 4)}`}>
+          {milestones.map((m) => (
+            <li class="reveal">
+              <span class="t-year">{pick(m, 'year', lang)}</span>
+              <div class="card">
+                <h3 class="h4">{pick(m, 'title', lang)}</h3>
+                {paras(m, 'text', lang).map((p) => <p>{p}</p>)}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )
+    }
+    {
+      content.show_video !== false && (
+        <div class="video reveal">
+          <YouTube id={org.youtubeVideoId} title={t('home.about.videoTitle')} label={t('home.about.video')} />
+        </div>
+      )
+    }
+  </div>
+</section>
+
+<style>
+  .timeline {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 4), 1fr);
+    gap: 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: 1.5rem;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(to right, var(--green-200), var(--green), var(--slate));
+    border-radius: 3px;
+  }
+
+  .timeline li {
+    position: relative;
+    display: grid;
+    gap: 1rem;
+    align-content: start;
+  }
+
+  .t-year {
+    position: relative;
+    justify-self: start;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    background: var(--yellow);
+    color: var(--green-900);
+    font-family: var(--font-head);
+    font-weight: 700;
+    font-size: 1.25rem;
+    box-shadow: 0 0 0 6px var(--green-50);
+  }
+
+  .timeline .card {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .timeline .card p {
+    color: var(--muted);
+    font-size: 0.98rem;
+  }
+
+  @media (max-width: 900px) {
+    .timeline {
+      grid-template-columns: 1fr;
+      padding-left: 1.5rem;
+    }
+
+    .timeline::before {
+      top: 0;
+      bottom: 0;
+      left: 0.35rem;
+      right: auto;
+      width: 3px;
+      height: auto;
+      background: linear-gradient(to bottom, var(--green-200), var(--green), var(--slate));
+    }
+  }
+
+  .video {
+    max-width: 860px;
+    margin: clamp(2.5rem, 6vw, 4rem) auto 0;
+  }
+</style>

@@ -4,13 +4,16 @@ import Home from '~/views/Home.astro';
 import { cachePublic } from '~/lib/cache';
 import { listPublishedNews } from '~/lib/content';
 import { getAllStats } from '~/lib/stats';
+import { getPageSections } from '~/lib/pages';
 
 export const prerender = false;
 
-const [latestNews, stats] = await Promise.all([listPublishedNews(3), getAllStats()]);
-cachePublic(Astro.response.headers, ['news', 'stats']);
+const [latestNews, stats, aboutSections] = await Promise.all([listPublishedNews(3), getAllStats(), getPageSections('about')]);
+const section = (key: string) => aboutSections.find((s) => s.key === key)!.content;
+const about = { intro: section('intro'), timeline: section('timeline'), chairman: section('chairman') };
+cachePublic(Astro.response.headers, ['news', 'stats', 'content']);
 ---
 
 <BaseLayout>
-  <Home lang="ne" latestNews={latestNews} stats={stats} />
+  <Home lang="ne" latestNews={latestNews} stats={stats} about={about} />
 </BaseLayout>

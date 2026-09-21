@@ -1,0 +1,157 @@
+---
+import { BUILTIN_PHOTOS } from '~/lib/pages';
+
+/**
+ * Photo picker for page sections. Shows the uploaded photo, or the website's original photo when
+ * nothing has been uploaded. Works inside rows added on the page (team members), because its
+ * script listens on the whole document.
+ */
+type Props = { name: string; label: string; mediaId?: string | null; builtin?: string | null; hint?: string };
+const { name, label, mediaId = null, builtin = null, hint } = Astro.props;
+const original = builtin ? BUILTIN_PHOTOS[builtin] : null;
+const previewSrc = mediaId ? `/media/${mediaId}` : (original?.src ?? '');
+---
+
+<div class="photo-field" data-photo-field>
+  <span class="label">{label}</span>
+  {hint && <p class="hint">{hint}</p>}
+  <input type="hidden" name={name} value={mediaId ?? ''} data-media-id />
+  <input type="hidden" name={`${name}_builtin`} value={builtin ?? ''} data-builtin />
+  <div class="row">
+    <div class="thumb" data-thumb hidden={!previewSrc}>
+      <img src={previewSrc} alt="" data-thumb-img />
+      <span class="badge" data-original-badge hidden={!!mediaId || !original}>Original photo</span>
+    </div>
+    <div class="buttons">
+      <label class="btn btn-ghost btn-sm upload">
+        <input type="file" accept="image/jpeg,image/png,image/webp" data-file />
+        <span data-upload-label>{previewSrc ? 'Replace photo' : 'Upload a photo'}</span>
+      </label>
+      <button class="btn btn-danger btn-sm" type="button" data-remove hidden={!previewSrc}>Remove photo</button>
+    </div>
+  </div>
+  <p class="status" data-status role="status"></p>
+</div>
+
+<script>
+  import { uploadImage } from '~/scripts/image-upload';
+  import { hideBusy, showBusy } from '~/scripts/busy';
+
+  const parts = (field: HTMLElement) => ({
+    id: field.querySelector<HTMLInputElement>('[data-media-id]')!,
+    builtin: field.querySelector<HTMLInputElement>('[data-builtin]')!,
+    thumb: field.querySelector<HTMLElement>('[data-thumb]')!,
+    img: field.querySelector<HTMLImageElement>('[data-thumb-img]')!,
+    badge: field.querySelector<HTMLElement>('[data-original-badge]')!,
+    remove: field.querySelector<HTMLButtonElement>('[data-remove]')!,
+    uploadLabel: field.querySelector<HTMLElement>('[data-upload-label]')!,
+    status: field.querySelector<HTMLElement>('[data-status]')!,
+  });
+
+  document.addEventListener('change', async (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.matches('[data-photo-field] [data-file]')) return;
+    const file = input.files?.[0];
+    if (!file) return;
+    const field = input.closest<HTMLElement>('[data-photo-field]')!;
+    const p = parts(field);
+    const button = input.closest<HTMLElement>('.upload');
+    showBusy(button);
+    p.status.textContent = 'Resizing and uploading…';
+    try {
+      const { id, url, kb } = await uploadImage(file);
+      p.id.value = id;
+      p.img.src = url;
+      p.thumb.hidden = false;
+      p.badge.hidden = true;
+      p.remove.hidden = false;
+      p.uploadLabel.textContent = 'Replace photo';
+      p.status.textContent = `Uploaded (${kb} KB). Remember to save.`;
+    } catch (err) {
+      p.status.textContent = err instanceof Error ? err.message : 'Upload failed.';
+    } finally {
+      hideBusy(button);
+      input.value = '';
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    const button = event.target instanceof Element ? event.target.closest('[data-photo-field] [data-remove]') : null;
+    if (!button) return;
+    const p = parts(button.closest<HTMLElement>('[data-photo-field]')!);
+    p.id.value = '';
+    p.builtin.value = '';
+    p.thumb.hidden = true;
+    p.remove.hidden = true;
+    p.uploadLabel.textContent = 'Upload a photo';
+    p.status.textContent = 'Photo removed. Remember to save.';
+  });
+</script>
+
+<style>
+  .photo-field {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .label {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .thumb {
+    position: relative;
+    width: 7.5rem;
+  }
+
+  .thumb img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+  }
+
+  .badge {
+    position: absolute;
+    left: 0.35rem;
+    bottom: 0.35rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    background: rgb(0 0 0 / 0.6);
+    color: #fff;
+    font-size: 0.72rem;
+  }
+
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .upload {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .status {
+    min-height: 1.2em;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+</style>

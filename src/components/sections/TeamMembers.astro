@@ -1,0 +1,143 @@
+---
+import Icon from '~/components/Icon.astro';
+import SectionPhoto from './SectionPhoto.astro';
+import { items, photo, pick, type Content } from '~/lib/pages';
+import { telHref, type Lang } from '~/i18n/utils';
+
+type Props = { content: Content; lang: Lang; tone: 'white' | 'tint' };
+const { content, lang, tone } = Astro.props;
+const members = items(content, 'members');
+
+/** Two letters for people without a photo. */
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+---
+
+<section class:list={['section', `section-${tone}`]}>
+  <div class="container">
+    <ul class="team" role="list">
+      {
+        members.map((m, i) => {
+          const name = pick(m, 'name', lang);
+          const portrait = photo(m, 'photo');
+          const phone = String(m.phone ?? '');
+          return (
+            <li class:list={['member', 'reveal', { lead: i === 0 }]}>
+              <div class="photo">
+                {portrait.media || portrait.builtin ? (
+                  <SectionPhoto photo={portrait} alt={name} sizes="(max-width: 600px) 90vw, 280px" />
+                ) : (
+                  <span class="initials" aria-hidden="true">
+                    {initials(name)}
+                  </span>
+                )}
+              </div>
+              <div class="info">
+                <h2 class="h4">{name}</h2>
+                <p class="role">{pick(m, 'role', lang)}</p>
+                {phone && (
+                  <a class="phone" href={telHref(phone)}>
+                    <Icon name="phone" size={16} />
+                    {phone}
+                  </a>
+                )}
+              </div>
+            </li>
+          );
+        })
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .team {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr));
+    gap: 1.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .member {
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    transition:
+      transform 0.25s var(--ease),
+      box-shadow 0.25s var(--ease);
+  }
+
+  .member:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+  }
+
+  .photo {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    background: var(--green-700);
+  }
+
+  .photo :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s var(--ease);
+  }
+
+  .member:hover .photo :global(img) {
+    transform: scale(1.04);
+  }
+
+  .lead .photo::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: 5px;
+    background: linear-gradient(to right, var(--green-bright), var(--yellow));
+  }
+
+  .info {
+    display: grid;
+    gap: 0.3rem;
+    padding: 1.1rem 1.25rem 1.3rem;
+  }
+
+  .role {
+    font-size: 0.95rem;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+
+  .phone {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+  }
+
+  .initials {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, var(--green-100), var(--green-50));
+    color: var(--green-700);
+    font-family: var(--font-head);
+    font-size: 3rem;
+    font-weight: 700;
+  }
+</style>

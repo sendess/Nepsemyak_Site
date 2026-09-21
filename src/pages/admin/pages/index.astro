@@ -1,0 +1,68 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import { PAGES, PAGE_IDS, pageActivity } from '~/lib/pages';
+import { formatNpt } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const activity = await pageActivity();
+---
+
+<AdminLayout title="Pages">
+  <div class="toolbar">
+    <p class="hint">
+      Edit the text and photos on these pages, hide or reorder their sections, or add new sections. Changes appear on the
+      website within a few seconds of saving, in English and Nepali.
+    </p>
+  </div>
+
+  <div class="cards">
+    {
+      PAGE_IDS.map((id) => {
+        const page = PAGES[id];
+        const a = activity[id];
+        return (
+          <a class="card page-card" href={`/admin/pages/${id}`}>
+            <span class="h4">{page.label}</span>
+            <span class="hint">
+              {page.sections.length} built-in {page.sections.length === 1 ? 'section' : 'sections'} · {page.path}
+            </span>
+            <span class="hint">{a?.updatedAt ? `Last edited ${formatNpt(a.updatedAt)} by ${a.updatedBy ?? 'system'}` : 'Showing the original text'}</span>
+            <span class="link-arrow">
+              Edit <Icon name="arrow-right" size={16} />
+            </span>
+          </a>
+        );
+      })
+    }
+  </div>
+
+  <p class="hint more">
+    More pages (Services, FAQ, Downloads, offices…) will be added here step by step. Until then they are updated by the site
+    developer.
+  </p>
+</AdminLayout>
+
+<style>
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    gap: 1rem;
+  }
+
+  .page-card {
+    display: grid;
+    gap: 0.4rem;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .page-card:hover {
+    border-color: var(--green-200);
+  }
+
+  .more {
+    margin-top: 1.5rem;
+  }
+</style>

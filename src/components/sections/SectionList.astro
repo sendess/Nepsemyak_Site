@@ -1,0 +1,39 @@
+---
+import Intro from './Intro.astro';
+import Timeline from './Timeline.astro';
+import Compare from './Compare.astro';
+import Chairman from './Chairman.astro';
+import Goals from './Goals.astro';
+import Links from './Links.astro';
+import TeamMembers from './TeamMembers.astro';
+import TextBlock from './TextBlock.astro';
+import type { Section, SectionKind } from '~/lib/pages';
+import type { Lang } from '~/i18n/utils';
+
+/**
+ * The visible sections of a page, in order. Backgrounds alternate white / tinted automatically,
+ * so hiding, adding or moving a section never puts two of the same colour next to each other.
+ */
+type Props = { sections: Section[]; lang: Lang };
+const { sections, lang } = Astro.props;
+
+const COMPONENTS: Record<SectionKind, (props: any) => any> = {
+  intro: Intro,
+  timeline: Timeline,
+  compare: Compare,
+  chairman: Chairman,
+  goals: Goals,
+  links: Links,
+  team: TeamMembers,
+  text: TextBlock,
+};
+
+const visible = sections.filter((s) => s.visible);
+---
+
+{
+  visible.map((s, i) => {
+    const Component = COMPONENTS[s.kind];
+    return <Component content={s.content} lang={lang} tone={i % 2 === 0 ? 'white' : 'tint'} id={`section-${s.key}`} />;
+  })
+}

@@ -1,0 +1,132 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import SectionForm from '~/components/admin/SectionForm.astro';
+import {
+  deleteCustomSection,
+  FIELDS,
+  getSection,
+  isPageId,
+  PAGES,
+  readSectionForm,
+  restoreOriginal,
+  saveSectionContent,
+  withoutMissingMedia,
+} from '~/lib/pages';
+import { requestActor } from '~/lib/audit';
+import { purge } from '~/lib/cache';
+import { formatNpt } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const pageId = Astro.params.page;
+if (!isPageId(pageId)) return Astro.redirect('/admin/pages', 303);
+const page = PAGES[pageId];
+const section = await getSection(pageId, Astro.params.key ?? '');
+if (!section) return Astro.redirect(`/admin/pages/${pageId}`, 303);
+const back = `/admin/pages/${pageId}`;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const actor = requestActor(Astro, Astro.locals.admin!.email);
+  const action = form.get('_action');
+
+  if (action === 'restore' && section.builtIn) {
+    await restoreOriginal(pageId, section, actor);
+    await purge(['content']);
+    return Astro.redirect(`${Astro.url.pathname}?restored=1`, 303);
+  }
+  if (action === 'delete' && !section.builtIn) {
+    await deleteCustomSection(pageId, section.key, actor);
+    await purge(['content']);
+    return Astro.redirect(`${back}?done=deleted`, 303);
+  }
+  const content = await withoutMissingMedia(readSectionForm(form, FIELDS[section.kind]));
+  await saveSectionContent(pageId, { ...section, visible: form.get('visible') === 'on' }, content, actor);
+  await purge(['content']);
+  return Astro.redirect(`${Astro.url.pathname}?saved=1`, 303);
+}
+
+const saved = Astro.url.searchParams.has('saved');
+const restored = Astro.url.searchParams.has('restored');
+const isNew = Astro.url.searchParams.has('new');
+const anchor = section.kind === 'chairman' ? '#chairman' : '';
+---
+
+<AdminLayout title={`${page.label}: ${section.label}`} wide>
+  {saved && <p class="flash"><Icon name="circle-check" size={20} /> Saved. The website is updated.</p>}
+  {restored && <p class="flash"><Icon name="circle-check" size={20} /> The original text is back on the website.</p>}
+  {isNew && <p class="flash">New section added. Fill it in, tick “Show on the website”, and save.</p>}
+
+  <div class="toolbar">
+    <a class="link-arrow" href={back}><Icon name="arrow-left" size={16} /> {page.label}</a>
+    <a class="btn btn-ghost btn-sm" href={`${page.path}${anchor}`} target="_blank" rel="noopener">
+      View on the website <Icon name="external-link" size={16} />
+    </a>
+  </div>
+
+  <p class="hint">
+    {section.description}
+    {section.builtIn && !section.edited && ' This section still shows the original text.'}
+    {section.updatedAt && section.edited && ` Last edited ${formatNpt(section.updatedAt)} by ${section.updatedBy ?? 'system'}.`}
+    {' '}Fill in both languages where you can; if one is empty, visitors see the other.
+  </p>
+
+  <form method="post" class="form-grid editor">
+    <SectionForm fields={FIELDS[section.kind]} content={section.content} />
+
+    <div class="actions-bar">
+      <label class="check-row">
+        <input type="checkbox" name="visible" checked={section.visible} /> Show on the website
+      </label>
+      <button class="btn btn-primary" type="submit" name="_action" value="save">
+        <Icon name="check" size={18} /> Save
+      </button>
+    </div>
+  </form>
+
+  {
+    section.builtIn && section.edited && (
+      <form method="post" class="danger-zone" data-confirm="Put back the website’s original text and photos for this section? Your edits here will be replaced.">
+        <input type="hidden" name="_action" value="restore" />
+        <p class="hint">Changed your mind? Put back the text this section had originally.</p>
+        <button class="btn btn-ghost btn-sm" type="submit">
+          Restore original
+        </button>
+      </form>
+    )
+  }
+  {
+    !section.builtIn && (
+      <form method="post" class="danger-zone" data-confirm="Delete this section? This cannot be undone.">
+        <input type="hidden" name="_action" value="delete" />
+        <p class="hint">Remove this section from the page completely.</p>
+        <button class="btn btn-danger btn-sm" type="submit">
+          <Icon name="trash" size={16} /> Delete section
+        </button>
+      </form>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .editor {
+    margin-top: 1rem;
+  }
+
+  .danger-zone {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+  }
+
+  .danger-zone .hint {
+    margin: 0;
+  }
+</style>

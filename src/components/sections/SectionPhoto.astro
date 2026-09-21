@@ -1,0 +1,17 @@
+---
+import { BUILTIN_PHOTOS, type Photo } from '~/lib/pages';
+
+/** A section's photo: an uploaded image, or the website's original pre-sized photo. Renders nothing if neither. */
+type Props = { photo: Photo; alt: string; sizes: string; class?: string; eager?: boolean };
+const { photo, alt, sizes, class: className, eager = false } = Astro.props;
+const builtin = photo.builtin ? BUILTIN_PHOTOS[photo.builtin] : null;
+const loading = eager ? 'eager' : 'lazy';
+---
+
+{
+  photo.media ? (
+    <img class={className} src={`/media/${photo.media}`} alt={alt} loading={loading} decoding="async" />
+  ) : builtin ? (
+    <img class={className} src={builtin.src} srcset={builtin.srcset} sizes={sizes} width={builtin.width} height={builtin.height} alt={alt} loading={loading} decoding="async" />
+  ) : null
+}

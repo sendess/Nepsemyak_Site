@@ -1,0 +1,70 @@
+---
+import SectionPhoto from './SectionPhoto.astro';
+import { paras, photo, pick, type Content } from '~/lib/pages';
+import type { Lang } from '~/i18n/utils';
+
+/** A section added by staff: a title, text and an optional photo beside it. */
+type Props = { content: Content; lang: Lang; tone: 'white' | 'tint'; id: string };
+const { content, lang, tone, id } = Astro.props;
+const title = pick(content, 'title', lang);
+const image = photo(content, 'image');
+const hasImage = !!(image.media || image.builtin);
+---
+
+<section class:list={['section', `section-${tone}`]} aria-labelledby={title ? `${id}-title` : undefined}>
+  <div class:list={['container', 'block', { 'with-image': hasImage, 'image-left': content.image_side === 'left' }]}>
+    <div class="text stack" style="--stack: 1rem">
+      {title && <h2 class="h2" id={`${id}-title`}>{title}</h2>}
+      {paras(content, 'body', lang).map((p) => <p>{p}</p>)}
+    </div>
+    {
+      hasImage && (
+        <div class="image reveal">
+          <SectionPhoto photo={image} alt={title} sizes="(max-width: 860px) 92vw, 480px" />
+        </div>
+      )
+    }
+  </div>
+</section>
+
+<style>
+  .block {
+    display: grid;
+    gap: clamp(1.5rem, 4vw, 3.5rem);
+    align-items: center;
+  }
+
+  .block:not(.with-image) .text {
+    max-width: 48rem;
+  }
+
+  .with-image {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  }
+
+  .with-image.image-left .image {
+    order: -1;
+  }
+
+  .with-image.image-left {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  }
+
+  @media (max-width: 860px) {
+    .with-image,
+    .with-image.image-left {
+      grid-template-columns: 1fr;
+    }
+
+    .with-image.image-left .image {
+      order: 0;
+    }
+  }
+
+  .image :global(img) {
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+</style>

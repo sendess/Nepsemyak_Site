@@ -1,12 +1,19 @@
 ---
 import BaseLayout from '~/layouts/BaseLayout.astro';
 import View from '~/views/About.astro';
+import { cachePublic } from '~/lib/cache';
+import { getPageSections } from '~/lib/pages';
 import { useTranslations } from '~/i18n/utils';
+
+// Content is edited in the admin panel; the page is cached until someone saves a change.
+export const prerender = false;
 
 const lang = 'en';
 const t = useTranslations(lang);
+const sections = await getPageSections('about');
+cachePublic(Astro.response.headers, ['content']);
 ---
 
 <BaseLayout title={t('about.title')} description={t('about.intro')}>
-  <View lang={lang} />
+  <View lang={lang} sections={sections} />
 </BaseLayout>

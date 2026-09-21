@@ -16,8 +16,10 @@ const nav: { href: string; label: string; icon: IconName; ownerOnly?: boolean }[
   { href: '/admin/stats', label: 'Statistics', icon: 'chart-bar' },
   { href: '/admin/news', label: 'News', icon: 'newspaper' },
   { href: '/admin/jobs', label: 'Jobs', icon: 'briefcase' },
+  { href: '/admin/pages', label: 'Pages', icon: 'file-text' },
   { href: '/admin/users', label: 'Users', icon: 'users', ownerOnly: true },
   { href: '/admin/activity', label: 'Activity', icon: 'clock', ownerOnly: true },
+  { href: '/admin/files', label: 'Files', icon: 'folder-open', ownerOnly: true },
   { href: '/admin/account', label: 'My account', icon: 'circle-check' },
 ];
 const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path === href || path.startsWith(`${href}/`));
@@ -169,6 +171,8 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
       }
 
       .table-wrap {
+        /* Keeps visually hidden labels (position: absolute) inside the scroll area on phones. */
+        position: relative;
         overflow-x: auto;
         border: 1px solid var(--line);
         border-radius: var(--radius);

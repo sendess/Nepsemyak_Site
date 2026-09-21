@@ -303,6 +303,11 @@ a:hover {
 }
 
 /* ---------- Buttons ---------- */
+/* The hidden attribute must win over display rules (e.g. a hidden .btn or grid step). */
+[hidden] {
+  display: none !important;
+}
+
 /* ---------- Waiting for the server ---------- */
 /* Buttons keep their name and value (forms rely on them), so busy state is shown, not disabled. */
 .btn[aria-busy='true'],

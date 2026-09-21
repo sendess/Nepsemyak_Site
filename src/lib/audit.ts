@@ -93,6 +93,8 @@ export const AUDIT_AREAS = {
   jobs: ['jobs'],
   stats: ['stat_groups', 'stat_items'],
   requests: ['service_requests'],
+  pages: ['page_sections'],
+  files: ['media'],
   users: ['admin_users'],
   auth: ['auth'],
 } as const;

@@ -1,0 +1,95 @@
+---
+import Icon from '~/components/Icon.astro';
+import SectionHead from '~/components/SectionHead.astro';
+import { lines, pick, type Content } from '~/lib/pages';
+import type { Lang } from '~/i18n/utils';
+
+type Props = { content: Content; lang: Lang; tone: 'white' | 'tint'; id: string };
+const { content, lang, tone, id } = Astro.props;
+---
+
+<section class:list={['section', `section-${tone}`]} aria-labelledby={`${id}-title`}>
+  <div class="container">
+    <SectionHead title={pick(content, 'title', lang)} id={`${id}-title`} />
+    <div class="compare">
+      <div class="compare-col before reveal">
+        <h3 class="h4"><Icon name="circle-x" size={22} /> {pick(content, 'before_title', lang)}</h3>
+        <ul>{lines(content, 'before', lang).map((b) => <li>{b}</li>)}</ul>
+      </div>
+      <div class="compare-col after reveal">
+        <h3 class="h4"><Icon name="circle-check" size={22} /> {pick(content, 'after_title', lang)}</h3>
+        <ul>{lines(content, 'after', lang).map((a) => <li>{a}</li>)}</ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .compare {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: 1.5rem;
+  }
+
+  .compare-col {
+    padding: clamp(1.5rem, 3vw, 2.25rem);
+    border-radius: var(--radius-lg);
+  }
+
+  .compare-col h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .compare-col ul {
+    display: grid;
+    gap: 0.85rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .compare-col li {
+    position: relative;
+    padding-left: 1.5rem;
+  }
+
+  .compare-col li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.65em;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+  }
+
+  .before {
+    background: #f3f2f6;
+    color: var(--slate-700);
+  }
+
+  .before h3 {
+    color: var(--slate);
+  }
+
+  .before li::before {
+    background: var(--slate);
+    opacity: 0.5;
+  }
+
+  .after {
+    background: var(--green-50);
+    border: 1px solid var(--green-100);
+  }
+
+  .after h3 {
+    color: var(--green-700);
+  }
+
+  .after li::before {
+    background: var(--green);
+  }
+</style>

@@ -1,0 +1,125 @@
+---
+import Icon from '~/components/Icon.astro';
+import SectionPhoto from './SectionPhoto.astro';
+import { paras, photo, pick, type Content } from '~/lib/pages';
+import { useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { content: Content; lang: Lang; tone: 'white' | 'tint' };
+const { content, lang, tone } = Astro.props;
+const t = useTranslations(lang);
+const name = pick(content, 'name', lang);
+const portrait = photo(content, 'photo');
+---
+
+<section class:list={['section', `section-${tone}`]} id="chairman" aria-labelledby="chairman-title">
+  <div class="container letter">
+    <aside class="letter-side">
+      {
+        (portrait.media || portrait.builtin) && (
+          <div class="photo">
+            <SectionPhoto photo={portrait} alt={name} sizes="(max-width: 860px) 60vw, 320px" />
+          </div>
+        )
+      }
+      <p class="sig-name">{name}</p>
+      <p class="sig-role">{pick(content, 'role', lang)}</p>
+    </aside>
+    <article class="letter-body">
+      <span class="eyebrow">{t('home.chairman.eyebrow')}</span>
+      <h2 class="h2" id="chairman-title">{pick(content, 'title', lang)}</h2>
+      {
+        pick(content, 'excerpt', lang) && (
+          <p class="pull">
+            <Icon name="quote" size={28} /> {pick(content, 'excerpt', lang)}
+          </p>
+        )
+      }
+      {paras(content, 'message', lang).map((p) => <p>{p}</p>)}
+      {pick(content, 'signoff', lang) && <p class="signoff">{pick(content, 'signoff', lang)}</p>}
+    </article>
+  </div>
+</section>
+
+<style>
+  .letter {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: clamp(2rem, 5vw, 4.5rem);
+    align-items: start;
+  }
+
+  @media (max-width: 860px) {
+    .letter {
+      grid-template-columns: 1fr;
+    }
+
+    .letter-side {
+      max-width: 320px;
+    }
+  }
+
+  .letter-side {
+    position: sticky;
+    top: calc(var(--header-h) + 2rem);
+  }
+
+  .photo :global(img) {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    object-position: 45% 20%;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+
+  .sig-name {
+    margin-top: 1.25rem;
+    font-family: var(--font-head);
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: var(--navy);
+  }
+
+  .sig-role {
+    color: var(--muted);
+  }
+
+  .letter-body {
+    display: grid;
+    gap: 1.25rem;
+    max-width: 44rem;
+    padding: clamp(1.5rem, 4vw, 3rem);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .pull {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    border-left: 4px solid var(--green);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background: var(--green-50);
+    font-family: var(--font-head);
+    font-size: var(--step-1);
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--navy);
+  }
+
+  :global(:lang(ne)) .pull {
+    font-family: var(--font-sans);
+  }
+
+  .pull :global(.icon) {
+    flex: none;
+    color: var(--green);
+  }
+
+  .signoff {
+    font-weight: 600;
+    color: var(--ink);
+  }
+</style>

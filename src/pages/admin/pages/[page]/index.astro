@@ -1,0 +1,215 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import { addCustomSection, deleteCustomSection, getPageSections, isPageId, moveSection, PAGES, setVisible } from '~/lib/pages';
+import { requestActor } from '~/lib/audit';
+import { purge } from '~/lib/cache';
+import { formatNpt } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const pageId = Astro.params.page;
+if (!isPageId(pageId)) return Astro.redirect('/admin/pages', 303);
+const page = PAGES[pageId];
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const actor = requestActor(Astro, Astro.locals.admin!.email);
+  const action = String(form.get('_action') ?? '');
+  const key = String(form.get('key') ?? '');
+  const sections = await getPageSections(pageId);
+  const section = sections.find((s) => s.key === key);
+  let done = '';
+
+  if (action === 'add') {
+    const newKey = await addCustomSection(pageId, actor);
+    await purge(['content']);
+    return Astro.redirect(`/admin/pages/${pageId}/${newKey}?new=1`, 303);
+  }
+  if (section && (action === 'up' || action === 'down')) {
+    await moveSection(pageId, key, action, actor);
+    done = 'moved';
+  } else if (section && (action === 'show' || action === 'hide')) {
+    await setVisible(pageId, section, action === 'show', actor);
+    done = action === 'show' ? 'shown' : 'hidden';
+  } else if (section && action === 'delete' && !section.builtIn) {
+    await deleteCustomSection(pageId, key, actor);
+    done = 'deleted';
+  }
+  if (done) await purge(['content']);
+  return Astro.redirect(`/admin/pages/${pageId}${done ? `?done=${done}` : ''}`, 303);
+}
+
+const sections = await getPageSections(pageId);
+const flash = Astro.url.searchParams.get('done');
+---
+
+<AdminLayout title={page.label}>
+  {flash && <p class="flash"><Icon name="circle-check" size={20} /> Section {flash}. The website is updated.</p>}
+
+  <div class="toolbar">
+    <a class="link-arrow" href="/admin/pages"><Icon name="arrow-left" size={16} /> All pages</a>
+    <a class="btn btn-ghost btn-sm" href={page.path} target="_blank" rel="noopener">
+      View page <Icon name="external-link" size={16} />
+    </a>
+  </div>
+
+  <p class="hint intro">
+    Sections are shown on the page in this order. Hidden sections stay here and can be shown again at any time.
+  </p>
+
+  <ol class="sections">
+    {
+      sections.map((s, i) => (
+        <li class:list={['section-row', { hidden: !s.visible }]}>
+          <div class="order">
+            <form method="post">
+              <input type="hidden" name="_action" value="up" />
+              <input type="hidden" name="key" value={s.key} />
+              <button class="btn btn-ghost btn-sm" type="submit" aria-label={`Move ${s.label} up`} disabled={i === 0}>
+                <Icon name="arrow-up" size={16} />
+              </button>
+            </form>
+            <form method="post">
+              <input type="hidden" name="_action" value="down" />
+              <input type="hidden" name="key" value={s.key} />
+              <button class="btn btn-ghost btn-sm" type="submit" aria-label={`Move ${s.label} down`} disabled={i === sections.length - 1}>
+                <Icon name="arrow-down" size={16} />
+              </button>
+            </form>
+          </div>
+          <div class="about">
+            <a class="name" href={`/admin/pages/${pageId}/${s.key}`}>
+              {s.label}
+            </a>
+            <span class="hint">{s.description}</span>
+            <span class="hint">
+              {!s.visible && <span class="tag off">Hidden</span>}
+              {!s.builtIn && <span class="tag">Added section</span>}
+              {s.builtIn && !s.edited && 'Original text'}
+              {s.updatedAt && s.edited && `Edited ${formatNpt(s.updatedAt)} by ${s.updatedBy ?? 'system'}`}
+            </span>
+          </div>
+          <div class="actions">
+            <a class="btn btn-primary btn-sm" href={`/admin/pages/${pageId}/${s.key}`}>
+              Edit
+            </a>
+            <form method="post">
+              <input type="hidden" name="_action" value={s.visible ? 'hide' : 'show'} />
+              <input type="hidden" name="key" value={s.key} />
+              <button class="btn btn-ghost btn-sm" type="submit">
+                {s.visible ? 'Hide' : 'Show'}
+              </button>
+            </form>
+            {!s.builtIn && (
+              <form method="post" data-confirm={`Delete the section “${s.label}”? This cannot be undone.`}>
+                <input type="hidden" name="_action" value="delete" />
+                <input type="hidden" name="key" value={s.key} />
+                <button class="btn btn-danger btn-sm" type="submit">
+                  Delete
+                </button>
+              </form>
+            )}
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+
+  <form method="post" class="add">
+    <input type="hidden" name="_action" value="add" />
+    <button class="btn btn-primary" type="submit">+ Add a section</button>
+    <span class="hint">A new section with a title, text and an optional photo. It stays hidden until you show it.</span>
+  </form>
+</AdminLayout>
+
+<style>
+  .intro {
+    margin-bottom: 1rem;
+  }
+
+  .sections {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .section-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+  }
+
+  .section-row.hidden {
+    background: #f6f6f4;
+  }
+
+  .section-row.hidden .name {
+    color: var(--muted);
+  }
+
+  @media (max-width: 760px) {
+    .section-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .order {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  @media (max-width: 760px) {
+    .order {
+      flex-direction: row;
+    }
+  }
+
+  .about {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .name {
+    font-weight: 700;
+    font-size: 1.05rem;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .tag {
+    display: inline-block;
+    margin-inline-end: 0.35rem;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    background: var(--green-100);
+    color: var(--green-800);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .tag.off {
+    background: #eef0ee;
+    color: #4b5563;
+  }
+
+  .add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin-top: 1.25rem;
+  }
+</style>

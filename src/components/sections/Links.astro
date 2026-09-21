@@ -1,0 +1,68 @@
+---
+import Icon from '~/components/Icon.astro';
+import SectionHead from '~/components/SectionHead.astro';
+import type { IconName } from '~/components/icons';
+import { pick, type Content } from '~/lib/pages';
+import { localizePath, useTranslations, type Lang } from '~/i18n/utils';
+
+type Props = { content: Content; lang: Lang; tone: 'white' | 'tint'; id: string };
+const { content, lang, tone, id } = Astro.props;
+const t = useTranslations(lang);
+
+const next: { path: string; icon: IconName; title: string; desc: string }[] = [
+  { path: '/team', icon: 'users', title: t('nav.team'), desc: t('nav.teamDesc') },
+  { path: '/impact', icon: 'chart-bar', title: t('nav.impact'), desc: t('nav.impactDesc') },
+  { path: '/services', icon: 'truck', title: t('nav.services'), desc: t('home.services.title') },
+];
+---
+
+<section class:list={['section', `section-${tone}`]} aria-labelledby={`${id}-title`}>
+  <div class="container">
+    <SectionHead title={pick(content, 'title', lang)} id={`${id}-title`} />
+    <div class="grid grid-3">
+      {
+        next.map((n) => (
+          <a class="card card-hover next" href={localizePath(n.path, lang)}>
+            <span class="icon-tile lg">
+              <Icon name={n.icon} size={26} />
+            </span>
+            <span class="h4 next-title">{n.title}</span>
+            <span class="muted">{n.desc}</span>
+            <Icon name="arrow-right" size={20} class="next-arrow" />
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .next {
+    display: grid;
+    gap: 0.6rem;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .next:hover {
+    color: inherit;
+  }
+
+  .next-title {
+    font-family: var(--font-head);
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  .next :global(.next-arrow) {
+    position: absolute;
+    top: 1.75rem;
+    right: 1.75rem;
+    color: var(--green);
+    transition: transform 0.2s var(--ease);
+  }
+
+  .next:hover :global(.next-arrow) {
+    transform: translateX(4px);
+  }
+</style>

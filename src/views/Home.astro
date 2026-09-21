@@ -12,13 +12,15 @@ import { findValue, type AllStats } from '~/lib/stats';
 import { org } from '~/data/site';
 import { serviceGroups } from '~/data/services';
 import { journey, sortingGuide } from '~/data/home';
-import { aboutIntro, milestones, chairman } from '~/data/about';
+import SectionPhoto from '~/components/sections/SectionPhoto.astro';
+import { items, paras, photo, pick, type Content } from '~/lib/pages';
 import { faqs } from '~/data/faq';
 import { formatNumber, localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
 import type { IconName } from '~/components/icons';
 
-type Props = { lang: Lang; latestNews: NewsPost[]; stats: AllStats };
-const { lang, latestNews, stats: allStats } = Astro.props;
+/** `about` is the About page's content (edited in the admin panel): intro, timeline and chairman sections. */
+type Props = { lang: Lang; latestNews: NewsPost[]; stats: AllStats; about: { intro: Content; timeline: Content; chairman: Content } };
+const { lang, latestNews, stats: allStats, about } = Astro.props;
 const t = useTranslations(lang);
 const href = (path: string) => localizePath(path, lang);
 const n = (v: number) => formatNumber(v, lang);
@@ -286,13 +288,13 @@ const sharedAsOf = statDates.length === 1 ? statDates[0] : null;
     <div class="stack" style="--stack: 1.25rem">
       <span class="eyebrow">{t('home.about.eyebrow')}</span>
       <h2 class="h2" id="about-title">{t('home.about.title')}</h2>
-      <p class="lead">{aboutIntro[0][lang]}</p>
+      <p class="lead">{paras(about.intro, 'body', lang)[0]}</p>
       <ol class="mini-timeline">
         {
-          milestones.map((m) => (
+          items(about.timeline, 'items').map((m) => (
             <li>
-              <span class="year">{m.year[lang]}</span>
-              <span>{m.title[lang]}</span>
+              <span class="year">{pick(m, 'year', lang)}</span>
+              <span>{pick(m, 'title', lang)}</span>
             </li>
           ))
         }
@@ -315,26 +317,18 @@ const sharedAsOf = statDates.length === 1 ? statDates[0] : null;
   <div class="container">
     <figure class="chairman reveal">
       <div class="chairman-photo">
-        <img
-          src="/images/chairman-560.webp"
-          srcset="/images/chairman-360.webp 360w, /images/chairman-560.webp 560w"
-          sizes="(max-width: 760px) 90vw, 360px"
-          alt={chairman.name[lang]}
-          width="560"
-          height="468"
-          loading="lazy"
-        />
+        <SectionPhoto photo={photo(about.chairman, 'photo')} alt={pick(about.chairman, 'name', lang)} sizes="(max-width: 760px) 90vw, 360px" />
       </div>
       <div class="chairman-body">
         <span class="eyebrow" id="chairman-title">{t('home.chairman.eyebrow')}</span>
         <blockquote>
           <Icon name="quote" size={40} class="quote-mark" />
-          <p>{chairman.excerpt[lang]}</p>
-          <p class="quote-more">{chairman.message[4][lang]}</p>
+          <p>{pick(about.chairman, 'excerpt', lang)}</p>
+          {pick(about.chairman, 'home_quote', lang) && <p class="quote-more">{pick(about.chairman, 'home_quote', lang)}</p>}
         </blockquote>
         <figcaption>
-          <strong>{chairman.name[lang]}</strong>
-          <span>{chairman.role[lang]}</span>
+          <strong>{pick(about.chairman, 'name', lang)}</strong>
+          <span>{pick(about.chairman, 'role', lang)}</span>
         </figcaption>
         <a class="link-arrow" href={`${href('/about')}#chairman`}>
           {t('cta.readMessage')}

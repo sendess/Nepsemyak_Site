@@ -1,0 +1,262 @@
+---
+import BilingualField from './BilingualField.astro';
+import PhotoField from './PhotoField.astro';
+import Icon from '~/components/Icon.astro';
+import { type Content, type Field, type ItemField } from '~/lib/pages';
+
+/** Form fields for one page section, built from its field list (see FIELDS in src/lib/pages.ts). */
+type Props = { fields: Field[]; content: Content };
+const { fields, content } = Astro.props;
+
+const text = (c: Content, key: string) => String(c[key] ?? '');
+const pair = (c: Content, name: string) => ({ en: text(c, `${name}_en`), ne: text(c, `${name}_ne`) });
+const rowsOf = (name: string) => (Array.isArray(content[name]) ? (content[name] as Content[]) : []);
+const maxFor = (f: Field | ItemField) => ('max' in f && f.max) || (f.type === 'text' ? 200 : f.type === 'plain' ? 200 : f.type === 'lines' ? 6000 : 4000);
+const langs = [
+  { code: 'en', label: 'English' },
+  { code: 'ne', label: 'नेपाली' },
+] as const;
+---
+
+{
+  fields.map((f) => {
+    if (f.type === 'text' || f.type === 'paragraphs' || f.type === 'lines') {
+      return (
+        <BilingualField
+          name={f.name}
+          label={f.label}
+          values={pair(content, f.name)}
+          multiline={f.type !== 'text'}
+          rows={f.type === 'paragraphs' ? (f.rows ?? 5) : 8}
+          max={maxFor(f)}
+          hint={f.hint}
+        />
+      );
+    }
+    if (f.type === 'image') {
+      return <PhotoField name={f.name} label={f.label} hint={f.hint} mediaId={(content[f.name] as string) || null} builtin={(content[`${f.name}_builtin`] as string) || null} />;
+    }
+    if (f.type === 'plain') {
+      return (
+        <div class="field">
+          <label for={`f-${f.name}`}>{f.label}</label>
+          <input class="input" id={`f-${f.name}`} name={f.name} value={text(content, f.name)} maxlength={maxFor(f)} />
+        </div>
+      );
+    }
+    if (f.type === 'toggle') {
+      return (
+        <label class="check-row">
+          <input type="checkbox" name={f.name} checked={content[f.name] !== false} /> {f.label}
+        </label>
+      );
+    }
+    if (f.type === 'choice') {
+      return (
+        <div class="field">
+          <label for={`f-${f.name}`}>{f.label}</label>
+          <select class="select" id={`f-${f.name}`} name={f.name}>
+            {f.options.map((o) => (
+              <option value={o.value} selected={content[f.name] === o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+    // Repeatable rows. Each row's inputs share names, so the server reads them back in page order.
+    const row = (c: Content, id: string) => (
+      <li class="item" data-row>
+        <input type="hidden" name={`${f.name}.__row`} value="1" />
+        <div class="item-head">
+          <strong data-row-title>{f.itemLabel}</strong>
+          <div class="item-actions">
+            <button class="btn btn-ghost btn-sm" type="button" data-row-up aria-label="Move up">
+              <Icon name="arrow-up" size={16} />
+            </button>
+            <button class="btn btn-ghost btn-sm" type="button" data-row-down aria-label="Move down">
+              <Icon name="arrow-down" size={16} />
+            </button>
+            <button class="btn btn-danger btn-sm" type="button" data-row-remove>
+              Remove
+            </button>
+          </div>
+        </div>
+        <div class="item-fields">
+          {f.fields.map((sf) =>
+            sf.type === 'image' ? (
+              <PhotoField name={`${f.name}.${sf.name}`} label={sf.label} mediaId={(c[sf.name] as string) || null} builtin={(c[`${sf.name}_builtin`] as string) || null} />
+            ) : sf.type === 'plain' ? (
+              <div class="field">
+                <label for={`${id}-${sf.name}`}>{sf.label}</label>
+                <input class="input" id={`${id}-${sf.name}`} name={`${f.name}.${sf.name}`} value={text(c, sf.name)} maxlength={maxFor(sf)} />
+              </div>
+            ) : (
+              <fieldset class="mini-pair">
+                <legend>{sf.label}</legend>
+                <div class="pair">
+                  {langs.map((l) =>
+                    sf.type === 'paragraphs' ? (
+                      <textarea
+                        class="textarea"
+                        id={`${id}-${sf.name}-${l.code}`}
+                        name={`${f.name}.${sf.name}_${l.code}`}
+                        rows={sf.rows ?? 3}
+                        maxlength={maxFor(sf)}
+                        lang={l.code}
+                        aria-label={`${sf.label} (${l.label})`}
+                        placeholder={l.label}
+                        set:text={text(c, `${sf.name}_${l.code}`)}
+                      />
+                    ) : (
+                      <input
+                        class="input"
+                        id={`${id}-${sf.name}-${l.code}`}
+                        name={`${f.name}.${sf.name}_${l.code}`}
+                        value={text(c, `${sf.name}_${l.code}`)}
+                        maxlength={maxFor(sf)}
+                        lang={l.code}
+                        aria-label={`${sf.label} (${l.label})`}
+                        placeholder={l.label}
+                      />
+                    ),
+                  )}
+                </div>
+              </fieldset>
+            ),
+          )}
+        </div>
+      </li>
+    );
+    return (
+      <fieldset class="repeater" data-repeater data-item-label={f.itemLabel}>
+        <legend>{f.label}</legend>
+        {f.hint && <p class="hint">{f.hint}</p>}
+        <ol class="rows" data-rows>
+          {rowsOf(f.name).map((c, i) => row(c, `${f.name}-${i}`))}
+        </ol>
+        <template data-row-template>{row({}, `${f.name}-__ROW__`)}</template>
+        <button class="btn btn-ghost" type="button" data-row-add>
+          + Add {f.itemLabel.toLowerCase()}
+        </button>
+      </fieldset>
+    );
+  })
+}
+
+<script>
+  let counter = 0;
+
+  function renumber(repeater: HTMLElement) {
+    const label = repeater.dataset.itemLabel ?? 'Item';
+    repeater.querySelectorAll<HTMLElement>(':scope > [data-rows] > [data-row]').forEach((row, i) => {
+      const title = row.querySelector('[data-row-title]');
+      if (title) title.textContent = `${label} ${i + 1}`;
+    });
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-repeater]').forEach(renumber);
+
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const repeater = target?.closest<HTMLElement>('[data-repeater]');
+    if (!target || !repeater) return;
+    const rows = repeater.querySelector<HTMLElement>(':scope > [data-rows]')!;
+
+    if (target.closest('[data-row-add]')) {
+      const template = repeater.querySelector<HTMLTemplateElement>(':scope > [data-row-template]')!;
+      counter += 1;
+      const html = template.innerHTML.replaceAll('__ROW__', `new${counter}`);
+      rows.insertAdjacentHTML('beforeend', html);
+      renumber(repeater);
+      rows.lastElementChild?.querySelector<HTMLElement>('input:not([type=hidden]), textarea')?.focus();
+      return;
+    }
+
+    const row = target.closest<HTMLElement>('[data-row]');
+    if (!row || row.parentElement !== rows) return;
+    if (target.closest('[data-row-up]') && row.previousElementSibling) {
+      rows.insertBefore(row, row.previousElementSibling);
+    } else if (target.closest('[data-row-down]') && row.nextElementSibling) {
+      rows.insertBefore(row.nextElementSibling, row);
+    } else if (target.closest('[data-row-remove]')) {
+      if (!confirm('Remove this entry? It disappears from the website when you save.')) return;
+      row.remove();
+    } else {
+      return;
+    }
+    renumber(repeater);
+  });
+</script>
+
+<style>
+  .repeater {
+    display: grid;
+    gap: 0.9rem;
+    margin: 0;
+    padding: 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .repeater > legend {
+    padding: 0 0.4rem;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .rows {
+    display: grid;
+    gap: 0.9rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .item {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fafbf9;
+  }
+
+  .item-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .item-actions {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .item-fields {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .mini-pair {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .mini-pair legend {
+    margin-bottom: 0.35rem;
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--ink);
+  }
+
+  .pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: 0.6rem;
+  }
+</style>

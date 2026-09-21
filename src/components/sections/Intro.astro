@@ -1,0 +1,116 @@
+---
+import Icon from '~/components/Icon.astro';
+import { org } from '~/data/site';
+import { paras, pick, type Content } from '~/lib/pages';
+import { formatNumber, useTranslations, yearsSince, type Lang } from '~/i18n/utils';
+
+type Props = { content: Content; lang: Lang; tone: 'white' | 'tint' };
+const { content, lang, tone } = Astro.props;
+const t = useTranslations(lang);
+const yearsOfService = yearsSince(org.establishedOn);
+const yearsOfExperience = yearsSince(org.experienceSince);
+---
+
+<section class:list={['section', `section-${tone}`]}>
+  <div class="container intro-grid">
+    <div class="stack" style="--stack: 1.25rem">
+      <span class="eyebrow">{t('home.about.eyebrow')}</span>
+      <h2 class="h2">{pick(content, 'heading', lang)}</h2>
+      {paras(content, 'body', lang).map((p) => <p class="lead">{p}</p>)}
+      <div class="years">
+        <div>
+          <strong>{formatNumber(yearsOfService, lang)}</strong>
+          <span>{t('about.yearsService')}</span>
+        </div>
+        <div>
+          <strong>{formatNumber(yearsOfExperience, lang)}</strong>
+          <span>{t('about.yearsExperience')}</span>
+        </div>
+      </div>
+    </div>
+    <div class="vm">
+      <article class="vm-card reveal">
+        <span class="icon-tile lg solid"><Icon name="eye" size={26} /></span>
+        <h3 class="h3">{t('about.visionTitle')}</h3>
+        {paras(content, 'vision', lang).map((p) => <p>{p}</p>)}
+      </article>
+      <article class="vm-card mission reveal">
+        <span class="icon-tile lg solid"><Icon name="target" size={26} /></span>
+        <h3 class="h3">{t('about.missionTitle')}</h3>
+        {paras(content, 'mission', lang).map((p) => <p>{p}</p>)}
+      </article>
+    </div>
+  </div>
+</section>
+
+<style>
+  .intro-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: clamp(2rem, 5vw, 4.5rem);
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    .intro-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .years {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    padding-top: 0.5rem;
+  }
+
+  .years div {
+    display: grid;
+    gap: 0.2rem;
+    padding: 1.1rem 1.25rem;
+    border-radius: var(--radius);
+    background: var(--green-50);
+    border: 1px solid var(--green-100);
+  }
+
+  .years strong {
+    font-family: var(--font-head);
+    font-size: 2.4rem;
+    line-height: 1;
+    color: var(--green-700);
+  }
+
+  .years span {
+    font-size: 0.95rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .vm {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .vm-card {
+    display: grid;
+    gap: 0.75rem;
+    padding: clamp(1.5rem, 3vw, 2rem);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--green-bright), var(--green));
+    color: #f0f8ec;
+    box-shadow: var(--shadow);
+  }
+
+  .vm-card.mission {
+    background: linear-gradient(135deg, var(--navy), var(--slate));
+    color: #e6e9f0;
+  }
+
+  .vm-card h3 {
+    color: #fff;
+  }
+
+  .vm-card :global(.icon-tile.solid) {
+    background: rgb(255 255 255 / 0.18);
+  }
+</style>

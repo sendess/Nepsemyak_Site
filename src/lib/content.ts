@@ -182,12 +182,14 @@ export const MEDIA_TYPES = ['image/webp', 'image/jpeg', 'image/png'] as const;
 export type MediaType = (typeof MEDIA_TYPES)[number];
 export const MEDIA_MAX_BYTES = 1_500_000;
 
-export async function createMedia(bytes: Uint8Array, contentType: MediaType, width: number | null, height: number | null, by: string) {
-  const [row] = await sql`
+export async function createMedia(bytes: Uint8Array, contentType: MediaType, width: number | null, height: number | null, actor: Actor) {
+  const [rows] = await asActor(actor, [
+    sql`
     insert into media (content_type, bytes, width, height, created_by)
-    values (${contentType}, ${Buffer.from(bytes)}, ${width}, ${height}, ${by})
-    returning id`;
-  return String(row.id);
+    values (${contentType}, ${Buffer.from(bytes)}, ${width}, ${height}, ${actor.email})
+    returning id`,
+  ]);
+  return String(rows[0].id);
 }
 
 export async function getMedia(id: string): Promise<{ bytes: Buffer; content_type: MediaType } | null> {

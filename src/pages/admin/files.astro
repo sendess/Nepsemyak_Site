@@ -1,0 +1,277 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import SortTh from '~/components/admin/SortTh.astro';
+import ListControls from '~/components/admin/ListControls.astro';
+import Pager from '~/components/admin/Pager.astro';
+import { deleteFile, deleteUnusedFiles, FILE_LIST, formatBytes, FRESH_HOURS, listFiles, storageSummary, STORAGE_LIMIT_BYTES, type Usage } from '~/lib/files';
+import { requestActor } from '~/lib/audit';
+import { isFiltered, listHref, readList } from '~/lib/listing';
+import { formatNpt } from '~/lib/admin-format';
+
+export const prerender = false;
+
+const me = Astro.locals.admin!;
+if (me.role !== 'owner') return Astro.redirect('/admin', 303);
+
+let message: { kind: 'ok' | 'error'; text: string } | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const actor = requestActor(Astro, me.email);
+  const action = form.get('_action');
+  if (action === 'delete') {
+    const id = String(form.get('id') ?? '');
+    const freed = /^[0-9a-f-]{36}$/i.test(id) ? await deleteFile(id, actor) : null;
+    message =
+      freed === null
+        ? { kind: 'error', text: 'That image is in use (or was already deleted), so it was kept.' }
+        : { kind: 'ok', text: `Image deleted — ${formatBytes(freed)} freed.` };
+  } else if (action === 'cleanup') {
+    const { files, bytes } = await deleteUnusedFiles(actor);
+    message = files
+      ? { kind: 'ok', text: `Deleted ${files} unused ${files === 1 ? 'image' : 'images'} — ${formatBytes(bytes)} freed.` }
+      : { kind: 'ok', text: 'Nothing to clean up.' };
+  }
+}
+
+const list = readList(Astro.url, Astro.cookies, FILE_LIST);
+const [{ rows, total }, summary] = await Promise.all([listFiles(list), storageSummary()]);
+if (rows.length === 0 && list.page > 1 && !message) return Astro.redirect(listHref(list, { page: 1 }));
+
+const usedPercent = Math.min(100, (summary.dbBytes / STORAGE_LIMIT_BYTES) * 100);
+const imagePercent = Math.min(usedPercent, (summary.mediaBytes / STORAGE_LIMIT_BYTES) * 100);
+
+const usageLink = (u: Usage) =>
+  u.area === 'notice' ? `/admin/notices/${u.id}` : u.area === 'news' ? `/admin/news/${u.id}` : `/admin/pages/${u.id}`;
+const areaName = { notice: 'Notice', news: 'News', page: 'Page' } as const;
+---
+
+<AdminLayout title="Files" wide>
+  {message && <p class:list={['flash', { error: message.kind === 'error' }]}>{message.text}</p>}
+
+  <section class="form-section storage" aria-labelledby="storage-title">
+    <h2 id="storage-title">Storage</h2>
+    <div class="meter" role="img" aria-label={`${usedPercent.toFixed(1)}% of the free database space used`}>
+      <span class="bar images" style={`width: ${imagePercent}%`}></span>
+      <span class="bar other" style={`width: ${Math.max(0, usedPercent - imagePercent)}%`}></span>
+    </div>
+    <p>
+      <strong>{formatBytes(summary.dbBytes)}</strong> of about {formatBytes(STORAGE_LIMIT_BYTES)} used ({usedPercent.toFixed(1)}%) —
+      <span class="key images"></span> images {formatBytes(summary.mediaBytes)} in {summary.files} {summary.files === 1 ? 'file' : 'files'},
+      <span class="key other"></span> text, logs and everything else {formatBytes(Math.max(0, summary.dbBytes - summary.mediaBytes))}.
+    </p>
+    <div class="cleanup">
+      <div>
+        <p>
+          <strong>{summary.unusedFiles}</strong> unused {summary.unusedFiles === 1 ? 'image' : 'images'} ({formatBytes(summary.unusedBytes)}):
+          photos that were replaced, or uploaded in a form that was never saved.
+        </p>
+        <p class="hint">
+          Clean-up deletes the {summary.removableFiles} older than {FRESH_HOURS} hours ({formatBytes(summary.removableBytes)}). Newer ones are kept in
+          case someone is still filling in a form. Freed space is reused for new uploads; the total above can take a while to go down.
+        </p>
+      </div>
+      <form method="post" data-confirm={`Delete ${summary.removableFiles} unused images? This cannot be undone.`}>
+        <input type="hidden" name="_action" value="cleanup" />
+        <button class="btn btn-danger" type="submit" disabled={summary.removableFiles === 0}>
+          <Icon name="trash" size={18} /> Clean up unused images
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <ListControls
+    list={list}
+    searchLabel="Search by who uploaded"
+    filters={[
+      {
+        name: 'usage',
+        all: 'All images',
+        options: [
+          { value: 'used', label: 'In use' },
+          { value: 'unused', label: 'Not used' },
+        ],
+      },
+    ]}
+  />
+
+  {
+    total === 0 ? (
+      <div class="empty-state">
+        <Icon name="folder-open" size={32} />
+        <p>{isFiltered(list) ? 'No images match this filter.' : 'No images have been uploaded yet.'}</p>
+      </div>
+    ) : (
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Image</th>
+              <SortTh list={list} sort="size" label="Size" />
+              <SortTh list={list} sort="uploaded" label="Uploaded" />
+              <th scope="col">Used in</th>
+              <th scope="col">
+                <span class="visually-hidden">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((f) => (
+              <tr>
+                <td>
+                  <a class="thumb" href={`/media/${f.id}`} target="_blank" rel="noopener" title="Open full size">
+                    <img src={`/media/${f.id}`} alt="" loading="lazy" width="96" height="72" />
+                  </a>
+                </td>
+                <td class="nowrap">
+                  {formatBytes(f.size_bytes)}
+                  {f.width && f.height && <small class="sub">{`${f.width} × ${f.height}`}</small>}
+                </td>
+                <td class="nowrap">
+                  {formatNpt(f.created_at)}
+                  <small class="sub">{f.created_by ?? 'system'}</small>
+                </td>
+                <td>
+                  {f.used_in ? (
+                    <ul class="uses">
+                      {f.used_in.map((u) => (
+                        <li>
+                          <span class="area">{areaName[u.area]}</span> <a href={usageLink(u)}>{u.label}</a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : f.fresh ? (
+                    <span class="tag fresh">Just uploaded — not used yet</span>
+                  ) : (
+                    <span class="tag unused">Not used</span>
+                  )}
+                </td>
+                <td>
+                  {!f.used_in && (
+                    <form method="post" data-confirm="Delete this image? This cannot be undone.">
+                      <input type="hidden" name="_action" value="delete" />
+                      <input type="hidden" name="id" value={f.id} />
+                      <button class="btn btn-danger btn-sm" type="submit">
+                        Delete
+                      </button>
+                    </form>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+  <Pager list={list} total={total} noun={['image', 'images']} />
+
+  <p class="hint note">
+    Images in use can’t be deleted here — remove or replace them in the notice, news post or page first. Deleted images are
+    recorded in the Activity log.
+  </p>
+</AdminLayout>
+
+<style>
+  .storage {
+    margin-bottom: 1.25rem;
+  }
+
+  .meter {
+    display: flex;
+    height: 0.9rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #eef0ee;
+  }
+
+  .bar.images,
+  .key.images {
+    background: var(--green);
+  }
+
+  .bar.other,
+  .key.other {
+    background: var(--slate);
+    opacity: 0.55;
+  }
+
+  .key {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    margin-inline: 0.3rem 0.15rem;
+    border-radius: 3px;
+    vertical-align: -1px;
+  }
+
+  .cleanup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .cleanup p {
+    margin: 0 0 0.3rem;
+  }
+
+  .thumb img {
+    display: block;
+    width: 96px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--green-50);
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .sub {
+    display: block;
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+
+  .uses {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .area {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 0.05rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .unused {
+    background: #fff4c2;
+    color: #6b5300;
+  }
+
+  .fresh {
+    background: #e3eefa;
+    color: #1d4f86;
+  }
+
+  .note {
+    margin-top: 1rem;
+  }
+</style>

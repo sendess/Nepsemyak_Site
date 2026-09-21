@@ -30,6 +30,8 @@ const ENTITY: Record<string, { name: string; href?: (id: string) => string }> = 
   stat_items: { name: 'statistic' },
   admin_users: { name: 'admin', href: () => '/admin/users' },
   service_requests: { name: 'request', href: (id) => `/admin/requests/${id}` },
+  page_sections: { name: 'page section' },
+  media: { name: 'image', href: () => '/admin/files' },
 };
 
 const EVENT: Record<string, { text: string; tone: 'good' | 'bad' | 'info' | 'muted' }> = {
@@ -56,13 +58,21 @@ const VERB: Record<string, string> = { create: 'Created', update: 'Edited', dele
 function describe(e: AuditEntry) {
   if (e.entity === 'auth') return { text: EVENT[e.action]?.text ?? e.action, tone: EVENT[e.action]?.tone ?? 'muted', link: null };
   const entity = ENTITY[e.entity ?? ''] ?? { name: e.entity ?? 'item' };
-  const link = e.action !== 'delete' && entity.href && e.entity_id ? entity.href(e.entity_id) : null;
+  // Page sections are labelled "page / section", which is also their address in the admin panel.
+  const sectionLink = e.entity === 'page_sections' && e.label ? `/admin/pages/${e.label.replace(' / ', '/')}` : null;
+  const link = e.action !== 'delete' ? (sectionLink ?? (entity.href && e.entity_id ? entity.href(e.entity_id) : null)) : null;
   return { text: `${VERB[e.action] ?? e.action} ${entity.name}`, tone: e.action === 'delete' ? 'bad' : 'muted', link };
 }
 
 /** "title_en" → "Title (English)". */
+/** Readable names for columns that aren't content. */
+const COLUMN_NAME: Record<string, string> = { position: 'Order on page', visible: 'Shown on website' };
+
 const fieldName = (key: string) =>
+  COLUMN_NAME[key] ??
   key
+    .replace(/^content\./, '')
+    .replace(/_builtin$/, ' (original photo)')
     .replace(/_en$/, ' (English)')
     .replace(/_ne$/, ' (Nepali)')
     .replace(/_media_id$/, ' image')
@@ -110,6 +120,8 @@ function device(ua: string | null) {
           { value: 'jobs', label: 'Jobs' },
           { value: 'stats', label: 'Statistics' },
           { value: 'requests', label: 'Requests' },
+          { value: 'pages', label: 'Pages' },
+          { value: 'files', label: 'Files' },
           { value: 'users', label: 'Admins' },
           { value: 'auth', label: 'Sign-in & security' },
         ],
@@ -146,7 +158,9 @@ function device(ua: string | null) {
           <tbody>
             {rows.map((e) => {
               const d = describe(e);
-              const changes = e.entity !== 'auth' && e.changes ? Object.entries(e.changes).filter(([key]) => key !== 'id') : [];
+              // Internal identifiers (row id, a section's page/key/kind) are already in the label.
+              const changes =
+                e.entity !== 'auth' && e.changes ? Object.entries(e.changes).filter(([key]) => !['id', 'page', 'key', 'kind'].includes(key)) : [];
               return (
                 <tr>
                   <td class="nowrap">{formatNpt(e.at)}</td>

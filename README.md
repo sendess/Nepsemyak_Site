@@ -64,6 +64,8 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 | `src/lib/auth.ts`, `src/middleware.ts` | Sign-in proxy to Neon Auth, authenticator codes, lockouts and `/admin` protection |
 | `src/lib/audit.ts` | Activity log (content changes are recorded by database triggers) |
 | `src/lib/requests.ts`, `src/lib/contact-form.ts` | Contact form handling and the admin inbox |
+| `src/lib/pages.ts`, `src/components/sections/` | Editable page sections (registry, defaults, rendering) |
+| `src/lib/files.ts` | Uploaded images: storage totals, where each is used, clean-up |
 | `src/lib/cache.ts` | Edge-cache headers and purge on save |
 | `src/pages/admin/` | Admin panel pages |
 | `src/i18n/` | Interface text and language helpers (Nepali digits, Bikram Sambat dates) |
@@ -93,6 +95,14 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
   code like `NS-7K4P2Q` shown to the sender, and staff work through them under **Requests** — status (new, in progress,
   resolved, spam), which office is handling it, and internal notes. A hidden field catches bots and one visitor may
   send five messages an hour.
+- **Pages:** About us and Our team are built from sections (intro, timeline, chairman's message, team members…).
+  Admins edit their text and photos in both languages, hide/show and reorder them, and add their own text-and-photo
+  sections. Only edited sections are stored (`page_sections`); everything else shows the original text from
+  `src/data/`, so **Restore original** simply clears the stored copy. Built-in photos are pre-sized files in
+  `public/images/`. To make another page editable, add it to `PAGES` in `src/lib/pages.ts` with section components.
+- **Files (master only):** every uploaded image with its size, uploader and where it is used. Images in use can't be
+  deleted; **Clean up** removes unused ones older than 24 hours (replaced photos, uploads in forms never saved).
+  Uploads and deletions appear in the activity log.
 - **Notices:** a notice can show as a banner, a pop-up, or both. Pop-ups have their own title, details and optional
   image, open once per visitor (again after the notice is edited), and can be previewed at `/#notice-preview=<id>`
   by a signed-in admin.
@@ -102,7 +112,7 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 - **Languages:** every field has English and Nepali boxes. If one is empty, visitors see the other.
 - **Images:** resized in the browser to WebP (max 1600 px) and stored in Postgres (`media` table).
 
-Content not yet in the admin panel (team, branches, services, FAQ) is edited in `src/data/`.
+Content not yet in the admin panel (branches, services, FAQ, downloads) is edited in `src/data/`.
 
 `package.json` intentionally has no `"type": "module"`: the Netlify Emails integration installed on the site
 generates a CommonJS function that Netlify refuses to bundle otherwise.

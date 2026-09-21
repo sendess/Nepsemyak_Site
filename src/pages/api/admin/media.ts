@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createMedia, MEDIA_MAX_BYTES, mediaUrl, sniffImageType } from '~/lib/content';
+import { requestActor } from '~/lib/audit';
 
 export const prerender = false;
 
@@ -10,7 +11,7 @@ const json = (body: unknown, status = 200) =>
  * Image upload for admin forms. The browser resizes and converts to WebP first
  * (see AdminImageField), so files are small; the server re-checks type and size.
  */
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   if (!locals.admin) return json({ message: 'Sign in required' }, 401);
 
   const form = await request.formData().catch(() => null);
@@ -24,6 +25,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const width = Number(form?.get('width')) || null;
   const height = Number(form?.get('height')) || null;
-  const id = await createMedia(bytes, type, width, height, locals.admin.email);
+  const id = await createMedia(bytes, type, width, height, requestActor({ request, clientAddress }, locals.admin.email));
   return json({ id, url: mediaUrl(id) }, 201);
 };

@@ -33,6 +33,7 @@ const ENTITY: Record<string, { name: string; href?: (id: string) => string }> = 
   service_requests: { name: 'request', href: (id) => `/admin/requests/${id}` },
   page_sections: { name: 'page section' },
   media: { name: 'image', href: () => '/admin/files' },
+  help_texts: { name: 'help text', href: () => '/admin/help-text' },
 };
 
 const EVENT: Record<string, { text: string; tone: 'good' | 'bad' | 'info' | 'muted' }> = {
@@ -134,6 +135,7 @@ function device(ua: string | null) {
           { value: 'pages', label: 'Pages' },
           { value: 'files', label: 'Files' },
           { value: 'users', label: 'Admins' },
+          { value: 'help', label: 'Help text' },
           { value: 'auth', label: 'Sign-in & security' },
         ],
       },
@@ -171,7 +173,7 @@ function device(ua: string | null) {
               const d = describe(e);
               // Internal identifiers (row id, a section's page/key/kind) are already in the label.
               const changes =
-                e.entity !== 'auth' && e.changes ? Object.entries(e.changes).filter(([key]) => !['id', 'page', 'key', 'kind'].includes(key)) : [];
+                e.entity !== 'auth' && e.changes ? Object.entries(e.changes).filter(([key]) => !['id', 'page', 'key', 'kind', 'lang', 'name'].includes(key)) : [];
               return (
                 <tr>
                   <td class="nowrap">{formatNpt(e.at)}</td>

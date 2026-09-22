@@ -1,47 +1,28 @@
 ---
 import type { HelpReader } from '~/lib/help';
+import type { HelpKey } from '~/lib/help-text';
 
 type Props = { reader: HelpReader };
+const t = Astro.locals.helpText!;
 
-// Alphabetical, so a term is quick to find.
-const terms: [term: string, meaning: string][] = [
-  ['“As of” date', 'The date a group of statistics was last checked. Visitors see it next to the figures, so they know how recent the numbers are.'],
-  ['Assigned to', 'The one person dealing with a query. “Assign to me” takes it on; whoever first marks an unassigned query In progress gets it.'],
-  ['Authenticator app', 'An app on your phone (Google or Microsoft Authenticator) that shows a new 6-digit code every 30 seconds for signing in.'],
-  ['Banner', 'A slim notice strip above the menu on every page of the website. Visitors can close it.'],
-  ['Bikram Sambat (BS)', 'The Nepali calendar. Nepali pages of the website show dates in BS automatically; you always enter dates in the usual (AD) calendar.'],
-  ['Customer care', 'The role for staff who answer queries only, for one office or all of them.'],
-  ['Draft', 'Saved but not shown on the website. News and jobs can be drafts.'],
-  ['Editor', 'The role for staff who update the website’s content and answer queries.'],
-  ['Email alert', 'The email sent to staff when a new query arrives, with a button that opens it in the panel.'],
-  ['Master', 'The one person with full access, including managing people, the activity log and stored files.'],
-  ['Note', 'A comment added to a query, visible only to staff. Notes can’t be edited or deleted.'],
-  ['Office', 'The branch a query belongs to: chosen by the customer, or changed by staff. Customer care can be tied to one office.'],
-  ['Passed from', 'Shown on a query that another office passed to yours in the last week. That office’s note comes with it.'],
-  ['Page view', 'One page opened on the website. One visit can include several page views.'],
-  ['Pop-up', 'A notice that opens once for each visitor, on whichever page they arrive at, with more detail and an optional image.'],
-  ['Published', 'Shown on the website.'],
-  ['Query (request)', 'A message sent through the website’s contact form. The panel lists them under Requests.'],
-  ['Recovery code', 'One of ten one-time codes that replace the authenticator code if your phone is lost.'],
-  ['Reference code', 'The code a customer gets after sending the contact form, such as NS-7K4P2Q. Use it to find their query.'],
-  ['Restore original', 'Puts a section of About us or Our team back to how the website was built.'],
-  ['Role', 'What a person may do in the panel: Master, Editor, Customer care or Viewer.'],
-  ['Section', 'One block of an editable page, such as the chairman’s message on About us.'],
-  ['Status', 'Where a query stands: New, In progress, Resolved or Spam.'],
-  ['Track a message', 'The public page where customers check their message’s status with the reference code and the last 4 digits of their phone number. It shows only the status, office and dates.'],
-  ['Two-step sign-in', 'Signing in with your password and then a code from the authenticator app. Also called 2FA.'],
-  ['Viewer', 'The role for managers who read the dashboard and queries without changing anything.'],
-  ['Visit', 'Someone arriving at the website from somewhere else. One visit can include several page views.'],
-];
+// Each term and its meaning; listed in the order of the terms in the reader's language.
+const TERMS = [
+  'asOf', 'assigned', 'authenticator', 'banner', 'bs', 'support', 'draft', 'editor', 'alert', 'master', 'note', 'office',
+  'passed', 'pageView', 'popup', 'published', 'query', 'recovery', 'ref', 'restore', 'role', 'section', 'status', 'track',
+  'twoStep', 'viewer', 'visit',
+] as const;
+const collator = new Intl.Collator(t.lang === 'ne' ? 'ne' : 'en');
+const terms = TERMS.map((id) => ({ term: t.text(`glossary.${id}` as HelpKey), meaning: `glossary.${id}Text` as HelpKey }))
+  .sort((a, b) => collator.compare(a.term.replace(/^[“"]/, ''), b.term.replace(/^[“"]/, '')));
 ---
 
-<p>Words you’ll meet in the admin panel and in these guides.</p>
+<p set:html={t.html('glossary.intro')} />
 <dl>
   {
-    terms.map(([term, meaning]) => (
+    terms.map(({ term, meaning }) => (
       <div>
         <dt>{term}</dt>
-        <dd>{meaning}</dd>
+        <dd set:html={t.html(meaning)} />
       </div>
     ))
   }

@@ -1,38 +1,46 @@
 ---
 import HelpShell from '~/components/help/HelpShell.astro';
 import Icon from '~/components/Icon.astro';
-import { HELP_GROUPS, HELP_GROUPS_NE, NEPALI_TOPICS, ROLE_SUMMARY_NE, helpLang, topicHref, topicSummary, topicTitle, topicsFor, type HelpGroup, type HelpReader } from '~/lib/help';
-import { ROLE_SUMMARY, roleLine } from '~/lib/roles';
+import { HELP_GROUP_ORDER, helpLang, readerOffice, topicHref, topicSummaryKey, topicTitleKey, topicsFor, type HelpReader } from '~/lib/help';
+import { GENERAL_GROUP, helpTranslator, type HelpKey } from '~/lib/help-text';
+import { ROLE_LABEL, can } from '~/lib/roles';
 
 export const prerender = false;
 
 // Open before sign-in too (see src/middleware.ts): new staff read Getting started before they have a login.
 const me = Astro.locals.admin;
 const reader: HelpReader = me ? { role: me.role, office: me.office, name: me.name, masterName: null } : null;
-const topics = topicsFor(me);
 const lang = helpLang(Astro.url, Astro.cookies);
-const ne = lang === 'ne';
-const groups = (Object.keys(HELP_GROUPS) as HelpGroup[])
-  .map((g) => ({ id: g, title: ne ? HELP_GROUPS_NE[g] : HELP_GROUPS[g], topics: topics.filter((t) => t.group === g) }))
-  .filter((g) => g.topics.length > 0);
-const title = ne ? (me ? 'सहायता केन्द्र' : 'एडमिन सहायता केन्द्र') : me ? 'Help centre' : 'Admin help centre';
-const summary = ne
-  ? me
-    ? 'nepsemyak.com.np हेरचाह गर्ने निर्देशिका, तपाईंको भूमिकाअनुसार लेखिएका। प्यानलको हरेक पृष्ठमा रहेको Help बटनले सम्बन्धित निर्देशिका खोल्छ।'
-    : 'वेबसाइट हेर्ने नेप्सेम्याकका कर्मचारीका लागि निर्देशिका। नयाँ हुनुहुन्छ भने “सुरुवात” बाट थाल्नुहोस्।'
-  : me
-    ? 'Guides for looking after nepsemyak.com.np, written for your role. Every page of the panel also has a Help button that opens the right guide.'
-    : 'Guides for Nepsemyak staff who look after the website. New here? Start with Getting started.';
+const t = await helpTranslator(lang);
+Astro.locals.helpText = t;
+const topics = topicsFor(me);
+const groups = HELP_GROUP_ORDER.map((g) => ({ id: g, topics: topics.filter((tp) => tp.group === g) })).filter((g) => g.topics.length > 0);
+const roleText = me
+  ? me.role === 'support'
+    ? `${ROLE_LABEL.support} · ${readerOffice(reader, lang) ?? t.text('shell.allOffices')}`
+    : ROLE_LABEL[me.role]
+  : '';
 ---
 
-<HelpShell reader={reader} title={title} summary={summary} lang={lang}>
+<HelpShell
+  reader={reader}
+  title={t.text(me ? 'index.titleIn' : 'index.titleOut')}
+  summary={t.html(me ? 'index.summaryIn' : 'index.summaryOut')}
+  editHref={`/admin/help-text?page=${GENERAL_GROUP}&lang=${lang}`}
+>
   {
     me && (
       <section class="role-card" aria-labelledby="role-h">
-        <h2 id="role-h">{ne ? 'तपाईंको भूमिका' : 'Your role'}: {roleLine(me)}</h2>
-        <p>{ne ? ROLE_SUMMARY_NE[me.role] : ROLE_SUMMARY[me.role]}</p>
+        <h2 id="role-h">{t.text('index.yourRole', { role: roleText })}</h2>
+        <p set:html={t.html(`role.${me.role}` as HelpKey)} />
         <p>
-          <a href={topicHref('roles')}>{ne ? 'तपाईंको भूमिकाले के-के गर्न सक्छ हेर्नुहोस्' : 'See exactly what your role can do'}</a>
+          <a href={topicHref('roles')}>{t.text('index.seeRole')}</a>
+          {can(me, 'help-edit') && (
+            <>
+              {' · '}
+              <a href={`/admin/help-text?lang=${lang}`}>{t.text('index.edit')}</a>
+            </>
+          )}
         </p>
       </section>
     )
@@ -41,18 +49,17 @@ const summary = ne
   {
     groups.map((g) => (
       <section aria-labelledby={`group-${g.id}`}>
-        <h2 id={`group-${g.id}`}>{g.title}</h2>
+        <h2 id={`group-${g.id}`}>{t.text(`group.${g.id}` as HelpKey)}</h2>
         <ul class="topic-grid">
-          {g.topics.map((t) => (
+          {g.topics.map((tp) => (
             <li>
-              <a class="topic" href={topicHref(t.slug)}>
+              <a class="topic" href={topicHref(tp.slug)}>
                 <span class="topic-icon" aria-hidden="true">
-                  <Icon name={t.icon} size={20} />
+                  <Icon name={tp.icon} size={20} />
                 </span>
                 <span>
-                  <strong>{topicTitle(t, lang)}</strong>
-                  <small>{topicSummary(t, lang)}</small>
-                  {ne && !NEPALI_TOPICS.includes(t.slug) && <small class="en-only">अङ्ग्रेजीमा मात्र</small>}
+                  <strong>{t.text(topicTitleKey(tp.slug))}</strong>
+                  <small set:html={t.html(topicSummaryKey(tp.slug))} />
                 </span>
               </a>
             </li>
@@ -62,23 +69,7 @@ const summary = ne
     ))
   }
 
-  {
-    !me && (
-      <p class="callout">
-        {ne ? (
-          <>
-            थप निर्देशिका (सोधपुछको जवाफ, वेबसाइट अद्यावधिक, दिनचर्या) तपाईंको भूमिकाअनुसार <a href="/admin/login">साइन इन</a> गरेपछि यहाँ
-            देखिन्छन्।
-          </>
-        ) : (
-          <>
-            More guides (answering queries, updating the website, your daily routine) appear here once you <a href="/admin/login">sign in</a>,
-            chosen for your role.
-          </>
-        )}
-      </p>
-    )
-  }
+  {!me && <p class="callout" set:html={t.html('index.more')} />}
 </HelpShell>
 
 <style>
@@ -153,12 +144,4 @@ const summary = ne
     color: var(--muted);
   }
 
-  .topic .en-only {
-    display: inline-block;
-    margin-top: 0.35rem;
-    padding: 0 0.45rem;
-    border-radius: 999px;
-    background: var(--bg);
-    font-size: 0.75rem;
-  }
 </style>

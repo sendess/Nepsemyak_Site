@@ -1,118 +1,67 @@
 ---
 import Toc from '../Toc.astro';
+import Check from '../Check.astro';
 import { can } from '~/lib/roles';
 import type { HelpReader } from '~/lib/help';
 
 type Props = { reader: HelpReader };
 const { reader } = Astro.props;
+const t = Astro.locals.helpText!;
 const isMaster = can(reader, 'people');
 ---
 
 <Toc
   items={[
-    { id: 'rules', label: 'Five rules' },
-    { id: 'password', label: 'Your password' },
-    { id: 'authenticator', label: 'The authenticator app' },
-    { id: 'recovery', label: 'Recovery codes' },
-    { id: 'customer-details', label: 'Customers’ details' },
-    { id: 'suspicious', label: 'If something looks wrong' },
+    { id: 'rules', k: 'safety.toc.rules' },
+    { id: 'password', k: 'safety.toc.password' },
+    { id: 'authenticator', k: 'safety.toc.authenticator' },
+    { id: 'recovery', k: 'safety.toc.recovery' },
+    { id: 'customer-details', k: 'safety.toc.customers' },
+    { id: 'suspicious', k: 'safety.toc.suspicious' },
   ]}
 />
 
 <section id="rules" aria-labelledby="rules-h">
-  <h2 id="rules-h">Five rules</h2>
+  <h2 id="rules-h">{t.text('safety.toc.rules')}</h2>
   <ul class="checklist">
-    <li>
-      <label>
-        <input type="checkbox" data-remember="safe-own" />
-        <span>
-          <strong>One person, one account.</strong>
-          <small>Never share your password or your authenticator. The activity log records every change under your name.</small>
-        </span>
-      </label>
-    </li>
-    <li>
-      <label>
-        <input type="checkbox" data-remember="safe-ask" />
-        <span>
-          <strong>Nobody from Nepsemyak will ask for your code or password.</strong>
-          <small>Not by phone, email, WhatsApp or chat. Anyone who asks is not us: say no and tell the master admin.</small>
-        </span>
-      </label>
-    </li>
-    <li>
-      <label>
-        <input type="checkbox" data-remember="safe-shared" />
-        <span>
-          <strong>On shared office computers, don’t let the browser save your password, and sign out when you finish.</strong>
-          <small><span class="ui">Sign out</span> is at the top right of every admin page.</small>
-        </span>
-      </label>
-    </li>
-    <li>
-      <label>
-        <input type="checkbox" data-remember="safe-codes" />
-        <span>
-          <strong>Recovery codes stay on paper or in a password manager.</strong>
-          <small>Not in email, WhatsApp or your phone’s photos.</small>
-        </span>
-      </label>
-    </li>
-    <li>
-      <label>
-        <input type="checkbox" data-remember="safe-suspect" />
-        <span>
-          <strong>If you think someone knows your password, change it at once.</strong>
-          <small>Changing it signs out every other device. Then tell the master admin.</small>
-        </span>
-      </label>
-    </li>
+    <Check remember="safe-own" title="safety.rule.own" detail="safety.rule.ownDetail" />
+    <Check remember="safe-ask" title="safety.rule.ask" detail="safety.rule.askDetail" />
+    <Check remember="safe-shared" title="safety.rule.shared" detail="safety.rule.sharedDetail" />
+    <Check remember="safe-codes" title="safety.rule.codes" detail="safety.rule.codesDetail" />
+    <Check remember="safe-suspect" title="safety.rule.suspect" detail="safety.rule.suspectDetail" />
   </ul>
 </section>
 
 <section id="password" aria-labelledby="password-h">
-  <h2 id="password-h">Your password</h2>
+  <h2 id="password-h">{t.text('safety.toc.password')}</h2>
   <ul class="plain">
-    <li>At least 10 characters. A few unrelated words (“mango bicycle Tuesday river”) are strong and easy to remember.</li>
-    <li>Change it under <span class="ui">My account</span> → <span class="ui">Password</span>. Every other device is signed out when you do.</li>
-    <li>Forgotten it? On the sign-in page choose <span class="ui">Forgot password?</span>; a code is emailed to you. You still need the authenticator afterwards, so someone who gets into your email alone can’t get in.</li>
+    <li set:html={t.html('safety.password.1')} />
+    <li set:html={t.html('safety.password.2')} />
+    <li set:html={t.html('safety.password.3')} />
   </ul>
 </section>
 
 <section id="authenticator" aria-labelledby="authenticator-h">
-  <h2 id="authenticator-h">The authenticator app</h2>
+  <h2 id="authenticator-h">{t.text('safety.toc.authenticator')}</h2>
   <ul class="plain">
-    <li>The 6-digit code changes every 30 seconds. Type it before it changes.</li>
-    <li>The panel asks for a fresh code every 12 hours, and whenever you sign in on a new device.</li>
-    <li>
-      Getting a new phone? Before you reset the old one, ask {isMaster ? 'the website developer' : 'the master admin'} to reset
-      your two-step sign-in, then scan a new QR code at your next sign-in.
-    </li>
+    <li set:html={t.html('safety.auth.1')} />
+    <li set:html={t.html('safety.auth.2')} />
+    <li set:html={t.html(isMaster ? 'safety.auth.newPhoneMaster' : 'safety.auth.newPhone')} />
   </ul>
 </section>
 
 <section id="recovery" aria-labelledby="recovery-h">
-  <h2 id="recovery-h">Recovery codes</h2>
-  <p>
-    You got 10 when you set up the authenticator. Each works once, in place of the app code, if your phone is lost or broken.
-    When three or fewer are left, the dashboard reminds you: make a fresh set under <span class="ui">My account</span> →
-    <span class="ui">Create new recovery codes</span>. The old ones stop working.
-  </p>
+  <h2 id="recovery-h">{t.text('safety.toc.recovery')}</h2>
+  <p set:html={t.html('safety.recovery.text')} />
 </section>
 
 <section id="customer-details" aria-labelledby="customer-h">
-  <h2 id="customer-h">Customers’ details</h2>
-  <p>
-    Queries contain people’s names, phone numbers, addresses and complaints. Use them only to answer the query. Don’t copy them
-    into personal chats, share screenshots outside the office, or forward alert emails to anyone who isn’t on the team.
-  </p>
+  <h2 id="customer-h">{t.text('safety.toc.customers')}</h2>
+  <p set:html={t.html('safety.customers.text')} />
 </section>
 
 <section id="suspicious" aria-labelledby="suspicious-h">
-  <h2 id="suspicious-h">If something looks wrong</h2>
-  <p>
-    A change you didn’t make, a sign-in you don’t recognise, or a code you didn’t ask for: change your password, then tell the
-    master admin straight away.
-    {isMaster && ' As master, you can sign anyone out on every device under Users, and see every sign-in and change under Activity.'}
-  </p>
+  <h2 id="suspicious-h">{t.text('safety.toc.suspicious')}</h2>
+  <p set:html={t.html('safety.suspicious.text')} />
+  {isMaster && <p set:html={t.html('safety.suspicious.master')} />}
 </section>

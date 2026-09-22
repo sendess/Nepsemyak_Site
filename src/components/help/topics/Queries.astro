@@ -1,56 +1,63 @@
 ---
 import Toc from '../Toc.astro';
-import { can, officeName } from '~/lib/roles';
-import type { HelpReader } from '~/lib/help';
+import { can } from '~/lib/roles';
+import { readerOffice, type HelpReader } from '~/lib/help';
+import type { HelpKey } from '~/lib/help-text';
 
 type Props = { reader: HelpReader };
 const { reader } = Astro.props;
+const t = Astro.locals.helpText!;
 const handles = can(reader, 'requests.handle');
 const canDelete = can(reader, 'requests.delete');
-const office = reader?.role === 'support' ? reader.office : null;
-const officeLabel = officeName(office);
+const office = readerOffice(reader, t.lang);
+const li = (keys: readonly HelpKey[]) => keys;
+// Status names stay in English, as they appear in the panel.
+const statuses: [status: string, meaning: HelpKey, when: HelpKey][] = [
+  ['New', 'queries.status.newMeaning', 'queries.status.newWhen'],
+  ['In progress', 'queries.status.progressMeaning', 'queries.status.progressWhen'],
+  ['Resolved', 'queries.status.resolvedMeaning', 'queries.status.resolvedWhen'],
+  ['Spam', 'queries.status.spamMeaning', 'queries.status.spamWhen'],
+];
+const tracking: [status: string, sees: HelpKey][] = [
+  ['New', 'queries.track.new'],
+  ['In progress', 'queries.track.progress'],
+  ['Resolved', 'queries.track.resolved'],
+  ['Spam', 'queries.track.spam'],
+];
 ---
 
 <Toc
   items={[
-    { id: 'where', label: 'Where queries come from' },
-    { id: 'your-list', label: 'Your list', show: Boolean(officeLabel) },
-    { id: 'read-only', label: 'Reading without changing', show: !handles },
-    { id: 'statuses', label: 'What each status means' },
-    { id: 'answering', label: 'Answering a query', show: handles },
-    { id: 'assigning', label: 'Who is dealing with it', show: handles },
-    { id: 'offices', label: 'Passing a query to another office', show: handles },
-    { id: 'notes', label: 'Writing notes', show: handles },
-    { id: 'finding', label: 'Finding a query' },
-    { id: 'spam', label: 'Spam and deleting', show: handles },
-    { id: 'good-practice', label: 'Good practice', show: handles },
-    { id: 'tracking', label: 'What customers can see' },
+    { id: 'where', k: 'queries.toc.where' },
+    { id: 'your-list', k: 'queries.toc.list', show: Boolean(office) },
+    { id: 'read-only', k: 'queries.toc.readOnly', show: !handles },
+    { id: 'statuses', k: 'queries.toc.statuses' },
+    { id: 'answering', k: 'queries.toc.answering', show: handles },
+    { id: 'assigning', k: 'queries.toc.assigning', show: handles },
+    { id: 'offices', k: 'queries.toc.offices', show: handles },
+    { id: 'notes', k: 'queries.toc.notes', show: handles },
+    { id: 'finding', k: 'queries.toc.finding' },
+    { id: 'spam', k: 'queries.toc.spam', show: handles },
+    { id: 'good-practice', k: 'queries.toc.good', show: handles },
+    { id: 'tracking', k: 'queries.toc.tracking' },
   ]}
 />
 
 <section id="where" aria-labelledby="where-h">
-  <h2 id="where-h">Where queries come from</h2>
+  <h2 id="where-h">{t.text('queries.toc.where')}</h2>
   <ul class="plain">
-    <li>Customers fill in the form on the website’s <strong>Contact</strong> page, in English or Nepali. They choose a topic and, if they know it, an office.</li>
-    <li>Each query is saved at once and the customer sees a <strong>reference code</strong> such as <code>NS-7K4P2Q</code>. If they phone about it, ask for the code and search for it.</li>
-    <li>
-      An <strong>email alert</strong> goes to everyone who answers queries and has alerts turned on in <span class="ui">My account</span>{
-        officeLabel ? `, which for you means ${officeLabel} and queries with no office chosen` : ''
-      }.
-    </li>
-    <li>A hidden check stops most robots, and one device can send only five messages an hour.</li>
+    <li set:html={t.html('queries.where.form')} />
+    <li set:html={t.html('queries.where.ref')} />
+    <li set:html={office ? t.html('queries.where.alertOffice', { office }) : t.html('queries.where.alert')} />
+    <li set:html={t.html('queries.where.robots')} />
   </ul>
 </section>
 
 {
-  officeLabel && (
+  office && (
     <section id="your-list" aria-labelledby="your-list-h">
-      <h2 id="your-list-h">Your list</h2>
-      <p class="callout">
-        You look after <strong>{officeLabel}</strong>. <span class="ui">Requests</span> shows its queries plus any where the
-        customer didn’t choose an office, so none are missed. Queries for other offices don’t appear, and their links won’t open
-        for you.
-      </p>
+      <h2 id="your-list-h">{t.text('queries.toc.list')}</h2>
+      <p class="callout" set:html={t.html('queries.list.text', { office })} />
     </section>
   )
 }
@@ -58,27 +65,35 @@ const officeLabel = officeName(office);
 {
   !handles && (
     <section id="read-only" aria-labelledby="read-only-h">
-      <h2 id="read-only-h">Reading without changing</h2>
-      <p>
-        Your role lets you read every query, with its notes and history, but not change its status or office or add notes. To
-        get something done about a query, tell the office concerned or the master admin, quoting its reference code.
-      </p>
+      <h2 id="read-only-h">{t.text('queries.toc.readOnly')}</h2>
+      <p set:html={t.html('queries.readOnly.text')} />
     </section>
   )
 }
 
 <section id="statuses" aria-labelledby="statuses-h">
-  <h2 id="statuses-h">What each status means</h2>
+  <h2 id="statuses-h">{t.text('queries.toc.statuses')}</h2>
   <div class="table-wrap">
     <table class="wide-cells">
       <thead>
-        <tr><th scope="col">Status</th><th scope="col">Meaning</th><th scope="col">When to use it</th></tr>
+        <tr>
+          <th scope="col">{t.text('queries.status.colStatus')}</th>
+          <th scope="col">{t.text('queries.status.colMeaning')}</th>
+          <th scope="col">{t.text('queries.status.colWhen')}</th>
+        </tr>
       </thead>
       <tbody>
-        <tr><th scope="row">New</th><td>Nobody has dealt with it yet.</td><td>Every query starts here. After 24 hours it counts as overdue and shows in red on the dashboard.</td></tr>
-        <tr><th scope="row">In progress</th><td>Someone is on it.</td><td>As soon as you’ve called, replied or passed it to a team, so others don’t do the same work.</td></tr>
-        <tr><th scope="row">Resolved</th><td>Done.</td><td>When the customer’s problem is sorted or their question answered.</td></tr>
-        <tr><th scope="row">Spam</th><td>Not a real query.</td><td>Adverts, nonsense or tests. Spam is left out of all figures and charts.</td></tr>
+        {
+          statuses.map(([status, meaning, when]) => (
+            <tr>
+              <th scope="row" lang="en">
+                {status}
+              </th>
+              <td set:html={t.html(meaning)} />
+              <td set:html={t.html(when)} />
+            </tr>
+          ))
+        }
       </tbody>
     </table>
   </div>
@@ -87,15 +102,13 @@ const officeLabel = officeName(office);
 {
   handles && (
     <section id="answering" aria-labelledby="answering-h">
-      <h2 id="answering-h">Answering a query</h2>
+      <h2 id="answering-h">{t.text('queries.toc.answering')}</h2>
       <ol class="steps">
-        <li>Open it from the alert email (<span class="ui">Open in the admin panel</span>) or from <span class="ui">Requests</span>. New queries are shown in bold.</li>
-        <li>Read the message and the customer’s details on the right. Tap the phone number to call from a phone.</li>
-        <li>Call the customer, or reply by email. Replying to the alert email, or using the email link on the query, writes to the customer directly.</li>
-        <li>Under <span class="ui">What happens next</span>, set the status to <span class="ui">In progress</span>, add a note of what you did or promised, and press <span class="ui">Save</span>.</li>
-        <li>When it’s done, set <span class="ui">Resolved</span> with a short closing note.</li>
+        {li(['queries.answer.1', 'queries.answer.2', 'queries.answer.3', 'queries.answer.4', 'queries.answer.5']).map((k) => (
+          <li set:html={t.html(k)} />
+        ))}
       </ol>
-      <p class="callout">An email reply isn’t recorded in the panel by itself. Always update the status and add a note, so the team and the dashboard know where things stand.</p>
+      <p class="callout" set:html={t.html('queries.answer.callout')} />
     </section>
   )
 }
@@ -103,14 +116,12 @@ const officeLabel = officeName(office);
 {
   handles && (
     <section id="assigning" aria-labelledby="assigning-h">
-      <h2 id="assigning-h">Who is dealing with it</h2>
-      <p>Each query can be assigned to one person, so two people don’t call the same customer and nothing is left because everyone thought someone else had it.</p>
+      <h2 id="assigning-h">{t.text('queries.toc.assigning')}</h2>
+      <p set:html={t.html('queries.assign.intro')} />
       <ul class="plain">
-        <li>Press <span class="ui">Assign to me</span> at the top of a query to take it on, or choose someone under <span class="ui">Assigned to</span> and press <span class="ui">Save</span>.</li>
-        <li>If nobody is assigned when you mark a query <span class="ui">In progress</span>, it’s assigned to you automatically.</li>
-        <li>When a colleague gives you a query, you get an email (if alerts are on in My account).</li>
-        <li>Only people who can see the query’s office can be chosen. Moving the query to an office they don’t cover clears the assignment.</li>
-        <li>In <span class="ui">Requests</span>, filter by <span class="ui">My queries</span> or <span class="ui">Not assigned yet</span>. The dashboard shows how many of your queries are still open.</li>
+        {li(['queries.assign.1', 'queries.assign.2', 'queries.assign.3', 'queries.assign.4', 'queries.assign.5']).map((k) => (
+          <li set:html={t.html(k)} />
+        ))}
       </ul>
     </section>
   )
@@ -119,17 +130,17 @@ const officeLabel = officeName(office);
 {
   handles && (
     <section id="offices" aria-labelledby="offices-h">
-      <h2 id="offices-h">Passing a query to another office</h2>
+      <h2 id="offices-h">{t.text('queries.toc.offices')}</h2>
       <ol class="steps">
-        <li>Under <span class="ui">Office dealing with it</span>, choose the office that should handle it.</li>
-        <li>In <span class="ui">Add a note</span>, say why and what’s been done so far. The note goes into the email to that office.</li>
-        <li>Press <span class="ui">Save</span>. Customer care tied to that office get an email straight away, and the query shows “Passed from …” in their list.</li>
+        {li(['queries.pass.1', 'queries.pass.2', 'queries.pass.3']).map((k) => (
+          <li set:html={t.html(k)} />
+        ))}
       </ol>
       <ul class="plain">
-        <li>If nobody at that office receives alerts, the panel tells you so: phone them instead.</li>
-        <li>For the receiving office, a passed query counts as waiting from when it arrived there, not from when the customer wrote.</li>
-        <li>Every move is listed under <span class="ui">Passed between offices</span> on the query, with who moved it, the note, and whether the email went out.</li>
-        {officeLabel && <li>When you pass a query away from {officeLabel}, it leaves your list and you go back to <span class="ui">Requests</span> with a message saying so.</li>}
+        {li(['queries.pass.nobody', 'queries.pass.clock', 'queries.pass.history']).map((k) => (
+          <li set:html={t.html(k)} />
+        ))}
+        {office && <li set:html={t.html('queries.pass.leaves', { office })} />}
       </ul>
     </section>
   )
@@ -138,35 +149,30 @@ const officeLabel = officeName(office);
 {
   handles && (
     <section id="notes" aria-labelledby="notes-h">
-      <h2 id="notes-h">Writing notes</h2>
+      <h2 id="notes-h">{t.text('queries.toc.notes')}</h2>
       <ul class="plain">
-        <li>Notes stay inside the panel. The customer never sees them.</li>
-        <li>They can’t be edited or deleted, and show who wrote them and when. Write them as you would a logbook.</li>
-        <li>Good notes say what was done and what was promised: “Called 2 pm, truck booked for Sunday morning, will call back Monday.”</li>
+        {li(['queries.notes.1', 'queries.notes.2', 'queries.notes.3']).map((k) => (
+          <li set:html={t.html(k)} />
+        ))}
       </ul>
     </section>
   )
 }
 
 <section id="finding" aria-labelledby="finding-h">
-  <h2 id="finding-h">Finding a query</h2>
+  <h2 id="finding-h">{t.text('queries.toc.finding')}</h2>
   <ul class="plain">
-    <li>Search by name, phone number, words from the message, or the reference code.</li>
-    <li>Filter by status, topic{officeLabel ? '' : ' or office'}. Click a column heading to sort; the panel remembers your choice.</li>
-    <li>The dashboard’s figures and charts link to the matching list.</li>
+    <li set:html={t.html('queries.find.1')} />
+    <li set:html={t.html(office ? 'queries.find.2office' : 'queries.find.2')} />
+    <li set:html={t.html('queries.find.3')} />
   </ul>
 </section>
 
 {
   handles && (
     <section id="spam" aria-labelledby="spam-h">
-      <h2 id="spam-h">Spam and deleting</h2>
-      <p>
-        Mark junk as <span class="ui">Spam</span> rather than deleting it.{' '}
-        {canDelete
-          ? 'As master, you can also delete a query under “Delete this message”. The deleted text stays in the activity log, so nothing is lost for good.'
-          : 'Only the master admin can delete a query, and even then its text stays in the activity log.'}
-      </p>
+      <h2 id="spam-h">{t.text('queries.toc.spam')}</h2>
+      <p set:html={t.html(canDelete ? 'queries.spam.master' : 'queries.spam.other')} />
     </section>
   )
 }
@@ -174,36 +180,40 @@ const officeLabel = officeName(office);
 {
   handles && (
     <section id="good-practice" aria-labelledby="good-h">
-      <h2 id="good-h">Good practice</h2>
+      <h2 id="good-h">{t.text('queries.toc.good')}</h2>
       <ul class="plain">
-        <li>Answer every query the same working day. The dashboard shows anything waiting more than a day in red.</li>
-        <li>Call back rather than write when the matter is urgent (missed collection, overflowing waste).</li>
-        <li>Give the customer the reference code when you speak, and quote it when talking to other offices.</li>
-        <li>Promise only what the office can do, and write the promise in a note.</li>
-        <li>Complaints about staff: stay polite, note the facts, and tell the office chief.</li>
+        {li(['queries.good.1', 'queries.good.2', 'queries.good.3', 'queries.good.4', 'queries.good.5']).map((k) => (
+          <li set:html={t.html(k)} />
+        ))}
       </ul>
     </section>
   )
 }
 
 <section id="tracking" aria-labelledby="tracking-h">
-  <h2 id="tracking-h">What customers can see</h2>
-  <p>
-    Customers can check their message on the website’s <strong>Track a message</strong> page (linked from the Contact page and
-    the footer) with their reference code and the last 4 digits of their phone number. They see only:
-  </p>
+  <h2 id="tracking-h">{t.text('queries.toc.tracking')}</h2>
+  <p set:html={t.html('queries.track.intro')} />
   <div class="table-wrap">
     <table class="wide-cells">
       <thead>
-        <tr><th scope="col">Status in the panel</th><th scope="col">What the customer sees</th></tr>
+        <tr>
+          <th scope="col">{t.text('queries.track.colPanel')}</th>
+          <th scope="col">{t.text('queries.track.colCustomer')}</th>
+        </tr>
       </thead>
       <tbody>
-        <tr><th scope="row">New</th><td>“Received”: someone will contact them.</td></tr>
-        <tr><th scope="row">In progress</th><td>“Being worked on”, with the office and its phone number.</td></tr>
-        <tr><th scope="row">Resolved</th><td>“Resolved”, and to call if the problem is still there.</td></tr>
-        <tr><th scope="row">Spam</th><td>“Closed”, and to call the office if they still need help.</td></tr>
+        {
+          tracking.map(([status, sees]) => (
+            <tr>
+              <th scope="row" lang="en">
+                {status}
+              </th>
+              <td set:html={t.html(sees)} />
+            </tr>
+          ))
+        }
       </tbody>
     </table>
   </div>
-  <p>They also see the date it was received and the date of the last update. They never see notes, staff names or who it’s assigned to. Keeping the status up to date is what keeps this page accurate.</p>
+  <p set:html={t.html('queries.track.outro')} />
 </section>

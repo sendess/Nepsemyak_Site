@@ -1,107 +1,48 @@
 ---
 import Toc from '../Toc.astro';
+import { can } from '~/lib/roles';
 import type { HelpReader } from '~/lib/help';
+import type { HelpKey } from '~/lib/help-text';
 
 type Props = { reader: HelpReader };
 const { reader } = Astro.props;
-const isMaster = reader?.role === 'owner';
+const t = Astro.locals.helpText!;
+const isMaster = can(reader, 'files');
+
+// One section per part of the website; each lists its lines in order.
+const sections: { id: string; toc: HelpKey; intro?: HelpKey; items: HelpKey[] }[] = [
+  { id: 'basics', toc: 'content.toc.basics', items: ['content.basics.1', 'content.basics.2', 'content.basics.3', 'content.basics.4'] },
+  {
+    id: 'notices',
+    toc: 'content.toc.notices',
+    intro: 'content.notices.intro',
+    items: ['content.notices.1', 'content.notices.2', 'content.notices.3', 'content.notices.4', 'content.notices.5'],
+  },
+  { id: 'news', toc: 'content.toc.news', items: ['content.news.1', 'content.news.2', 'content.news.3', 'content.news.4', 'content.news.5'] },
+  { id: 'jobs', toc: 'content.toc.jobs', items: ['content.jobs.1', 'content.jobs.2', 'content.jobs.3'] },
+  { id: 'statistics', toc: 'content.toc.stats', items: ['content.stats.1', 'content.stats.2', 'content.stats.3', 'content.stats.4', 'content.stats.5'] },
+  { id: 'pages', toc: 'content.toc.pages', items: ['content.pages.1', 'content.pages.2', 'content.pages.3', 'content.pages.4'] },
+  {
+    id: 'photos',
+    toc: 'content.toc.photos',
+    items: ['content.photos.1', 'content.photos.2', 'content.photos.3', isMaster ? 'content.photos.4master' : 'content.photos.4'],
+  },
+  { id: 'writing', toc: 'content.toc.writing', items: ['content.writing.1', 'content.writing.2', 'content.writing.3', 'content.writing.4'] },
+];
 ---
 
-<Toc
-  items={[
-    { id: 'basics', label: 'Before you change anything' },
-    { id: 'notices', label: 'Notices' },
-    { id: 'news', label: 'News' },
-    { id: 'jobs', label: 'Jobs' },
-    { id: 'statistics', label: 'Statistics' },
-    { id: 'pages', label: 'Pages' },
-    { id: 'photos', label: 'Photos' },
-    { id: 'writing', label: 'Writing tips' },
-  ]}
-/>
+<Toc items={sections.map((s) => ({ id: s.id, k: s.toc }))} />
 
-<section id="basics" aria-labelledby="basics-h">
-  <h2 id="basics-h">Before you change anything</h2>
-  <ul class="plain">
-    <li><strong>Changes go live when you save.</strong> Refresh the website to see them. There’s no separate “publish the website” step.</li>
-    <li><strong>Every text box comes in English and Nepali.</strong> Fill in both. If one is empty, visitors to that language see the other one instead.</li>
-    <li><strong>Everything is recorded.</strong> Each change is kept in the activity log with your name, so a mistake can always be traced and put right.</li>
-    <li>Dates and times are Nepal time. Nepali pages show dates in Bikram Sambat automatically.</li>
-  </ul>
-</section>
-
-<section id="notices" aria-labelledby="notices-h">
-  <h2 id="notices-h">Notices</h2>
-  <p>Short announcements: holidays, collection delays, fee changes, emergencies.</p>
-  <ul class="plain">
-    <li><strong>Banner:</strong> a slim strip above the menu on every page. Visitors can close it.</li>
-    <li><strong>Pop-up:</strong> opens once for each visitor, with a title, more details and an optional image. It opens again if you edit the notice.</li>
-    <li><strong>Type:</strong> <em>Information</em> for general updates, <em>Important</em> for delays, holidays and fees, <em>Urgent</em> for strikes, landfill closures and emergencies. The colour follows the type.</li>
-    <li><strong>Start and end:</strong> leave the start empty to show it now; set an end so it disappears by itself.</li>
-    <li>Untick <span class="ui">Show this notice on the website</span> to save it without publishing. Use <span class="ui">Preview</span> to see a pop-up before it goes live.</li>
-  </ul>
-</section>
-
-<section id="news" aria-labelledby="news-h">
-  <h2 id="news-h">News</h2>
-  <ul class="plain">
-    <li>Stories appear on the <strong>News</strong> page, with the latest few on the home page.</li>
-    <li><span class="ui">Save draft</span> keeps a post hidden while you work on it. <span class="ui">Publish</span> puts it live; <span class="ui">Unpublish</span> takes it down again.</li>
-    <li>A cover photo is optional but makes the story stand out. Choose the office the story is about, if any.</li>
-    <li>The web address is made from the English title unless you type one. Keep titles short and clear.</li>
-    <li>Aim for at least one story a month. The dashboard reminds you after 30 quiet days.</li>
-  </ul>
-</section>
-
-<section id="jobs" aria-labelledby="jobs-h">
-  <h2 id="jobs-h">Jobs</h2>
-  <ul class="plain">
-    <li><strong>Open</strong> jobs show on the Careers page; <strong>Draft</strong> is hidden while you prepare it; <strong>Closed</strong> is hidden but kept for records.</li>
-    <li>Set an application deadline: the job disappears from Careers by itself after that day. Nepali pages show the deadline in Bikram Sambat.</li>
-    <li>The dashboard lists jobs closing within a week, and open jobs past their deadline so you can close or extend them.</li>
-  </ul>
-</section>
-
-<section id="statistics" aria-labelledby="statistics-h">
-  <h2 id="statistics-h">Statistics</h2>
-  <ul class="plain">
-    <li>Figures are grouped (waste handled per day, service reach, employees, vehicles…). Each group has an <strong>“as of” date</strong> that visitors see next to the numbers.</li>
-    <li>Update the numbers and the “as of” date together, so visitors know how recent they are.</li>
-    <li>Totals are calculated for you. Groups in percentages must add up to 100 before they save.</li>
-    <li>Figures the home page relies on can be changed but not removed.</li>
-    <li>The dashboard flags any group not updated for six months.</li>
-  </ul>
-</section>
-
-<section id="pages" aria-labelledby="pages-h">
-  <h2 id="pages-h">Pages</h2>
-  <ul class="plain">
-    <li><strong>About us</strong> is built from sections: introduction, history, comparison, chairman’s message and photo, goals and links. <strong>Our team</strong> is the list of team members with photos.</li>
-    <li>The home page reuses the introduction, history and chairman’s message, so editing them changes the home page too.</li>
-    <li>You can edit a section’s text and photo, hide or show it, move it up or down, and add your own text-and-photo sections.</li>
-    <li><span class="ui">Restore original</span> puts a built-in section back to how the website was built. Sections you added can be deleted.</li>
-  </ul>
-</section>
-
-<section id="photos" aria-labelledby="photos-h">
-  <h2 id="photos-h">Photos</h2>
-  <ul class="plain">
-    <li>JPEG, PNG and WebP photos are accepted. They’re shrunk in your browser before uploading (longest side 1,600 pixels), so phone photos are fine.</li>
-    <li>Landscape photos look best on news and notices; for people, use a clear, well-lit portrait.</li>
-    <li>Only use photos the company owns or has permission to use.</li>
-    <li>
-      Replaced photos are kept until {isMaster ? 'you clean them up under Files' : 'the master admin cleans them up'}, so the
-      database stays within the free storage limit.
-    </li>
-  </ul>
-</section>
-
-<section id="writing" aria-labelledby="writing-h">
-  <h2 id="writing-h">Writing tips</h2>
-  <ul class="plain">
-    <li>Short sentences and plain words. Put the most important fact first: what, where, when.</li>
-    <li>Write phone numbers as people dial them, for example <code>01-5441976</code>.</li>
-    <li>Ask a colleague who writes Nepali well to check Nepali text before it goes live.</li>
-    <li>Read it once more on your phone after saving; most visitors use phones.</li>
-  </ul>
-</section>
+{
+  sections.map((s) => (
+    <section id={s.id} aria-labelledby={`${s.id}-h`}>
+      <h2 id={`${s.id}-h`}>{t.text(s.toc)}</h2>
+      {s.intro && <p set:html={t.html(s.intro)} />}
+      <ul class="plain">
+        {s.items.map((k) => (
+          <li set:html={t.html(k)} />
+        ))}
+      </ul>
+    </section>
+  ))
+}

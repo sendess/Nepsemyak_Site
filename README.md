@@ -95,9 +95,12 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 - **Help centre** (`/admin/help`): guides in `src/components/help/topics/`, registered in `src/lib/help.ts`. Each topic
   shows only to roles it applies to and tailors its text to the reader's role (and office). Getting started, Roles,
   Safety, Troubleshooting and Glossary are readable before sign-in, for new staff. Every admin page's top bar links to
-  its guide (`helpFor` in `src/lib/help.ts`). Add a line to **What's new** whenever the panel changes. An English |
-  नेपाली switch (remembered in the `help-lang` cookie) shows Nepali titles everywhere and Nepali text for the topics in
-  `src/components/help/topics/ne/` (getting started, safety, queries); keep those in step with the English ones.
+  its guide (`helpFor` in `src/lib/help.ts`). Every word is in `src/data/help/en.ts` and `ne.ts` (TypeScript refuses a
+  Nepali list with a missing or extra line); topic components only arrange keys, so role tailoring stays in code. An
+  English | नेपाली switch is remembered in the `help-lang` cookie. The master corrects wording line by line under
+  `/admin/help-text` (linked from each help page): corrections live in `help_texts` (migration 009), win over the built-in
+  text, are audit-logged, and **Restore original** deletes them. Markup: `**bold**`, `[[Button]]`, `` `code` ``,
+  `[text](/path)`; `{placeholders}` must stay. Add a **What's new** entry in both lists whenever the panel changes.
 - **Activity log:** every create/edit/delete of notices, news, jobs, statistics and admins is written by database
   triggers with who, when, IP address, browser and the changed fields; sign-ins, failed attempts and password/2FA
   events are logged too. The `audit_log` table rejects updates and deletes.

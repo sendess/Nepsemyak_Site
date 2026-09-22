@@ -1,31 +1,33 @@
 ---
 import { can } from '~/lib/roles';
 import type { HelpReader } from '~/lib/help';
+import type { HelpKey } from '~/lib/help-text';
 
 type Props = { reader: HelpReader };
 const { reader } = Astro.props;
+const t = Astro.locals.helpText!;
 const handles = can(reader, 'requests.handle');
 const content = can(reader, 'content');
 const isMaster = can(reader, 'people');
 const support = reader?.role === 'support';
-const askReset = isMaster ? 'the website developer' : 'the master admin';
 
 // Rows shown to everyone before sign-in; once signed in, only rows that fit the reader's role.
-const rows: { problem: string; fix: string; show: boolean }[] = [
-  { problem: 'The password code email didn’t come', fix: 'Wait a few minutes and check Spam and Promotions, then ask for a new one. After several requests the panel makes you wait an hour.', show: true },
-  { problem: 'The app’s code is refused', fix: 'Set your phone’s clock to automatic time, and type the code before it changes.', show: true },
-  { problem: '“Too many attempts”', fix: 'Wait 15 minutes, then try once more, carefully.', show: true },
-  { problem: 'Lost or new phone', fix: `Sign in with one of your recovery codes instead of the app code. Then ask ${askReset} to reset your two-step sign-in, and scan a new QR code at your next sign-in.`, show: true },
-  { problem: 'Lost phone and recovery codes', fix: `Ask ${askReset} to reset your two-step sign-in.`, show: true },
-  { problem: 'A menu item is missing, or a page says it isn’t part of your role', fix: 'Your role doesn’t include that part of the panel. Ask the master admin if you need it.', show: !reader || !isMaster },
-  { problem: 'No alert emails', fix: 'In My account, check alerts are ticked and press “Send me a test email”. Check Spam. Each query’s page says whether its alert was sent.', show: !reader || handles },
-  { problem: 'A query disappeared from my list', fix: 'Someone moved it to another office. Ask the Editor or master admin, quoting the reference code, if it should come back.', show: !reader || support },
-  { problem: 'A customer says “Track a message” can’t find their message', fix: 'Ask them to check the reference code (it starts with NS-) and to use the last 4 digits of the phone number they typed on the form. After several wrong tries the page makes them wait an hour.', show: !reader || handles },
-  { problem: 'I passed a query to an office but they weren’t told', fix: 'The panel warns when nobody at that office receives email alerts. Phone them, and ask the master admin to add Customer care for that office.', show: !reader || handles },
-  { problem: 'A change doesn’t show on the website', fix: 'Refresh the page. Check that news is published (not a draft), that a notice’s start time has passed and it is ticked to show, and that a page section isn’t hidden.', show: !reader || content },
-  { problem: 'Something was changed by mistake', fix: isMaster ? 'For page sections, “Restore original” brings back the built-in text. For anything else, find the old wording in Activity and type it back.' : 'For page sections, “Restore original” brings back the built-in text. For anything else, ask the master admin: the activity log keeps the old wording.', show: !reader || content },
-  { problem: 'Alerts are failing for everyone', fix: 'The dashboard shows the email service’s error. Press “Send me a test email” in My account; if it fails, check the Resend account and the RESEND_API_KEY setting in Netlify.', show: isMaster },
-  { problem: 'Visitor numbers are missing', fix: 'The dashboard shows Cloudflare’s message. Usually the Cloudflare token in Netlify has expired or lost its permission; create a new one with Account Analytics: Read.', show: isMaster },
+const rows: { problem: HelpKey; fix: HelpKey; show: boolean }[] = [
+  { problem: 'trouble.code.problem', fix: 'trouble.code.fix', show: true },
+  { problem: 'trouble.app.problem', fix: 'trouble.app.fix', show: true },
+  { problem: 'trouble.tooMany.problem', fix: 'trouble.tooMany.fix', show: true },
+  { problem: 'trouble.phone.problem', fix: isMaster ? 'trouble.phone.fixMaster' : 'trouble.phone.fix', show: true },
+  { problem: 'trouble.lostAll.problem', fix: isMaster ? 'trouble.lostAll.fixMaster' : 'trouble.lostAll.fix', show: true },
+  { problem: 'trouble.menu.problem', fix: 'trouble.menu.fix', show: !reader || !isMaster },
+  { problem: 'trouble.alerts.problem', fix: 'trouble.alerts.fix', show: !reader || handles },
+  { problem: 'trouble.gone.problem', fix: 'trouble.gone.fix', show: !reader || support },
+  { problem: 'trouble.track.problem', fix: 'trouble.track.fix', show: !reader || handles },
+  { problem: 'trouble.passed.problem', fix: 'trouble.passed.fix', show: !reader || handles },
+  { problem: 'trouble.notShowing.problem', fix: 'trouble.notShowing.fix', show: !reader || content },
+  { problem: 'trouble.mistake.problem', fix: isMaster ? 'trouble.mistake.fixMaster' : 'trouble.mistake.fix', show: !reader || content },
+  { problem: 'trouble.alertsAll.problem', fix: 'trouble.alertsAll.fix', show: isMaster },
+  { problem: 'trouble.visitors.problem', fix: 'trouble.visitors.fix', show: isMaster },
+  { problem: 'trouble.helpText.problem', fix: 'trouble.helpText.fix', show: isMaster },
 ];
 const shown = rows.filter((r) => r.show);
 ---
@@ -33,18 +35,21 @@ const shown = rows.filter((r) => r.show);
 <div class="table-wrap">
   <table class="wide-cells">
     <thead>
-      <tr><th scope="col">Problem</th><th scope="col">What to do</th></tr>
+      <tr>
+        <th scope="col">{t.text('trouble.colProblem')}</th>
+        <th scope="col">{t.text('trouble.colFix')}</th>
+      </tr>
     </thead>
     <tbody>
       {
         shown.map((r) => (
           <tr>
-            <th scope="row">{r.problem}</th>
-            <td>{r.fix}</td>
+            <th scope="row">{t.text(r.problem)}</th>
+            <td set:html={t.html(r.fix)} />
           </tr>
         ))
       }
     </tbody>
   </table>
 </div>
-<p>Still stuck? {isMaster ? 'Contact the website developer.' : 'Tell the master admin what you were doing and what the screen said.'}</p>
+<p set:html={t.html(isMaster ? 'trouble.stuckMaster' : 'trouble.stuck')} />

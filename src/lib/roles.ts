@@ -33,10 +33,12 @@ export type Permission =
   | 'visitors'
   | 'people'
   | 'activity'
-  | 'files';
+  | 'files'
+  /** Correcting the wording of help pages. */
+  | 'help-edit';
 
 const GRANTS: Record<AdminRole, readonly Permission[]> = {
-  owner: ['content', 'requests.view', 'requests.handle', 'requests.delete', 'visitors', 'people', 'activity', 'files'],
+  owner: ['content', 'requests.view', 'requests.handle', 'requests.delete', 'visitors', 'people', 'activity', 'files', 'help-edit'],
   editor: ['content', 'requests.view', 'requests.handle', 'visitors'],
   support: ['requests.view', 'requests.handle'],
   viewer: ['requests.view', 'visitors'],
@@ -59,6 +61,7 @@ const AREAS: [prefix: string, read: Permission, write?: Permission][] = [
   ['/admin/users', 'people'],
   ['/admin/activity', 'activity'],
   ['/admin/files', 'files'],
+  ['/admin/help-text', 'help-edit'],
 ];
 
 /** The permission a request to `path` needs, or null if any signed-in admin may make it. */

@@ -1,91 +1,100 @@
 ---
 import Toc from '../Toc.astro';
-import { ROLES, ROLE_LABEL, ROLE_SUMMARY, officeName, type AdminRole } from '~/lib/roles';
-import type { HelpReader } from '~/lib/help';
+import { ROLES, ROLE_LABEL, type AdminRole } from '~/lib/roles';
+import { readerOffice, type HelpReader } from '~/lib/help';
+import type { HelpKey } from '~/lib/help-text';
 
 type Props = { reader: HelpReader };
 const { reader } = Astro.props;
+const t = Astro.locals.helpText!;
+const office = readerOffice(reader, t.lang);
 
-type Cell = 'yes' | 'no' | string;
+type Cell = 'yes' | 'no' | HelpKey;
 // One row per task; one value per role, in ROLES order (Master, Editor, Customer care, Viewer).
-const rows: [task: string, cells: Record<AdminRole, Cell>][] = [
-  ['Read customer queries', { owner: 'yes', editor: 'yes', support: 'Their office', viewer: 'yes' }],
-  ['Answer queries: status, office, notes', { owner: 'yes', editor: 'yes', support: 'Their office', viewer: 'no' }],
-  ['Email alerts for new queries', { owner: 'yes', editor: 'yes', support: 'Their office', viewer: 'If turned on' }],
-  ['Delete a query', { owner: 'yes', editor: 'no', support: 'no', viewer: 'no' }],
-  ['Notices, statistics, news, jobs, page content', { owner: 'yes', editor: 'yes', support: 'no', viewer: 'no' }],
-  ['Website visitor numbers', { owner: 'yes', editor: 'yes', support: 'no', viewer: 'yes' }],
-  ['Add or remove people, change roles', { owner: 'yes', editor: 'no', support: 'no', viewer: 'no' }],
-  ['Activity log and stored files', { owner: 'yes', editor: 'no', support: 'no', viewer: 'no' }],
-  ['My account and Help', { owner: 'yes', editor: 'yes', support: 'yes', viewer: 'yes' }],
+const rows: [task: HelpKey, cells: Record<AdminRole, Cell>][] = [
+  ['roles.row.read', { owner: 'yes', editor: 'yes', support: 'roles.cell.office', viewer: 'yes' }],
+  ['roles.row.answer', { owner: 'yes', editor: 'yes', support: 'roles.cell.office', viewer: 'no' }],
+  ['roles.row.alerts', { owner: 'yes', editor: 'yes', support: 'roles.cell.office', viewer: 'roles.cell.ifOn' }],
+  ['roles.row.delete', { owner: 'yes', editor: 'no', support: 'no', viewer: 'no' }],
+  ['roles.row.content', { owner: 'yes', editor: 'yes', support: 'no', viewer: 'no' }],
+  ['roles.row.visitors', { owner: 'yes', editor: 'yes', support: 'no', viewer: 'yes' }],
+  ['roles.row.people', { owner: 'yes', editor: 'no', support: 'no', viewer: 'no' }],
+  ['roles.row.records', { owner: 'yes', editor: 'no', support: 'no', viewer: 'no' }],
+  ['roles.row.account', { owner: 'yes', editor: 'yes', support: 'yes', viewer: 'yes' }],
 ];
-const show = (c: Cell) => (c === 'yes' ? 'Yes' : c === 'no' ? '—' : c);
+const show = (c: Cell) => (c === 'yes' ? t.text('roles.cell.yes') : c === 'no' ? '—' : t.text(c));
 const mine = reader?.role;
+const four: [AdminRole, HelpKey][] = [
+  ['owner', reader?.masterName ? 'roles.four.masterNamed' : 'roles.four.master'],
+  ['editor', 'roles.four.editor'],
+  ['support', 'roles.four.support'],
+  ['viewer', 'roles.four.viewer'],
+];
 ---
 
 <Toc
   items={[
-    { id: 'your-role', label: 'Your role', show: Boolean(reader) },
-    { id: 'four-roles', label: 'The four roles' },
-    { id: 'compare', label: 'Side by side' },
-    { id: 'offices', label: 'Customer care and offices' },
-    { id: 'more-access', label: 'Needing more access' },
+    { id: 'your-role', k: 'roles.toc.yours', show: Boolean(reader) },
+    { id: 'four-roles', k: 'roles.toc.four' },
+    { id: 'compare', k: 'roles.toc.compare' },
+    { id: 'offices', k: 'roles.toc.offices' },
+    { id: 'more-access', k: 'roles.toc.more' },
   ]}
 />
 
 {
   reader && (
     <section id="your-role" aria-labelledby="your-role-h">
-      <h2 id="your-role-h">Your role</h2>
-      <p class="callout">
-        You are <strong>{ROLE_LABEL[reader.role]}</strong>
-        {reader.role === 'support' && <> for <strong>{officeName(reader.office) ?? 'all offices'}</strong></>}. {ROLE_SUMMARY[reader.role]}
-      </p>
+      <h2 id="your-role-h">{t.text('roles.toc.yours')}</h2>
+      <p
+        class="callout"
+        set:html={
+          office
+            ? t.html('roles.yours.office', { office, summary: t.text(`role.${reader.role}` as HelpKey) })
+            : t.html('roles.yours.text', { role: ROLE_LABEL[reader.role], summary: t.text(`role.${reader.role}` as HelpKey) })
+        }
+      />
     </section>
   )
 }
 
 <section id="four-roles" aria-labelledby="four-h">
-  <h2 id="four-h">The four roles</h2>
-  <p>Each person gets the least access they need for their work. The master admin chooses a role when adding someone and can change it at any time.</p>
+  <h2 id="four-h">{t.text('roles.toc.four')}</h2>
+  <p set:html={t.html('roles.four.intro')} />
   <dl>
-    <div>
-      <dt>Master</dt>
-      <dd>
-        There is exactly one{reader?.masterName && <>, currently <strong>{reader.masterName}</strong></>}. Does everything, including managing
-        people, reading the activity log and cleaning up stored files. Only the master can delete a query.
-      </dd>
-    </div>
-    <div>
-      <dt>Editor</dt>
-      <dd>Keeps the website up to date (notices, news, jobs, statistics, About us and Our team) and answers queries from every office. Sees visitor numbers.</dd>
-    </div>
-    <div>
-      <dt>Customer care</dt>
-      <dd>Answers customer queries and nothing else. Can be tied to one office, then sees and is emailed about that office’s queries only. Can’t change anything on the website.</dd>
-    </div>
-    <div>
-      <dt>Viewer</dt>
-      <dd>For managers who want to follow along: reads the dashboard, visitor numbers and queries, but can’t change anything.</dd>
-    </div>
+    {
+      four.map(([role, k]) => (
+        <div>
+          <dt lang="en">{ROLE_LABEL[role]}</dt>
+          <dd set:html={t.html(k, { name: reader?.masterName })} />
+        </div>
+      ))
+    }
   </dl>
 </section>
 
 <section id="compare" aria-labelledby="compare-h">
-  <h2 id="compare-h">Side by side</h2>
+  <h2 id="compare-h">{t.text('roles.toc.compare')}</h2>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th scope="col">Task</th>
-          {ROLES.map((r) => <th scope="col" class:list={['c', { mine: mine === r }]}>{ROLE_LABEL[r]}{mine === r && <span class="tag">You</span>}</th>)}
+          <th scope="col">{t.text('roles.compare.task')}</th>
+          {
+            ROLES.map((r) => (
+              <th scope="col" class:list={['c', { mine: mine === r }]}>
+                <span lang="en">{ROLE_LABEL[r]}</span>
+                {mine === r && <span class="tag">{t.text('roles.compare.you')}</span>}
+              </th>
+            ))
+          }
         </tr>
       </thead>
       <tbody>
         {
           rows.map(([task, cells]) => (
             <tr>
-              <th scope="row">{task}</th>
+              <th scope="row">{t.text(task)}</th>
               {ROLES.map((r) => (
                 <td class:list={['c', cells[r] === 'yes' ? 'yes' : cells[r] === 'no' ? 'no' : '', { mine: mine === r }]}>{show(cells[r])}</td>
               ))}
@@ -98,23 +107,16 @@ const mine = reader?.role;
 </section>
 
 <section id="offices" aria-labelledby="offices-h">
-  <h2 id="offices-h">Customer care and offices</h2>
-  <p>
-    Each query has an office: the one the customer picked on the contact form, or the one staff move it to. Customer care can be
-    tied to one office, or look after all of them.
-  </p>
+  <h2 id="offices-h">{t.text('roles.toc.offices')}</h2>
+  <p set:html={t.html('roles.offices.intro')} />
   <ul class="plain">
-    <li><strong>Tied to an office:</strong> sees that office’s queries plus any where the customer didn’t choose an office, so nothing is missed. Gets email alerts for the same queries only.</li>
-    <li><strong>All offices:</strong> sees and is emailed about every query, like an Editor, but can’t change the website.</li>
-    <li><strong>Moving a query</strong> to another office takes it out of your list. The staff of that office see it straight away.</li>
+    <li set:html={t.html('roles.offices.tied')} />
+    <li set:html={t.html('roles.offices.all')} />
+    <li set:html={t.html('roles.offices.moving')} />
   </ul>
 </section>
 
 <section id="more-access" aria-labelledby="more-h">
-  <h2 id="more-h">Needing more access</h2>
-  <p>
-    If you open a part of the panel your role doesn’t include, you’ll see a page saying so; nothing is broken. Ask the master
-    admin: they can change your role under <span class="ui">Users</span>, and it applies from your next click. Every change of role
-    is recorded in the activity log.
-  </p>
+  <h2 id="more-h">{t.text('roles.toc.more')}</h2>
+  <p set:html={t.html('roles.more.text')} />
 </section>

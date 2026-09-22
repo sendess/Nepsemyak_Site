@@ -6,6 +6,8 @@ declare namespace App {
     auth: import('./lib/auth').AdminAccess | null;
     /** Set by the Netlify adapter (used for work that may finish after the response, e.g. email alerts). */
     netlify?: import('@astrojs/netlify').NetlifyLocals['netlify'];
+    /** Set by help pages: their words in the reader's language, with the master's corrections. */
+    helpText?: import('./lib/help-text').HelpTranslator;
   }
 }
 

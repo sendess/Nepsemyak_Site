@@ -1,79 +1,63 @@
 ---
-import { can, officeName } from '~/lib/roles';
-import type { HelpReader } from '~/lib/help';
+import { can } from '~/lib/roles';
+import { readerOffice, type HelpReader } from '~/lib/help';
+import type { HelpKey } from '~/lib/help-text';
 
 type Props = { reader: HelpReader };
 const { reader } = Astro.props;
+const t = Astro.locals.helpText!;
 const handles = can(reader, 'requests.handle');
 const content = can(reader, 'content');
 const isMaster = can(reader, 'people');
-const officeLabel = reader?.role === 'support' ? officeName(reader.office) : null;
+const office = readerOffice(reader, t.lang);
+const when = <T,>(yes: boolean, items: T[]) => (yes ? items : []);
 
 // Each block lists only the jobs this person's role includes.
-const blocks: { title: string; items: string[] }[] = [
+const all: { title: HelpKey; items: HelpKey[] }[] = [
+  { title: 'routine.alert.title', items: when(handles, ['routine.alert.1', 'routine.alert.2', 'routine.alert.3'] as HelpKey[]) },
   {
-    title: 'When an alert email arrives',
-    items: handles
-      ? [
-          'Press “Open in the admin panel” in the email, and “Assign to me” if you’re taking it.',
-          'Call or reply, then set the status to In progress with a note of what you did.',
-          'Set Resolved when it’s done. Junk goes to Spam.',
-        ]
-      : [],
-  },
-  {
-    title: 'Every working day',
+    title: 'routine.day.title',
     items: [
-      ...(handles
-        ? [
-            `Open the dashboard and clear “Needs attention”${officeLabel ? ` for ${officeLabel}` : ''}.`,
-            'By the end of the day, no query should still be New. Anything waiting more than a day shows in red.',
-            'Check “My queries” in Requests: everything assigned to you should be moving.',
-            'Look for queries marked “Passed from …” that just arrived from another office.',
-          ]
-        : []),
-      ...(content ? ['Check that the live banner or pop-up is still correct.'] : []),
-      ...(!handles && !content ? ['Nothing daily: your role is for following along.'] : []),
+      ...when(handles, [office ? 'routine.day.dashboardOffice' : 'routine.day.dashboard', 'routine.day.new', 'routine.day.mine', 'routine.day.passed'] as HelpKey[]),
+      ...when(content, ['routine.day.banner'] as HelpKey[]),
+      ...when(!handles && !content, ['routine.day.follow'] as HelpKey[]),
     ],
   },
   {
-    title: 'Every week',
+    title: 'routine.week.title',
     items: [
-      ...(handles ? ['Look through queries In progress for more than a week, and chase or close them.'] : []),
-      ...(content ? ['Close or extend jobs past their deadline.', 'Take down notices that are out of date.'] : []),
-      ...(!handles ? ['Look over the dashboard: queries per week, what people write about, and how the website is doing.'] : []),
-      ...(isMaster ? ['Skim Activity for changes or sign-ins you don’t recognise.'] : []),
+      ...when(handles, ['routine.week.progress'] as HelpKey[]),
+      ...when(content, ['routine.week.jobs', 'routine.week.notices'] as HelpKey[]),
+      ...when(!handles, ['routine.week.dashboard'] as HelpKey[]),
+      ...when(isMaster, ['routine.week.activity'] as HelpKey[]),
     ],
   },
   {
-    title: 'Every month',
+    title: 'routine.month.title',
     items: [
-      ...(content ? ['Post at least one news story. The dashboard reminds you after 30 quiet days.'] : []),
-      ...(handles ? ['Look at “What people write about”: a topic that keeps growing may need a notice or a change in the field.'] : []),
-      ...(isMaster ? ['Clean up unused images under Files.', 'Check the Users list: remove anyone who has left and review roles.'] : []),
+      ...when(content, ['routine.month.news'] as HelpKey[]),
+      ...when(handles, ['routine.month.topics'] as HelpKey[]),
+      ...when(isMaster, ['routine.month.files', 'routine.month.users'] as HelpKey[]),
     ],
   },
   {
-    title: 'Every six months',
-    items: [
-      ...(content ? ['Update Statistics and their “as of” dates. The dashboard flags any group older than six months.'] : []),
-      'Make sure you still have recovery codes left (My account).',
-      ...(isMaster ? ['Read through this Help centre and tell the developer about anything out of date.'] : []),
-    ],
+    title: 'routine.six.title',
+    items: [...when(content, ['routine.six.stats'] as HelpKey[]), 'routine.six.codes', ...when(isMaster, ['routine.six.help'] as HelpKey[])],
   },
-].filter((b) => b.items.length > 0);
+];
+const blocks = all.filter((b) => b.items.length > 0);
 ---
 
-<p>A simple rhythm that keeps customers answered and the website current. Only the jobs your role includes are listed.</p>
+<p set:html={t.html('routine.intro')} />
 
 <div class="cards">
   {
     blocks.map((b) => (
       <div class="card-box">
-        <h3>{b.title}</h3>
+        <h3>{t.text(b.title)}</h3>
         <ul>
-          {b.items.map((i) => (
-            <li>{i}</li>
+          {b.items.map((k) => (
+            <li set:html={t.html(k, { office })} />
           ))}
         </ul>
       </div>

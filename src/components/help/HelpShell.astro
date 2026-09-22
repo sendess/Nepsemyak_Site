@@ -1,14 +1,15 @@
 ---
 /**
- * Frame for every Help page: the admin layout once signed in, the sign-in layout before. Holds the shared
- * styles for help content (checklists, numbered steps, tables, callouts), scoped to `.help-article`.
+ * Frame for every Help page: the admin layout once signed in, the sign-in layout before. Its words come from
+ * the page's translator (Astro.locals.helpText). Holds the shared styles for help content, scoped to `.help-article`.
  */
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import AuthLayout from '~/layouts/AuthLayout.astro';
+import Icon from '~/components/Icon.astro';
 import HelpFoot from './HelpFoot.astro';
 import { HELP } from '~/lib/admin-routes';
-import type { HelpLang, HelpReader, HelpTopic } from '~/lib/help';
-import { roleLine } from '~/lib/roles';
+import { readerOffice, type HelpReader, type HelpTopic } from '~/lib/help';
+import { ROLE_LABEL, can } from '~/lib/roles';
 
 type Props = {
   reader: HelpReader;
@@ -18,14 +19,20 @@ type Props = {
   prev?: HelpTopic | null;
   next?: HelpTopic | null;
   isTopic?: boolean;
-  lang?: HelpLang;
-  /** A Nepali reader on a page not yet written in Nepali. */
-  englishOnly?: boolean;
+  /** Where the master's "correct the text" link goes. */
+  editHref?: string;
 };
-const { reader, title, summary, prev = null, next = null, isTopic = false, lang = 'en', englishOnly = false } = Astro.props;
-const ne = lang === 'ne';
-const home = ne ? 'सहायता केन्द्र' : 'Help centre';
+const { reader, title, summary, prev = null, next = null, isTopic = false, editHref } = Astro.props;
+const t = Astro.locals.helpText!;
+const lang = t.lang;
 const here = Astro.url.pathname;
+const canEdit = can(reader, 'help-edit') && editHref;
+// Role names stay in English (as in the panel); the office follows the page's language.
+const roleText = reader
+  ? reader.role === 'support'
+    ? `${ROLE_LABEL.support} · ${readerOffice(reader, lang) ?? t.text('shell.allOffices')}`
+    : ROLE_LABEL[reader.role]
+  : '';
 ---
 
 {
@@ -36,33 +43,29 @@ const here = Astro.url.pathname;
           <div class="head-row">
             {isTopic ? (
               <nav class="crumbs" aria-label="Breadcrumb">
-                <a href={HELP}>{home}</a> <span aria-hidden="true">/</span> <span>{title}</span>
+                <a href={HELP}>{t.text('shell.home')}</a> <span aria-hidden="true">/</span> <span>{title}</span>
               </nav>
             ) : (
               <span />
             )}
-            <nav class="lang-switch" aria-label="Language / भाषा">
-              <a href={`${here}?lang=en`} lang="en" aria-current={ne ? undefined : 'true'}>English</a>
-              <a href={`${here}?lang=ne`} lang="ne" aria-current={ne ? 'true' : undefined}>नेपाली</a>
-            </nav>
+            <span class="head-tools">
+              {canEdit && (
+                <a class="edit-link" href={editHref}>
+                  <Icon name="brush-cleaning" size={16} /> {t.text('shell.edit')}
+                </a>
+              )}
+              <nav class="lang-switch" aria-label="Language / भाषा">
+                <a href={`${here}?lang=en`} lang="en" aria-current={lang === 'en' ? 'true' : undefined}>English</a>
+                <a href={`${here}?lang=ne`} lang="ne" aria-current={lang === 'ne' ? 'true' : undefined}>नेपाली</a>
+              </nav>
+            </span>
           </div>
           <h2 class="help-title">{title}</h2>
-          {summary && <p class="lede">{summary}</p>}
-          <p class="reading-as">
-            {ne ? (
-              <>
-                तपाईंको भूमिका <strong>{roleLine(reader)}</strong> अनुसार लेखिएको। तपाईंको भूमिकामा नपर्ने भाग हटाइएको छ।
-              </>
-            ) : (
-              <>
-                Written for you as <strong>{roleLine(reader)}</strong>. Parts that don’t apply to your role are left out.
-              </>
-            )}
-          </p>
-          {englishOnly && <p class="callout" lang="ne">यो पृष्ठ अहिले अङ्ग्रेजीमा मात्र उपलब्ध छ।</p>}
+          {summary && <p class="lede" set:html={summary} />}
+          <p class="reading-as" set:html={t.html('shell.readingAs', { role: roleText })} />
         </header>
         <slot />
-        <HelpFoot prev={prev} next={next} isTopic={isTopic} lang={lang} />
+        <HelpFoot prev={prev} next={next} isTopic={isTopic} />
       </div>
     </AdminLayout>
   ) : (
@@ -72,33 +75,22 @@ const here = Astro.url.pathname;
           <div class="head-row">
             {isTopic ? (
               <nav class="crumbs" aria-label="Breadcrumb">
-                <a href={HELP}>{home}</a> <span aria-hidden="true">/</span> <span>{title}</span>
+                <a href={HELP}>{t.text('shell.home')}</a> <span aria-hidden="true">/</span> <span>{title}</span>
               </nav>
             ) : (
               <span />
             )}
             <nav class="lang-switch" aria-label="Language / भाषा">
-              <a href={`${here}?lang=en`} lang="en" aria-current={ne ? undefined : 'true'}>English</a>
-              <a href={`${here}?lang=ne`} lang="ne" aria-current={ne ? 'true' : undefined}>नेपाली</a>
+              <a href={`${here}?lang=en`} lang="en" aria-current={lang === 'en' ? 'true' : undefined}>English</a>
+              <a href={`${here}?lang=ne`} lang="ne" aria-current={lang === 'ne' ? 'true' : undefined}>नेपाली</a>
             </nav>
           </div>
           <h1 class="help-title">{title}</h1>
-          {summary && <p class="lede">{summary}</p>}
-          <p class="reading-as">
-            {ne ? (
-              <>
-                पहिले नै खाता छ? तपाईंको भूमिकाका निर्देशिका हेर्न <a href="/admin/login">साइन इन गर्नुहोस्</a>।
-              </>
-            ) : (
-              <>
-                Already have an account? <a href="/admin/login">Sign in</a> to see the guides for your role.
-              </>
-            )}
-          </p>
-          {englishOnly && <p class="callout" lang="ne">यो पृष्ठ अहिले अङ्ग्रेजीमा मात्र उपलब्ध छ।</p>}
+          {summary && <p class="lede" set:html={summary} />}
+          <p class="reading-as" set:html={t.html('shell.signInPrompt')} />
         </header>
         <slot />
-        <HelpFoot prev={prev} next={next} isTopic={isTopic} lang={lang} />
+        <HelpFoot prev={prev} next={next} isTopic={isTopic} />
       </div>
     </AuthLayout>
   )
@@ -148,6 +140,21 @@ const here = Astro.url.pathname;
     gap: 0.5rem 1rem;
     align-items: center;
     justify-content: space-between;
+  }
+
+  .help-article .head-tools {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+  }
+
+  .help-article .edit-link {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+    font-size: 0.85rem;
+    font-weight: 600;
   }
 
   .help-article .lang-switch {

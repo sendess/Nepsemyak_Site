@@ -97,6 +97,7 @@ export const AUDIT_AREAS = {
   pages: ['page_sections'],
   files: ['media'],
   users: ['admin_users'],
+  help: ['help_texts'],
   auth: ['auth'],
 } as const;
 

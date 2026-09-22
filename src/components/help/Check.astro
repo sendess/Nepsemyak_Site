@@ -1,0 +1,18 @@
+---
+/** One tick-box line in a help checklist: a bold title and an optional detail, both help text keys. */
+import type { HelpKey } from '~/lib/help-text';
+
+type Props = { remember: string; title: HelpKey; detail?: HelpKey };
+const { remember, title, detail } = Astro.props;
+const t = Astro.locals.helpText!;
+---
+
+<li>
+  <label>
+    <input type="checkbox" data-remember={remember} />
+    <span>
+      <strong set:html={t.html(title)} />
+      {detail && <small set:html={t.html(detail)} />}
+    </span>
+  </label>
+</li>

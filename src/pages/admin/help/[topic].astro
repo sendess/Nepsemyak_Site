@@ -12,10 +12,8 @@ import Records from '~/components/help/topics/Records.astro';
 import Troubleshooting from '~/components/help/topics/Troubleshooting.astro';
 import Glossary from '~/components/help/topics/Glossary.astro';
 import WhatsNew from '~/components/help/topics/WhatsNew.astro';
-import GettingStartedNe from '~/components/help/topics/ne/GettingStarted.astro';
-import SafetyNe from '~/components/help/topics/ne/Safety.astro';
-import QueriesNe from '~/components/help/topics/ne/Queries.astro';
-import { HELP_TOPICS, helpLang, isPublicTopic, topicSummary, topicTitle, topicsFor, type HelpReader } from '~/lib/help';
+import { HELP_TOPICS, helpLang, isPublicTopic, topicSummaryKey, topicTitleKey, topicsFor, type HelpReader } from '~/lib/help';
+import { helpTranslator } from '~/lib/help-text';
 import { listAdmins } from '~/lib/content';
 import { can } from '~/lib/roles';
 
@@ -36,13 +34,6 @@ const BODY = {
   'whats-new': WhatsNew,
 } as const;
 
-/** Topics written in Nepali; the others show their English text with a note. */
-const BODY_NE: Partial<Record<keyof typeof BODY, (typeof BODY)[keyof typeof BODY]>> = {
-  'getting-started': GettingStartedNe,
-  safety: SafetyNe,
-  queries: QueriesNe,
-};
-
 const slug = Astro.params.topic ?? '';
 const topic = HELP_TOPICS.find((t) => t.slug === slug);
 if (!topic || !(slug in BODY)) return Astro.redirect('/admin/help', 303);
@@ -57,25 +48,23 @@ const at = visible.findIndex((t) => t.slug === slug);
 const prev = at > 0 ? visible[at - 1] : null;
 const next = at >= 0 && at < visible.length - 1 ? visible[at + 1] : null;
 
-const master = me ? (await listAdmins()).find((a) => a.role === 'owner') : null;
-const reader: HelpReader = me ? { role: me.role, office: me.office, name: me.name, masterName: master ? master.name || master.email : null } : null;
 const lang = helpLang(Astro.url, Astro.cookies);
-const key = slug as keyof typeof BODY;
-const Body = (lang === 'ne' ? BODY_NE[key] : undefined) ?? BODY[key];
-const englishOnly = lang === 'ne' && !BODY_NE[key];
+const [admins, t] = await Promise.all([me ? listAdmins() : Promise.resolve([]), helpTranslator(lang)]);
+// Every help component reads its words (with the master's corrections) from here.
+Astro.locals.helpText = t;
+const master = admins.find((a) => a.role === 'owner');
+const reader: HelpReader = me ? { role: me.role, office: me.office, name: me.name, masterName: master ? master.name || master.email : null } : null;
+const Body = BODY[slug as keyof typeof BODY];
 ---
 
 <HelpShell
   reader={reader}
-  title={topicTitle(topic, lang)}
-  summary={topicSummary(topic, lang)}
+  title={t.text(topicTitleKey(slug))}
+  summary={t.html(topicSummaryKey(slug))}
   prev={prev}
   next={next}
   isTopic
-  lang={lang}
-  englishOnly={englishOnly}
+  editHref={`/admin/help-text?page=${slug}&lang=${lang}`}
 >
-  <div class="help-body" lang={englishOnly ? 'en' : lang}>
-    <Body reader={reader} />
-  </div>
+  <Body reader={reader} />
 </HelpShell>

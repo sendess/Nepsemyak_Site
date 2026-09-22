@@ -2,14 +2,11 @@
 /** Previous / next topic at the end of a help page, so a new person can read the guides in order. */
 import Icon from '~/components/Icon.astro';
 import { HELP } from '~/lib/admin-routes';
-import { topicHref, topicTitle, type HelpLang, type HelpTopic } from '~/lib/help';
+import { topicHref, topicTitleKey, type HelpTopic } from '~/lib/help';
 
-type Props = { prev: HelpTopic | null; next: HelpTopic | null; isTopic: boolean; lang?: HelpLang };
-const { prev, next, isTopic, lang = 'en' } = Astro.props;
-const text =
-  lang === 'ne'
-    ? { prev: 'अघिल्लो', next: 'अर्को', all: 'सबै विषय', print: 'यो पृष्ठ प्रिन्ट गर्नुहोस्' }
-    : { prev: 'Previous', next: 'Next', all: 'All help topics', print: 'Print this page' };
+type Props = { prev: HelpTopic | null; next: HelpTopic | null; isTopic: boolean };
+const { prev, next, isTopic } = Astro.props;
+const t = Astro.locals.helpText!;
 ---
 
 <footer class="help-foot">
@@ -18,9 +15,9 @@ const text =
       <div class="pager">
         {prev ? (
           <a class="step-link" href={topicHref(prev.slug)}>
-            <small>{text.prev}</small>
+            <small>{t.text('shell.prev')}</small>
             <span>
-              <Icon name="arrow-left" size={14} /> {topicTitle(prev, lang)}
+              <Icon name="arrow-left" size={14} /> {t.text(topicTitleKey(prev.slug))}
             </span>
           </a>
         ) : (
@@ -28,9 +25,9 @@ const text =
         )}
         {next && (
           <a class="step-link next" href={topicHref(next.slug)}>
-            <small>{text.next}</small>
+            <small>{t.text('shell.next')}</small>
             <span>
-              {topicTitle(next, lang)} <Icon name="arrow-right" size={14} />
+              {t.text(topicTitleKey(next.slug))} <Icon name="arrow-right" size={14} />
             </span>
           </a>
         )}
@@ -38,8 +35,8 @@ const text =
     )
   }
   <p class="foot-links">
-    {isTopic && <a href={HELP}>{text.all}</a>}
-    <button class="link-button" type="button" data-print>{text.print}</button>
+    {isTopic && <a href={HELP}>{t.text('shell.allTopics')}</a>}
+    <button class="link-button" type="button" data-print>{t.text('shell.print')}</button>
   </p>
 </footer>
 

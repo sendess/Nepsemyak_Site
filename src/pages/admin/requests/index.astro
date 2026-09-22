@@ -9,22 +9,33 @@ import { listRequests, REQUEST_LIST, REQUEST_STATUSES, REQUEST_TOPICS, STATUS_LA
 import { isFiltered, listHref, readList } from '~/lib/listing';
 import { branches } from '~/data/site';
 import { formatNpt } from '~/lib/admin-format';
+import { officeName, officeScope } from '~/lib/roles';
 
 export const prerender = false;
 
+const scope = officeScope(Astro.locals.admin);
 const list = readList(Astro.url, Astro.cookies, REQUEST_LIST);
-const { rows, total } = await listRequests(list);
+const { rows, total } = await listRequests(list, scope);
 if (rows.length === 0 && list.page > 1) return Astro.redirect(listHref(list, { page: 1 }));
 
 const branchName = (id: string | null) => branches.find((b) => b.id === id)?.name.en ?? 'Not sure';
-const flash = Astro.url.searchParams.get('done');
+const DONE: Record<string, string> = {
+  deleted: 'Request deleted.',
+  moved: 'Request moved to another office. Staff there will take it from here.',
+};
+const flash = DONE[Astro.url.searchParams.get('done') ?? ''];
+// Customer care for one office only chooses between that office and “Not sure”.
+const officeOptions = [...branches.filter((b) => !scope || b.id === scope).map((b) => ({ value: b.id, label: b.name.en })), { value: 'unsure', label: 'Not sure' }];
 ---
 
 <AdminLayout title="Requests" wide>
-  {flash && <p class="flash"><Icon name="circle-check" size={20} /> Request {flash}.</p>}
+  {flash && <p class="flash"><Icon name="circle-check" size={20} /> {flash}</p>}
 
   <div class="toolbar">
-    <p class="hint">Queries and complaints sent from the website’s contact form. Newest first.</p>
+    <p class="hint">
+      Queries and complaints sent from the website’s contact form. Newest first.
+      {scope && ` Showing ${officeName(scope)} and queries where the customer didn’t choose an office.`}
+    </p>
   </div>
 
   {
@@ -44,7 +55,7 @@ const flash = Astro.url.searchParams.get('done');
             {
               name: 'branch',
               all: 'All offices',
-              options: [...branches.map((b) => ({ value: b.id, label: b.name.en })), { value: 'unsure', label: 'Not sure' }],
+              options: officeOptions,
             },
           ]}
         />

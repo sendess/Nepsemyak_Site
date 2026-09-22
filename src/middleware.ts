@@ -1,6 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import type { AuthStage } from './lib/auth';
-import { CODE, HELP, LOGIN, RESET, SETUP, safeNext, trimSlash } from './lib/admin-routes';
+import { CODE, LOGIN, NO_ACCESS, SETUP, isOpenPage, safeNext, trimSlash } from './lib/admin-routes';
+import { can, requiredPermission } from './lib/roles';
 
 const isAdminArea = (path: string) => path === '/admin' || path.startsWith('/admin/') || path.startsWith('/api/admin/');
 
@@ -45,14 +46,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const path = trimSlash(pathname);
   let response: Response;
+  // Signed in, but is this part of the panel (or this kind of change) allowed for their role?
+  const needed = requiredPermission(path, context.request.method);
+  const allowed = !needed || can(context.locals.admin, needed);
+  const json = (message: string, status: number) =>
+    new Response(JSON.stringify({ message }), { status, headers: { 'content-type': 'application/json' } });
+
   if (pathname.startsWith('/api/admin/')) {
-    response =
-      access.stage === 'ok'
-        ? await next()
-        : new Response(JSON.stringify({ message: 'Sign in required' }), { status: 401, headers: { 'content-type': 'application/json' } });
+    response = access.stage !== 'ok' ? json('Sign in required', 401) : allowed ? await next() : json('Not allowed for your role', 403);
   } else {
-    const target = path === RESET || path === HELP ? null : redirectFor(access.stage, path, context.url);
-    response = target ? new Response(null, { status: 303, headers: { Location: target } }) : await next();
+    const target = isOpenPage(path) ? null : redirectFor(access.stage, path, context.url);
+    if (target) response = new Response(null, { status: 303, headers: { Location: target } });
+    else if (access.stage === 'ok' && !allowed) response = new Response(null, { status: 303, headers: { Location: NO_ACCESS } });
+    else response = await next();
   }
 
   // Copy so headers are writable, then pass refreshed session cookies through.

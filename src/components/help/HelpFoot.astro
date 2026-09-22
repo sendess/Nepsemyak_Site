@@ -1,0 +1,113 @@
+---
+/** Previous / next topic at the end of a help page, so a new person can read the guides in order. */
+import Icon from '~/components/Icon.astro';
+import { HELP } from '~/lib/admin-routes';
+import { topicHref, type HelpTopic } from '~/lib/help';
+
+type Props = { prev: HelpTopic | null; next: HelpTopic | null; isTopic: boolean };
+const { prev, next, isTopic } = Astro.props;
+---
+
+<footer class="help-foot">
+  {
+    isTopic && (
+      <div class="pager">
+        {prev ? (
+          <a class="step-link" href={topicHref(prev.slug)}>
+            <small>Previous</small>
+            <span>
+              <Icon name="arrow-left" size={14} /> {prev.title}
+            </span>
+          </a>
+        ) : (
+          <span />
+        )}
+        {next && (
+          <a class="step-link next" href={topicHref(next.slug)}>
+            <small>Next</small>
+            <span>
+              {next.title} <Icon name="arrow-right" size={14} />
+            </span>
+          </a>
+        )}
+      </div>
+    )
+  }
+  <p class="foot-links">
+    {isTopic && <a href={HELP}>All help topics</a>}
+    <button class="link-button" type="button" data-print>Print this page</button>
+  </p>
+</footer>
+
+<style>
+  .help-foot {
+    display: grid;
+    gap: 0.9rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .pager {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .step-link {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .step-link:hover,
+  .step-link:focus-visible {
+    border-color: var(--green);
+  }
+
+  .step-link.next {
+    text-align: end;
+  }
+
+  .step-link small {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .step-link span {
+    font-weight: 600;
+    color: var(--green-700);
+  }
+
+  .foot-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin: 0;
+    font-size: 0.9rem;
+  }
+
+  .link-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--green-700);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  @media (max-width: 520px) {
+    .pager {
+      grid-template-columns: 1fr;
+    }
+
+    .step-link.next {
+      text-align: start;
+    }
+  }
+</style>

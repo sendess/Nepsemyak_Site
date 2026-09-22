@@ -1,0 +1,163 @@
+---
+import Toc from '../Toc.astro';
+import { can, officeName } from '~/lib/roles';
+import type { HelpReader } from '~/lib/help';
+
+type Props = { reader: HelpReader };
+const { reader } = Astro.props;
+const handles = can(reader, 'requests.handle');
+const canDelete = can(reader, 'requests.delete');
+const office = reader?.role === 'support' ? reader.office : null;
+const officeLabel = officeName(office);
+---
+
+<Toc
+  items={[
+    { id: 'where', label: 'Where queries come from' },
+    { id: 'your-list', label: 'Your list', show: Boolean(officeLabel) },
+    { id: 'read-only', label: 'Reading without changing', show: !handles },
+    { id: 'statuses', label: 'What each status means' },
+    { id: 'answering', label: 'Answering a query', show: handles },
+    { id: 'offices', label: 'Offices and moving a query', show: handles },
+    { id: 'notes', label: 'Writing notes', show: handles },
+    { id: 'finding', label: 'Finding a query' },
+    { id: 'spam', label: 'Spam and deleting', show: handles },
+    { id: 'good-practice', label: 'Good practice', show: handles },
+  ]}
+/>
+
+<section id="where" aria-labelledby="where-h">
+  <h2 id="where-h">Where queries come from</h2>
+  <ul class="plain">
+    <li>Customers fill in the form on the website’s <strong>Contact</strong> page, in English or Nepali. They choose a topic and, if they know it, an office.</li>
+    <li>Each query is saved at once and the customer sees a <strong>reference code</strong> such as <code>NS-7K4P2Q</code>. If they phone about it, ask for the code and search for it.</li>
+    <li>
+      An <strong>email alert</strong> goes to everyone who answers queries and has alerts turned on in <span class="ui">My account</span>{
+        officeLabel ? `, which for you means ${officeLabel} and queries with no office chosen` : ''
+      }.
+    </li>
+    <li>A hidden check stops most robots, and one device can send only five messages an hour.</li>
+  </ul>
+</section>
+
+{
+  officeLabel && (
+    <section id="your-list" aria-labelledby="your-list-h">
+      <h2 id="your-list-h">Your list</h2>
+      <p class="callout">
+        You look after <strong>{officeLabel}</strong>. <span class="ui">Requests</span> shows its queries plus any where the
+        customer didn’t choose an office, so none are missed. Queries for other offices don’t appear, and their links won’t open
+        for you.
+      </p>
+    </section>
+  )
+}
+
+{
+  !handles && (
+    <section id="read-only" aria-labelledby="read-only-h">
+      <h2 id="read-only-h">Reading without changing</h2>
+      <p>
+        Your role lets you read every query, with its notes and history, but not change its status or office or add notes. To
+        get something done about a query, tell the office concerned or the master admin, quoting its reference code.
+      </p>
+    </section>
+  )
+}
+
+<section id="statuses" aria-labelledby="statuses-h">
+  <h2 id="statuses-h">What each status means</h2>
+  <div class="table-wrap">
+    <table class="wide-cells">
+      <thead>
+        <tr><th scope="col">Status</th><th scope="col">Meaning</th><th scope="col">When to use it</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">New</th><td>Nobody has dealt with it yet.</td><td>Every query starts here. After 24 hours it counts as overdue and shows in red on the dashboard.</td></tr>
+        <tr><th scope="row">In progress</th><td>Someone is on it.</td><td>As soon as you’ve called, replied or passed it to a team, so others don’t do the same work.</td></tr>
+        <tr><th scope="row">Resolved</th><td>Done.</td><td>When the customer’s problem is sorted or their question answered.</td></tr>
+        <tr><th scope="row">Spam</th><td>Not a real query.</td><td>Adverts, nonsense or tests. Spam is left out of all figures and charts.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{
+  handles && (
+    <section id="answering" aria-labelledby="answering-h">
+      <h2 id="answering-h">Answering a query</h2>
+      <ol class="steps">
+        <li>Open it from the alert email (<span class="ui">Open in the admin panel</span>) or from <span class="ui">Requests</span>. New queries are shown in bold.</li>
+        <li>Read the message and the customer’s details on the right. Tap the phone number to call from a phone.</li>
+        <li>Call the customer, or reply by email. Replying to the alert email, or using the email link on the query, writes to the customer directly.</li>
+        <li>Under <span class="ui">What happens next</span>, set the status to <span class="ui">In progress</span>, add a note of what you did or promised, and press <span class="ui">Save</span>.</li>
+        <li>When it’s done, set <span class="ui">Resolved</span> with a short closing note.</li>
+      </ol>
+      <p class="callout">An email reply isn’t recorded in the panel by itself. Always update the status and add a note, so the team and the dashboard know where things stand.</p>
+    </section>
+  )
+}
+
+{
+  handles && (
+    <section id="offices" aria-labelledby="offices-h">
+      <h2 id="offices-h">Offices and moving a query</h2>
+      <ul class="plain">
+        <li>The office is the one the customer chose, or <em>Not sure</em>. Change it under <span class="ui">Office dealing with it</span> if another office should handle it.</li>
+        <li>Customer care staff tied to that office see it in their list straight away. If it’s urgent, phone them too.</li>
+        {officeLabel && <li>When you move a query away from {officeLabel}, it leaves your list and you go back to <span class="ui">Requests</span> with a message saying so.</li>}
+      </ul>
+    </section>
+  )
+}
+
+{
+  handles && (
+    <section id="notes" aria-labelledby="notes-h">
+      <h2 id="notes-h">Writing notes</h2>
+      <ul class="plain">
+        <li>Notes stay inside the panel. The customer never sees them.</li>
+        <li>They can’t be edited or deleted, and show who wrote them and when. Write them as you would a logbook.</li>
+        <li>Good notes say what was done and what was promised: “Called 2 pm, truck booked for Sunday morning, will call back Monday.”</li>
+      </ul>
+    </section>
+  )
+}
+
+<section id="finding" aria-labelledby="finding-h">
+  <h2 id="finding-h">Finding a query</h2>
+  <ul class="plain">
+    <li>Search by name, phone number, words from the message, or the reference code.</li>
+    <li>Filter by status, topic{officeLabel ? '' : ' or office'}. Click a column heading to sort; the panel remembers your choice.</li>
+    <li>The dashboard’s figures and charts link to the matching list.</li>
+  </ul>
+</section>
+
+{
+  handles && (
+    <section id="spam" aria-labelledby="spam-h">
+      <h2 id="spam-h">Spam and deleting</h2>
+      <p>
+        Mark junk as <span class="ui">Spam</span> rather than deleting it.{' '}
+        {canDelete
+          ? 'As master, you can also delete a query under “Delete this message”. The deleted text stays in the activity log, so nothing is lost for good.'
+          : 'Only the master admin can delete a query, and even then its text stays in the activity log.'}
+      </p>
+    </section>
+  )
+}
+
+{
+  handles && (
+    <section id="good-practice" aria-labelledby="good-h">
+      <h2 id="good-h">Good practice</h2>
+      <ul class="plain">
+        <li>Answer every query the same working day. The dashboard shows anything waiting more than a day in red.</li>
+        <li>Call back rather than write when the matter is urgent (missed collection, overflowing waste).</li>
+        <li>Give the customer the reference code when you speak, and quote it when talking to other offices.</li>
+        <li>Promise only what the office can do, and write the promise in a note.</li>
+        <li>Complaints about staff: stay polite, note the facts, and tell the office chief.</li>
+      </ul>
+    </section>
+  )
+}

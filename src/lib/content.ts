@@ -1,6 +1,6 @@
 // Database access for admin-managed content. Every write reports the cache tags to purge.
 import { sql } from './db';
-import type { AdminRole } from './auth';
+import type { AdminRole, AssignableRole } from './roles';
 import { likePattern, type ListSpec, type ListState } from './listing';
 import { asActor, type Actor } from './audit';
 import { branches } from '~/data/site';
@@ -442,6 +442,8 @@ export type AdminRecord = {
   email: string;
   name: string;
   role: AdminRole;
+  office: string | null;
+  notify_requests: boolean;
   created_at: string;
   last_seen_at: string | null;
   totp_enabled_at: string | null;
@@ -449,20 +451,33 @@ export type AdminRecord = {
 
 export async function listAdmins(): Promise<AdminRecord[]> {
   return (await sql`
-    select email, name, role, created_at, last_seen_at, totp_enabled_at from admin_users
-    order by role = 'owner' desc, lower(coalesce(nullif(name, ''), email))`) as AdminRecord[];
+    select email, name, role, office, notify_requests, created_at, last_seen_at, totp_enabled_at from admin_users
+    order by array_position(array['owner', 'editor', 'support', 'viewer'], role),
+      lower(coalesce(nullif(name, ''), email))`) as AdminRecord[];
 }
 
-/** Adds a sub-admin. Returns false if the email is already an admin. */
-export async function addSubAdmin(actor: Actor, email: string, name: string): Promise<boolean> {
+/**
+ * Adds someone with the given role (never a second master). Returns false if the email is already an admin.
+ * Viewers start with email alerts off: they read queries but don't answer them.
+ */
+export async function addAdmin(actor: Actor, email: string, name: string, role: AssignableRole, office: string | null): Promise<boolean> {
   const [rows] = await asActor(actor, [
-    sql`insert into admin_users (email, name, role, created_by) values (${email}, ${name}, 'editor', ${actor.email})
+    sql`insert into admin_users (email, name, role, office, notify_requests, created_by)
+        values (${email}, ${name}, ${role}, ${role === 'support' ? office : null}, ${role !== 'viewer'}, ${actor.email})
         on conflict (email) do nothing returning email`,
   ]);
   return rows.length === 1;
 }
 
+/** Changes what someone may do. The master's own access can't be changed here. */
+export async function changeAccess(actor: Actor, email: string, role: AssignableRole, office: string | null) {
+  await asActor(actor, [
+    sql`update admin_users set role = ${role}, office = ${role === 'support' ? office : null}
+        where email = ${email} and role <> 'owner'`,
+  ]);
+}
+
 /** The master admin can't be removed from the website. */
-export async function removeSubAdmin(actor: Actor, email: string) {
-  await asActor(actor, [sql`delete from admin_users where email = ${email} and role = 'editor'`]);
+export async function removeAdmin(actor: Actor, email: string) {
+  await asActor(actor, [sql`delete from admin_users where email = ${email} and role <> 'owner'`]);
 }

@@ -1,0 +1,112 @@
+---
+import Toc from '../Toc.astro';
+import { can, officeName } from '~/lib/roles';
+import type { HelpReader } from '~/lib/help';
+
+type Props = { reader: HelpReader };
+const { reader } = Astro.props;
+const handles = can(reader, 'requests.handle');
+const content = can(reader, 'content');
+const visitors = can(reader, 'visitors');
+const isMaster = can(reader, 'people');
+const officeLabel = reader?.role === 'support' ? officeName(reader.office) : null;
+---
+
+<Toc
+  items={[
+    { id: 'attention', label: 'Needs attention', show: handles || content },
+    { id: 'query-figures', label: 'Query figures' },
+    { id: 'visitors', label: 'Website visitors', show: visitors },
+    { id: 'on-the-website', label: 'On the website now', show: content },
+    { id: 'team', label: 'Team, security and storage', show: isMaster },
+    { id: 'reading-charts', label: 'Reading the charts' },
+  ]}
+/>
+
+<p>The dashboard is your starting page. It shows only what your role can act on, and every figure links to the matching list.</p>
+
+{
+  (handles || content) && (
+    <section id="attention" aria-labelledby="attention-h">
+      <h2 id="attention-h">Needs attention</h2>
+      <p>A to-do list worked out for you, most urgent first: red needs action now, yellow soon, and the rest are for information.</p>
+      <ul class="plain">
+        {handles && <li>Queries waiting for a reply{officeLabel && ` (for ${officeLabel} and those with no office)`}; red once any has waited more than a day.</li>}
+        {content && <li>Jobs past their deadline or closing within a week, notices ending within three days, statistics not updated for six months, and no news for 30 days.</li>}
+        <li>Only three or fewer recovery codes left for your account.</li>
+        {isMaster && <li>For you as master: people without two-step sign-in, email alerts failing or not set up, many failed sign-ins, unused images to clean up, and storage over 70% full.</li>}
+      </ul>
+    </section>
+  )
+}
+
+<section id="query-figures" aria-labelledby="query-figures-h">
+  <h2 id="query-figures-h">Query figures</h2>
+  {officeLabel && <p class="callout">Your figures cover {officeLabel} and queries where the customer didn’t choose an office.</p>}
+  <div class="table-wrap">
+    <table class="wide-cells">
+      <thead>
+        <tr><th scope="col">Figure</th><th scope="col">What it means</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Queries waiting</th><td>Queries still marked New, and how long the oldest has waited.</td></tr>
+        <tr><th scope="row">Queries this month</th><td>Queries received since the 1st of this month, compared with last month. Spam isn’t counted.</td></tr>
+        <tr><th scope="row">Typical first reply</th><td>Over the last 90 days, the middle time between a query arriving and someone first acting on it (a status change or a note). Half the queries were faster, half slower.</td></tr>
+        <tr><th scope="row">Resolved</th><td>Of the queries received in the last 30 days, the share now marked Resolved.</td></tr>
+        <tr><th scope="row">Queries per week</th><td>The last 12 weeks, Sunday to Saturday. The last point is this week so far.</td></tr>
+        <tr><th scope="row">What people write about</th><td>Topics chosen by customers over the last 90 days{!officeLabel && ', and which office they were for'}.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{
+  visitors && (
+    <section id="visitors" aria-labelledby="visitors-h">
+      <h2 id="visitors-h">Website visitors</h2>
+      <p>Counted by Cloudflare Web Analytics, which uses no cookies and doesn’t identify anyone. Robots are left out.</p>
+      <ul class="plain">
+        <li><strong>Visits:</strong> times someone arrived at the website from somewhere else (a search, Facebook, a typed address). One person reading five pages is one visit.</li>
+        <li><strong>Page views:</strong> every page opened. Five pages in one visit are five page views.</li>
+        <li><strong>Pages per visit:</strong> page views divided by visits; higher means people read more.</li>
+        <li><strong>Where visitors come from</strong> lists other websites that sent visits. People who typed the address or used a bookmark aren’t listed.</li>
+        <li>Cloudflare samples busy days, so small numbers can be slightly rounded. The dashboard fetches fresh figures about every ten minutes.</li>
+      </ul>
+    </section>
+  )
+}
+
+{
+  content && (
+    <section id="on-the-website" aria-labelledby="website-h">
+      <h2 id="website-h">On the website now</h2>
+      <p>
+        What visitors see at this moment: the live banner and pop-up, published news, open jobs, how up to date the statistics are,
+        and how many page sections differ from the original. Click a card to go to that section.
+      </p>
+    </section>
+  )
+}
+
+{
+  isMaster && (
+    <section id="team" aria-labelledby="team-h">
+      <h2 id="team-h">Team, security and storage</h2>
+      <ul class="plain">
+        <li><strong>Admins:</strong> everyone with access, their role, whether two-step sign-in is on, and when they were last active.</li>
+        <li><strong>Sign-ins:</strong> successful, failed and blocked sign-ins in the last 7 days. A few failures are normal typos; many from one address deserve a look in Activity.</li>
+        <li><strong>Storage:</strong> how much of the free database space is used, split into images and everything else.</li>
+        <li><strong>Recent changes:</strong> the last few edits by anyone, with a link to the full activity log.</li>
+      </ul>
+    </section>
+  )
+}
+
+<section id="reading-charts" aria-labelledby="charts-h">
+  <h2 id="charts-h">Reading the charts</h2>
+  <ul class="plain">
+    <li>Hover over a line chart, or click it and use the arrow keys, to read the exact number for each day or week.</li>
+    <li><span class="ui">View as table</span> under each chart lists every value.</li>
+    <li>Bars show a share of the total; the number and percentage are written next to each.</li>
+  </ul>
+</section>

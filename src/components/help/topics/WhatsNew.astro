@@ -1,0 +1,65 @@
+---
+import type { HelpReader } from '~/lib/help';
+
+type Props = { reader: HelpReader };
+
+// Newest first. Add an entry whenever the admin panel changes in a way staff will notice.
+const entries: { date: string; items: string[] }[] = [
+  {
+    date: '22 September 2026',
+    items: [
+      'Four roles instead of two: Master, Editor, Customer care and Viewer. The menu, dashboard and help show only what each role includes.',
+      'Customer care can be tied to one office, and then sees and is emailed about that office’s queries only.',
+      'This Help centre, with guides for each role and a Help button on every page of the panel.',
+    ],
+  },
+  {
+    date: '21 September 2026',
+    items: [
+      'Email alerts for new queries, with a switch and a test email in My account.',
+      'Smooth line charts for visits and queries on the dashboard.',
+      'Website visitor numbers on the dashboard (Cloudflare Web Analytics).',
+      'A dashboard showing what needs attention, query figures and what is live on the website.',
+      'About us and Our team became editable, including the chairman’s message and photo; the master can clean up stored images under Files.',
+    ],
+  },
+  {
+    date: '18 September 2026',
+    items: [
+      'The contact form saves every message to Requests, with reference codes, statuses, offices and notes.',
+      'Buttons show a spinner while working, so a form is never sent twice.',
+      'The master can delete a query; the activity log keeps its text.',
+    ],
+  },
+  {
+    date: '17 September 2026',
+    items: [
+      'Sign-in with a password and an authenticator app, and the activity log.',
+      'Statistics with “as of” dates, and notices that can show as a pop-up with an image.',
+      'Lists of news, jobs and notices can be sorted, filtered and searched.',
+    ],
+  },
+];
+---
+
+<div class="changes">
+  {
+    entries.map((e) => (
+      <section aria-label={e.date}>
+        <h2>{e.date}</h2>
+        <ul class="plain">
+          {e.items.map((i) => (
+            <li>{i}</li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+</div>
+
+<style>
+  .changes {
+    display: grid;
+    gap: 1.5rem;
+  }
+</style>

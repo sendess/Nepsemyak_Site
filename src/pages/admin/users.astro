@@ -1,17 +1,19 @@
 ---
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
-import { addSubAdmin, listAdmins, removeSubAdmin } from '~/lib/content';
+import { addAdmin, changeAccess, listAdmins, removeAdmin } from '~/lib/content';
 import { logEvent, requestActor } from '~/lib/audit';
 import { authUserId, callAuth, resetTwoFactor } from '~/lib/auth';
 import { sql } from '~/lib/db';
 import { FormReader } from '~/lib/forms';
 import { formatNpt } from '~/lib/admin-format';
+import { ASSIGNABLE_ROLES, ROLE_LABEL, ROLE_SUMMARY, can, isOffice, officeName, type AssignableRole } from '~/lib/roles';
+import { branches } from '~/data/site';
 
 export const prerender = false;
 
 const me = Astro.locals.admin!;
-if (me.role !== 'owner') return Astro.redirect('/admin', 303);
+if (!can(me, 'people')) return Astro.redirect('/admin/no-access', 303);
 const actor = requestActor(Astro, me.email);
 
 let message: { kind: 'ok' | 'error'; text: string; steps?: string[] } | null = null;
@@ -27,22 +29,36 @@ async function signOutEverywhere(email: string) {
   return userId;
 }
 
+/** Role and office from a form; the office only counts for Customer care. */
+function readAccess(form: FormData): { role: AssignableRole; office: string | null } | null {
+  const role = String(form.get('role') ?? '');
+  if (!(ASSIGNABLE_ROLES as readonly string[]).includes(role)) return null;
+  const office = String(form.get('office') ?? '');
+  return { role: role as AssignableRole, office: role === 'support' && isOffice(office) ? office : null };
+}
+/** "an Editor", "a Viewer", "Customer care for Lalitpur Field Office" */
+const describe = (access: { role: AssignableRole; office: string | null }) =>
+  access.role === 'support' ? `Customer care for ${officeName(access.office) ?? 'all offices'}` : access.role === 'editor' ? 'an Editor' : 'a Viewer';
+
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = form.get('_action');
   const target = String(form.get('email') ?? '').toLowerCase();
-  const subAdmin = (await listAdmins()).find((a) => a.email === target && a.role === 'editor');
+  // Everyone except the master can be changed here.
+  const person = (await listAdmins()).find((a) => a.email === target && a.role !== 'owner');
 
   if (action === 'add') {
     const f = new FormReader(form);
     const email = f.text('email', { max: 160, required: true, label: 'Email' }).toLowerCase();
     const name = f.text('name', { max: 80 });
+    const access = readAccess(form);
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) f.errors.email = 'Enter a valid email address.';
+    if (!access) f.errors.role = 'Choose a role.';
     errors = f.errors;
 
-    if (f.ok) {
-      if (!(await addSubAdmin(actor, email, name))) {
-        message = { kind: 'error', text: `${email} is already an admin.` };
+    if (f.ok && access) {
+      if (!(await addAdmin(actor, email, name, access.role, access.office))) {
+        message = { kind: 'error', text: `${email} already has access.` };
       } else {
         // Public sign-up is off, so the sign-in account is created here with a random password they never see.
         let problem: string | null = null;
@@ -55,31 +71,35 @@ if (Astro.request.method === 'POST') {
           ? { kind: 'error', text: `${email} was added, but their sign-in account could not be created (${problem}). Ask the site developer.` }
           : {
               kind: 'ok',
-              text: `${name || email} is now a sub-admin. Send them these steps:`,
-              steps: [
-                `Open ${Astro.url.origin}/admin/reset-password and enter ${email}.`,
-                'Type the 6-digit code from the email and choose a password.',
-                'Sign in, then scan the QR code with Google Authenticator and save the recovery codes.',
-              ],
+              text: `${name || email} is now ${describe(access)}. Send them this link and they can follow it step by step:`,
+              steps: [`${Astro.url.origin}/admin/help/getting-started`],
             };
       }
     }
-  } else if (!subAdmin) {
-    message = { kind: 'error', text: 'That person is not a sub-admin.' };
+  } else if (!person) {
+    message = { kind: 'error', text: 'That person can’t be changed here.' };
+  } else if (action === 'access') {
+    const access = readAccess(form);
+    if (!access) {
+      message = { kind: 'error', text: 'Choose a role.' };
+    } else {
+      await changeAccess(actor, person.email, access.role, access.office);
+      message = { kind: 'ok', text: `${person.name || person.email} is now ${describe(access)}. The change applies from their next click.` };
+    }
   } else if (action === 'reset-2fa') {
-    await resetTwoFactor(subAdmin.email);
-    await signOutEverywhere(subAdmin.email);
-    await logEvent(actor, 'two_factor_reset', { target: subAdmin.email, label: `Reset two-step sign-in for ${subAdmin.email}` });
-    message = { kind: 'ok', text: `${subAdmin.email} will set up their authenticator again at their next sign-in.` };
+    await resetTwoFactor(person.email);
+    await signOutEverywhere(person.email);
+    await logEvent(actor, 'two_factor_reset', { target: person.email, label: `Reset two-step sign-in for ${person.email}` });
+    message = { kind: 'ok', text: `${person.email} will set up their authenticator again at their next sign-in.` };
   } else if (action === 'sign-out') {
-    await signOutEverywhere(subAdmin.email);
-    await logEvent(actor, 'sessions_revoked', { target: subAdmin.email, label: `Signed out ${subAdmin.email} everywhere` });
-    message = { kind: 'ok', text: `${subAdmin.email} has been signed out on every device.` };
+    await signOutEverywhere(person.email);
+    await logEvent(actor, 'sessions_revoked', { target: person.email, label: `Signed out ${person.email} everywhere` });
+    message = { kind: 'ok', text: `${person.email} has been signed out on every device.` };
   } else if (action === 'remove') {
-    await removeSubAdmin(actor, subAdmin.email);
-    const userId = await signOutEverywhere(subAdmin.email);
+    await removeAdmin(actor, person.email);
+    const userId = await signOutEverywhere(person.email);
     if (userId) await neonAuth('admin/remove-user', { userId });
-    message = { kind: 'ok', text: `${subAdmin.email} no longer has admin access and their sign-in account was deleted.` };
+    message = { kind: 'ok', text: `${person.email} no longer has access and their sign-in account was deleted.` };
   }
 }
 
@@ -93,11 +113,13 @@ const admins = await listAdmins();
         <div>
           <p>{message.text}</p>
           {message.steps && (
-            <ol>
+            <ul>
               {message.steps.map((s) => (
-                <li>{s}</li>
+                <li>
+                  <code>{s}</code>
+                </li>
               ))}
-            </ol>
+            </ul>
           )}
         </div>
       </div>
@@ -105,12 +127,22 @@ const admins = await listAdmins();
   }
 
   <section class="form-section">
-    <h2>Add a sub-admin</h2>
+    <h2>Give someone access</h2>
+    <ul class="roles">
+      {
+        ASSIGNABLE_ROLES.map((r) => (
+          <li>
+            <strong>{ROLE_LABEL[r]}</strong>
+            <span>{ROLE_SUMMARY[r]}</span>
+          </li>
+        ))
+      }
+    </ul>
     <p class="hint">
-      Sub-admins answer queries and manage notices, statistics, news, jobs and page content. Only you (the master admin) can
-      add or remove people, delete queries, manage files and see the activity log.
+      Only you, as the master admin, can add or remove people, delete queries, manage files and see the activity log.{' '}
+      <a href="/admin/help/roles">Compare the roles in detail</a>.
     </p>
-    <form method="post" class="add">
+    <form method="post" class="add" data-access-form>
       <input type="hidden" name="_action" value="add" />
       <div class="field">
         <label for="email">Email</label>
@@ -121,8 +153,26 @@ const admins = await listAdmins();
         <label for="name">Name</label>
         <input class="input" id="name" name="name" />
       </div>
+      <div class="field">
+        <label for="role">Role</label>
+        <select class="select" id="role" name="role" data-role>
+          {ASSIGNABLE_ROLES.map((r) => <option value={r}>{ROLE_LABEL[r]}</option>)}
+        </select>
+        {errors.role && <p class="field-error">{errors.role}</p>}
+      </div>
+      <div class="field" data-office-field>
+        <label for="office">Office</label>
+        <select class="select" id="office" name="office">
+          <option value="">All offices</option>
+          {branches.map((b) => <option value={b.id}>{b.name.en}</option>)}
+        </select>
+      </div>
       <button class="btn btn-primary" type="submit"><Icon name="check" size={18} /> Add</button>
     </form>
+    <p class="hint">
+      Customer care tied to an office sees that office’s queries plus those where the customer didn’t choose an office,
+      and gets email alerts only for those.
+    </p>
   </section>
 
   <div class="table-wrap list">
@@ -130,7 +180,7 @@ const admins = await listAdmins();
       <thead>
         <tr>
           <th scope="col">Person</th>
-          <th scope="col">Role</th>
+          <th scope="col">Access</th>
           <th scope="col">Two-step sign-in</th>
           <th scope="col">Last active</th>
           <th scope="col"><span class="visually-hidden">Actions</span></th>
@@ -145,7 +195,9 @@ const admins = await listAdmins();
                 {a.name && <small class="email">{a.email}</small>}
               </td>
               <td>
-                <span class:list={['badge', a.role === 'owner' ? 'master' : 'sub']}>{a.role === 'owner' ? 'Master admin' : 'Sub-admin'}</span>
+                <span class:list={['badge', a.role]}>{ROLE_LABEL[a.role]}</span>
+                {a.role === 'support' && <small class="email">{officeName(a.office) ?? 'All offices'}</small>}
+                <small class="email">Email alerts {a.notify_requests ? 'on' : 'off'}</small>
               </td>
               <td class="hint">{a.totp_enabled_at ? `On since ${formatNpt(a.totp_enabled_at)}` : 'Not set up yet'}</td>
               <td class="hint">{a.last_seen_at ? formatNpt(a.last_seen_at) : 'Never signed in'}</td>
@@ -158,6 +210,39 @@ const admins = await listAdmins();
                   )
                 ) : (
                   <div class="row-actions">
+                    <details class="change">
+                      <summary class="btn btn-ghost btn-sm">Change access</summary>
+                      <form method="post" class="change-form" data-access-form>
+                        <input type="hidden" name="_action" value="access" />
+                        <input type="hidden" name="email" value={a.email} />
+                        <label class="visually-hidden" for={`role-${a.email}`}>
+                          Role for {a.email}
+                        </label>
+                        <select class="select" id={`role-${a.email}`} name="role" data-role>
+                          {ASSIGNABLE_ROLES.map((r) => (
+                            <option value={r} selected={a.role === r}>
+                              {ROLE_LABEL[r]}
+                            </option>
+                          ))}
+                        </select>
+                        <span data-office-field>
+                          <label class="visually-hidden" for={`office-${a.email}`}>
+                            Office for {a.email}
+                          </label>
+                          <select class="select" id={`office-${a.email}`} name="office">
+                            <option value="">All offices</option>
+                            {branches.map((b) => (
+                              <option value={b.id} selected={a.office === b.id}>
+                                {b.name.en}
+                              </option>
+                            ))}
+                          </select>
+                        </span>
+                        <button class="btn btn-primary btn-sm" type="submit">
+                          Save
+                        </button>
+                      </form>
+                    </details>
                     {a.totp_enabled_at && (
                       <form method="post" data-confirm={`Reset two-step sign-in for ${a.email}? They will set up their authenticator again at next sign-in.`}>
                         <input type="hidden" name="_action" value="reset-2fa" />
@@ -186,21 +271,64 @@ const admins = await listAdmins();
   </div>
 </AdminLayout>
 
+<script>
+  // The office only matters for Customer care, so it is shown only when that role is chosen.
+  document.querySelectorAll<HTMLFormElement>('[data-access-form]').forEach((form) => {
+    const role = form.querySelector<HTMLSelectElement>('[data-role]');
+    const office = form.querySelector<HTMLElement>('[data-office-field]');
+    if (!role || !office) return;
+    const sync = () => (office.hidden = role.value !== 'support');
+    role.addEventListener('change', sync);
+    sync();
+  });
+</script>
+
 <style>
+  .roles {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0 0 0.75rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .roles li {
+    display: grid;
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 560px) {
+    .roles li {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+  }
+
+  .roles strong {
+    color: var(--ink);
+  }
+
   .add {
     display: grid;
-    grid-template-columns: 2fr 1.5fr auto;
+    grid-template-columns: 2fr 1.5fr 1.2fr 1.5fr auto;
     gap: 0.9rem;
     align-items: end;
   }
 
-  @media (max-width: 760px) {
+  @media (max-width: 1100px) {
+    .add {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (max-width: 560px) {
     .add {
       grid-template-columns: 1fr;
     }
   }
 
-  .flash ol {
+  .flash ul {
     margin: 0.5rem 0 0;
     padding-left: 1.25rem;
     font-weight: 400;
@@ -224,24 +352,56 @@ const admins = await listAdmins();
     flex-wrap: wrap;
     gap: 0.4rem;
     justify-content: flex-end;
+    align-items: flex-start;
+  }
+
+  .change summary {
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .change summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .change-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
+  }
+
+  .change-form .select {
+    width: auto;
+    min-width: 9rem;
   }
 
   .badge {
     display: inline-block;
+    white-space: nowrap;
     padding: 0.1rem 0.6rem;
     border-radius: 999px;
     font-size: 0.8rem;
     font-weight: 600;
-    white-space: nowrap;
   }
 
-  .master {
+  .owner {
     background: #fff4c2;
     color: #6b5300;
   }
 
-  .sub {
+  .editor {
     background: var(--green-100);
     color: var(--green-800);
+  }
+
+  .support {
+    background: #e3eef9;
+    color: #1f4e79;
+  }
+
+  .viewer {
+    background: #eceef0;
+    color: #3f474d;
   }
 </style>

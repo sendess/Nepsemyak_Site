@@ -2,7 +2,8 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
-import { addNote, deleteRequest, getRequest, listNotes, updateRequest, REQUEST_STATUSES, STATUS_LABEL, TOPIC_LABEL, type RequestStatus } from '~/lib/requests';
+import { addNote, deleteRequest, getRequest, listNotes, requestInScope, updateRequest, REQUEST_STATUSES, STATUS_LABEL, TOPIC_LABEL, type RequestStatus } from '~/lib/requests';
+import { can, officeScope } from '~/lib/roles';
 import { requestActor } from '~/lib/audit';
 import { branches } from '~/data/site';
 import { formatNpt, parseId } from '~/lib/admin-format';
@@ -13,12 +14,15 @@ import { alertFor } from '~/lib/notify';
 export const prerender = false;
 
 const me = Astro.locals.admin!;
-const isMaster = me.role === 'owner';
+const canDelete = can(me, 'requests.delete');
+const canHandle = can(me, 'requests.handle');
+const scope = officeScope(me);
 
 const id = parseId(Astro.params.id);
 if (typeof id !== 'number') return Astro.redirect('/admin/requests', 303);
 let request = await getRequest(id);
-if (!request) return Astro.redirect('/admin/requests', 303);
+// Customer care for one office can't open other offices' queries, even with a direct link.
+if (!request || !requestInScope(scope, request)) return Astro.redirect('/admin/requests', 303);
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
@@ -26,10 +30,13 @@ if (Astro.request.method === 'POST') {
 
   if (form.get('_action') === 'delete') {
     // Only the master admin may remove a message for good.
-    if (!isMaster) return Astro.redirect(`/admin/requests/${request.id}`, 303);
+    if (!canDelete) return Astro.redirect(`/admin/requests/${request.id}`, 303);
     await deleteRequest(request.id, actor);
     return Astro.redirect('/admin/requests?done=deleted', 303);
   }
+
+  // Viewers read queries but can't change them (the middleware stops them too).
+  if (!canHandle) return Astro.redirect(`/admin/requests/${request.id}`, 303);
 
   const status = String(form.get('status') ?? '');
   const branchValue = String(form.get('branch') ?? '');
@@ -42,6 +49,9 @@ if (Astro.request.method === 'POST') {
     }
   }
   if (note) await addNote(request.id, note, actor);
+  // Moved to an office this person doesn't look after: it now belongs to that office's staff.
+  const updated = await getRequest(request.id);
+  if (updated && !requestInScope(scope, updated)) return Astro.redirect('/admin/requests?done=moved', 303);
   return Astro.redirect(`/admin/requests/${request.id}?saved=1`, 303);
 }
 
@@ -94,7 +104,14 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
         </div>
       </section>
 
-      <section class="form-section">
+      {!canHandle && (
+        <p class="hint read-only">
+          <Icon name="eye" size={16} /> You can read this query but not change it. Status:{' '}
+          <strong>{STATUS_LABEL[request.status]}</strong>.
+        </p>
+      )}
+
+      <section class="form-section" hidden={!canHandle}>
         <h2>What happens next</h2>
         <form method="post" class="form-grid">
           <div class="row-2">
@@ -130,11 +147,11 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
       </section>
 
       {
-        isMaster && (
+        canDelete && (
           <section class="form-section danger">
             <h2>Delete this message</h2>
             <p class="hint">
-              Only you, as master admin, can delete messages. Sub-admins can mark them as spam instead. A deleted message
+              Only you, as master admin, can delete messages. Others can mark them as spam instead. A deleted message
               still appears in the <a href="/admin/activity">activity log</a>, so the record is never lost.
             </p>
             <form method="post" data-confirm={`Delete the message from ${request.name} (${request.ref})? This cannot be undone.`}>
@@ -211,6 +228,13 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
 <style>
   .alert-failed {
     color: #a61b1b;
+  }
+
+  .read-only {
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: var(--surface);
   }
 
   .grid {

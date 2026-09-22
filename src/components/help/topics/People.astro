@@ -1,0 +1,132 @@
+---
+import Toc from '../Toc.astro';
+import type { HelpReader } from '~/lib/help';
+
+type Props = { reader: HelpReader };
+---
+
+<Toc
+  items={[
+    { id: 'choosing', label: 'Choosing a role' },
+    { id: 'adding', label: 'Adding someone' },
+    { id: 'changing', label: 'Changing someone’s access' },
+    { id: 'trouble', label: 'Lost phones and sign-outs' },
+    { id: 'leaving', label: 'When someone leaves' },
+    { id: 'outside', label: 'Accounts outside the panel' },
+    { id: 'locked-out', label: 'If you are locked out' },
+  ]}
+/>
+
+<section id="choosing" aria-labelledby="choosing-h">
+  <h2 id="choosing-h">Choosing a role</h2>
+  <p>Give each person the least access they need. It’s easy to give more later.</p>
+  <div class="table-wrap">
+    <table class="wide-cells">
+      <thead>
+        <tr><th scope="col">The person…</th><th scope="col">Give them</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Answers phones and queries at one branch</th><td>Customer care, tied to that office</td></tr>
+        <tr><th scope="row">Handles queries for every office at head office</th><td>Customer care, all offices</td></tr>
+        <tr><th scope="row">Writes news, posts notices and vacancies, updates figures</th><td>Editor</td></tr>
+        <tr><th scope="row">Chairman, manager or board member who wants to follow along</th><td>Viewer</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><a href="/admin/help/roles#compare">Compare the roles side by side.</a></p>
+</section>
+
+<section id="adding" aria-labelledby="adding-h">
+  <h2 id="adding-h">Adding someone</h2>
+  <ol class="steps">
+    <li>Open <span class="ui">Users</span>. Under <span class="ui">Give someone access</span>, enter their work email and name.</li>
+    <li>Choose the role. For Customer care, choose their office too, or leave <span class="ui">All offices</span>.</li>
+    <li>Press <span class="ui">Add</span>. Their sign-in account is created; they don’t have a password yet.</li>
+    <li>Send them the link the page shows, <span class="path">nepsemyak.com.np/admin/help/getting-started</span>. It walks them through setting a password and the authenticator.</li>
+    <li>Check back under <span class="ui">Users</span>: once they’ve finished, two-step sign-in shows as on and “Last active” fills in.</li>
+  </ol>
+  <p class="hint">Viewers start with email alerts off; everyone else starts with them on. Each person can change this in My account.</p>
+</section>
+
+<section id="changing" aria-labelledby="changing-h">
+  <h2 id="changing-h">Changing someone’s access</h2>
+  <p>
+    In <span class="ui">Users</span>, press <span class="ui">Change access</span> on their row, pick the new role (and office), and
+    press <span class="ui">Save</span>. It applies from their next click; they don’t need to sign in again. The change is recorded
+    in Activity with the old and new role. Your own role can’t be changed: there is always exactly one master.
+  </p>
+</section>
+
+<section id="trouble" aria-labelledby="trouble-h">
+  <h2 id="trouble-h">Lost phones and sign-outs</h2>
+  <ul class="plain">
+    <li><strong>Reset 2FA</strong> when someone has lost their phone and recovery codes. They’re signed out and scan a new QR code at their next sign-in.</li>
+    <li><strong>Sign out</strong> ends their sessions on every device, for example after a laptop is lost or stolen. They can sign in again normally.</li>
+  </ul>
+</section>
+
+<section id="leaving" aria-labelledby="leaving-h">
+  <h2 id="leaving-h">When someone leaves</h2>
+  <p>Do this on their last day.</p>
+  <ul class="checklist">
+    <li>
+      <label>
+        <input type="checkbox" data-remember="leave-remove" />
+        <span>
+          <strong>Remove them under Users.</strong>
+          <small>This signs them out everywhere and deletes their sign-in account. Their past changes stay in the activity log.</small>
+        </span>
+      </label>
+    </li>
+    <li>
+      <label>
+        <input type="checkbox" data-remember="leave-queries" />
+        <span>
+          <strong>Hand over their open queries.</strong>
+          <small>Filter Requests by their office and status In progress, and agree who takes each one.</small>
+        </span>
+      </label>
+    </li>
+    <li>
+      <label>
+        <input type="checkbox" data-remember="leave-chat" />
+        <span><strong>Remove them from tawk.to</strong> if they answered live chats.</span>
+      </label>
+    </li>
+    <li>
+      <label>
+        <input type="checkbox" data-remember="leave-shared" />
+        <span><strong>Change any shared office passwords they knew</strong>, such as the Facebook pages.</span>
+      </label>
+    </li>
+  </ul>
+</section>
+
+<section id="outside" aria-labelledby="outside-h">
+  <h2 id="outside-h">Accounts outside the panel</h2>
+  <p>The website relies on a few outside services. Staff need none of these logins except the authenticator app.</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th scope="col">Service</th><th scope="col">What it does</th><th scope="col">Who needs a login</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Google Authenticator</th><td>6-digit sign-in codes</td><td>Every admin, on their own phone</td></tr>
+        <tr><th scope="row">Netlify</th><td>Hosts the website, its DNS records and secret settings</td><td>You and the developer</td></tr>
+        <tr><th scope="row">Neon</th><td>The database: content, queries, admin accounts</td><td>You and the developer</td></tr>
+        <tr><th scope="row">Resend</th><td>Sends the query alert emails</td><td>You</td></tr>
+        <tr><th scope="row">Cloudflare Web Analytics</th><td>Counts visitors for the dashboard</td><td>You</td></tr>
+        <tr><th scope="row">tawk.to</th><td>The <strong>Chat with us</strong> links on the website</td><td>Each person who answers live chats</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="locked-out" aria-labelledby="locked-h">
+  <h2 id="locked-h">If you are locked out</h2>
+  <p>
+    Lost your phone? You can still sign in with one of your recovery codes, one code per sign-in. Nobody in the panel can reset
+    the master’s authenticator, so ask the website developer to reset it; you then scan a new QR code at your next sign-in. Do
+    the same if you lose the codes too.
+  </p>
+</section>

@@ -17,6 +17,7 @@ import {
 import { sql } from '~/lib/db';
 import { formatNpt } from '~/lib/admin-format';
 import { emailConfigured, sendTestEmail } from '~/lib/notify';
+import { can, officeName, roleLine } from '~/lib/roles';
 
 export const prerender = false;
 
@@ -121,7 +122,7 @@ const flash = (section: string) => (message?.section === section ? message : nul
     <section class="form-section">
       <h2>You</h2>
       <p>
-        <strong>{me.name || me.email}</strong> · {me.email} · {me.role === 'owner' ? 'Master admin' : 'Sub-admin'}
+        <strong>{me.name || me.email}</strong> · {me.email} · {roleLine(me)}
       </p>
     </section>
 
@@ -129,13 +130,14 @@ const flash = (section: string) => (message?.section === section ? message : nul
       <h2>Email alerts</h2>
       {flash('alerts') && <p class:list={['flash', { error: flash('alerts')!.kind === 'error' }]}>{flash('alerts')!.text}</p>}
       <p class="hint">
-        Get an email at <strong>{me.email}</strong> each time someone sends the contact form, with their details and a link to the query.
+        Get an email at <strong>{me.email}</strong> each time someone sends the contact form{me.office && `, for ${officeName(me.office)} or with no office chosen`},
+        with their details and a link to the query.
       </p>
       {
         !canEmail && (
           <p class="hint warn">
             Email sending isn’t set up on the website yet, so no alerts go out for now.
-            {me.role === 'owner' ? ' Add the RESEND_API_KEY setting in Netlify (see the admin guide).' : ' The master admin needs to finish the set-up.'}
+            {can(me, 'people') ? ' Add the RESEND_API_KEY setting in Netlify (see the README).' : ' The master admin needs to finish the set-up.'}
           </p>
         )
       }

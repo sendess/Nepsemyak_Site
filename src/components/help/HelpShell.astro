@@ -1,0 +1,480 @@
+---
+/**
+ * Frame for every Help page: the admin layout once signed in, the sign-in layout before. Holds the shared
+ * styles for help content (checklists, numbered steps, tables, callouts), scoped to `.help-article`.
+ */
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import AuthLayout from '~/layouts/AuthLayout.astro';
+import HelpFoot from './HelpFoot.astro';
+import { HELP } from '~/lib/admin-routes';
+import type { HelpReader, HelpTopic } from '~/lib/help';
+import { roleLine } from '~/lib/roles';
+
+type Props = {
+  reader: HelpReader;
+  title: string;
+  summary?: string;
+  /** Set on topic pages; the Help home has none. */
+  prev?: HelpTopic | null;
+  next?: HelpTopic | null;
+  isTopic?: boolean;
+};
+const { reader, title, summary, prev = null, next = null, isTopic = false } = Astro.props;
+---
+
+{
+  reader ? (
+    <AdminLayout title={isTopic ? 'Help' : 'Help centre'}>
+      <div class="help-article">
+        <header class="help-head">
+          {isTopic && (
+            <nav class="crumbs" aria-label="Breadcrumb">
+              <a href={HELP}>Help centre</a> <span aria-hidden="true">/</span> <span>{title}</span>
+            </nav>
+          )}
+          <h2 class="help-title">{title}</h2>
+          {summary && <p class="lede">{summary}</p>}
+          <p class="reading-as">
+            Written for you as <strong>{roleLine(reader)}</strong>. Parts that don’t apply to your role are left out.
+          </p>
+        </header>
+        <slot />
+        <HelpFoot prev={prev} next={next} isTopic={isTopic} />
+      </div>
+    </AdminLayout>
+  ) : (
+    <AuthLayout title={title} full>
+      <div class="help-article public">
+        <header class="help-head">
+          {isTopic && (
+            <nav class="crumbs" aria-label="Breadcrumb">
+              <a href={HELP}>Help centre</a> <span aria-hidden="true">/</span> <span>{title}</span>
+            </nav>
+          )}
+          <h1 class="help-title">{title}</h1>
+          {summary && <p class="lede">{summary}</p>}
+          <p class="reading-as">
+            Already have an account? <a href="/admin/login">Sign in</a> to see the guides for your role.
+          </p>
+        </header>
+        <slot />
+        <HelpFoot prev={prev} next={next} isTopic={isTopic} />
+      </div>
+    </AuthLayout>
+  )
+}
+
+<script>
+  // Checklist ticks are remembered on this device only; the page works the same without them.
+  document.querySelectorAll<HTMLInputElement>('.help-article input[data-remember]').forEach((box) => {
+    const key = `admin-help:${box.dataset.remember}`;
+    try {
+      box.checked = localStorage.getItem(key) === '1';
+    } catch {
+      /* storage blocked: start unticked */
+    }
+    box.addEventListener('change', () => {
+      try {
+        localStorage.setItem(key, box.checked ? '1' : '0');
+      } catch {
+        /* storage blocked: the tick lasts until the page is closed */
+      }
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>('[data-print]').forEach((b) => b.addEventListener('click', () => window.print()));
+</script>
+
+<style is:global>
+  .help-article {
+    display: grid;
+    gap: 2rem;
+    max-width: 54rem;
+    color: var(--text);
+  }
+
+  .help-article .help-head {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .help-article .crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+
+  .help-article .help-title {
+    margin: 0;
+    font-family: var(--font-head);
+    font-size: clamp(1.4rem, 1.2rem + 0.8vw, 1.8rem);
+    line-height: 1.25;
+    color: var(--navy);
+    text-wrap: balance;
+  }
+
+  .help-article .lede {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 1.08rem;
+    color: var(--ink);
+  }
+
+  .help-article .reading-as {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  .help-article .toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .help-article .toc a {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    font-size: 0.88rem;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .help-article .toc a:hover,
+  .help-article .toc a:focus-visible {
+    border-color: var(--green);
+    background: var(--green-50);
+  }
+
+  .help-article section {
+    display: grid;
+    gap: 0.75rem;
+    scroll-margin-top: 5rem;
+  }
+
+  .help-article h2:not(.help-title) {
+    margin: 0;
+    font-family: var(--font-head);
+    font-size: 1.25rem;
+    color: var(--navy);
+    text-wrap: balance;
+  }
+
+  .help-article h3 {
+    margin: 0.5rem 0 0;
+    font-family: var(--font-head);
+    font-size: 1rem;
+    color: var(--ink);
+  }
+
+  .help-article p,
+  .help-article li {
+    max-width: 68ch;
+  }
+
+  .help-article p {
+    margin: 0;
+  }
+
+  .help-article strong {
+    color: var(--ink);
+  }
+
+  .help-article a {
+    color: var(--green-700);
+  }
+
+  .help-article ul.plain {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding-left: 1.2rem;
+  }
+
+  .help-article code,
+  .help-article .path {
+    padding: 0.05em 0.35em;
+    border-radius: 4px;
+    background: var(--green-50);
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-size: 0.88em;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+
+  /* A button or menu label exactly as it appears in the panel. */
+  .help-article .ui {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .help-article .ui::before,
+  .help-article .ui::after {
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .help-article .ui::before {
+    content: '“';
+  }
+
+  .help-article .ui::after {
+    content: '”';
+  }
+
+  .help-article .tag {
+    display: inline-block;
+    margin-left: 0.3rem;
+    padding: 0 0.45rem;
+    border-radius: 999px;
+    background: var(--yellow-soft);
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink);
+    vertical-align: 2px;
+    white-space: nowrap;
+  }
+
+  /* ---------- Checklists (text flows inline) ---------- */
+  .help-article .checklist {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .help-article .checklist li {
+    max-width: none;
+  }
+
+  .help-article .checklist label {
+    display: grid;
+    grid-template-columns: 1.3rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.55rem 0.7rem;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .help-article .checklist label:hover {
+    background: var(--green-50);
+  }
+
+  .help-article .checklist input {
+    width: 1.15rem;
+    height: 1.15rem;
+    margin: 0.25rem 0 0;
+    accent-color: var(--green);
+  }
+
+  .help-article .checklist label > span {
+    display: block;
+  }
+
+  .help-article .checklist small {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.93rem;
+    color: var(--muted);
+  }
+
+  .help-article .checklist input:checked + span strong {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-color: var(--line-strong);
+  }
+
+  /* ---------- Numbered steps: a real sequence. The number sits in the padding so text flows. ---------- */
+  .help-article .track {
+    margin-top: 0.3rem;
+    font-family: var(--font-head);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .help-article .steps {
+    counter-reset: step;
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .help-article .steps > li {
+    counter-increment: step;
+    position: relative;
+    min-height: 1.9rem;
+    max-width: 70ch;
+    padding: 0.2rem 0 0 2.75rem;
+  }
+
+  .help-article .steps > li::before {
+    content: counter(step);
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid var(--green-200);
+    border-radius: 50%;
+    background: var(--green-50);
+    font-family: var(--font-head);
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--green-700);
+  }
+
+  /* ---------- Callouts ---------- */
+  .help-article .callout {
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--green-200);
+    border-radius: 8px;
+    background: var(--green-50);
+  }
+
+  .help-article .callout.warn {
+    border-color: #e8c95a;
+    background: #fff8e1;
+  }
+
+  /* ---------- Tables ---------- */
+  .help-article .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .help-article table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  .help-article th,
+  .help-article td {
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .help-article tbody tr:last-child > * {
+    border-bottom: 0;
+  }
+
+  .help-article thead th {
+    background: var(--bg);
+    font-family: var(--font-head);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .help-article tbody th {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .help-article .c {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .help-article .yes {
+    font-weight: 600;
+    color: var(--green-700);
+  }
+
+  .help-article .no {
+    color: var(--muted);
+  }
+
+  /* The reader's own column in the roles table. */
+  .help-article .mine {
+    background: var(--green-50);
+  }
+
+  .help-article .wide-cells td {
+    min-width: 12rem;
+  }
+
+  /* ---------- Definition list (glossary) ---------- */
+  .help-article dl {
+    display: grid;
+    gap: 0.9rem;
+    margin: 0;
+  }
+
+  .help-article dt {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .help-article dd {
+    margin: 0.15rem 0 0;
+    max-width: 68ch;
+  }
+
+  /* ---------- Cards (Help home, routines) ---------- */
+  .help-article .cards {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  @media (min-width: 720px) {
+    .help-article .cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .help-article .card-box {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .help-article .card-box h3 {
+    margin: 0 0 0.4rem;
+  }
+
+  .help-article .card-box ul {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.96rem;
+  }
+
+  .help-article.public .reading-as a {
+    font-weight: 600;
+  }
+
+  @media print {
+    .help-article .toc,
+    .help-article .help-foot {
+      display: none;
+    }
+  }
+</style>

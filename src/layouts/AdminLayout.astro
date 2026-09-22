@@ -3,23 +3,27 @@ import { Font } from 'astro:assets';
 import '~/styles/global.css';
 import Icon from '~/components/Icon.astro';
 import type { IconName } from '~/components/icons';
+import { helpFor } from '~/lib/help';
+import { can, roleLine, type Permission } from '~/lib/roles';
 
 type Props = { title: string; wide?: boolean };
 const { title, wide = false } = Astro.props;
 const admin = Astro.locals.admin;
 const path = Astro.url.pathname.replace(/\/$/, '') || '/admin';
+const help = helpFor(path);
 
-const nav: { href: string; label: string; icon: IconName; ownerOnly?: boolean }[] = [
+// Each person sees only the parts of the panel their role includes.
+const nav: { href: string; label: string; icon: IconName; need?: Permission }[] = [
   { href: '/admin', label: 'Dashboard', icon: 'house' },
-  { href: '/admin/requests', label: 'Requests', icon: 'messages-square' },
-  { href: '/admin/notices', label: 'Notices', icon: 'megaphone' },
-  { href: '/admin/stats', label: 'Statistics', icon: 'chart-bar' },
-  { href: '/admin/news', label: 'News', icon: 'newspaper' },
-  { href: '/admin/jobs', label: 'Jobs', icon: 'briefcase' },
-  { href: '/admin/pages', label: 'Pages', icon: 'file-text' },
-  { href: '/admin/users', label: 'Users', icon: 'users', ownerOnly: true },
-  { href: '/admin/activity', label: 'Activity', icon: 'clock', ownerOnly: true },
-  { href: '/admin/files', label: 'Files', icon: 'folder-open', ownerOnly: true },
+  { href: '/admin/requests', label: 'Requests', icon: 'messages-square', need: 'requests.view' },
+  { href: '/admin/notices', label: 'Notices', icon: 'megaphone', need: 'content' },
+  { href: '/admin/stats', label: 'Statistics', icon: 'chart-bar', need: 'content' },
+  { href: '/admin/news', label: 'News', icon: 'newspaper', need: 'content' },
+  { href: '/admin/jobs', label: 'Jobs', icon: 'briefcase', need: 'content' },
+  { href: '/admin/pages', label: 'Pages', icon: 'file-text', need: 'content' },
+  { href: '/admin/users', label: 'Users', icon: 'users', need: 'people' },
+  { href: '/admin/activity', label: 'Activity', icon: 'clock', need: 'activity' },
+  { href: '/admin/files', label: 'Files', icon: 'folder-open', need: 'files' },
   { href: '/admin/account', label: 'My account', icon: 'circle-check' },
   { href: '/admin/help', label: 'Help', icon: 'circle-question-mark' },
 ];
@@ -51,7 +55,7 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
         <nav aria-label="Admin">
           {
             nav
-              .filter((item) => !item.ownerOnly || admin?.role === 'owner')
+              .filter((item) => !item.need || can(admin, item.need))
               .map((item) => (
                 <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
                   <Icon name={item.icon} size={20} />
@@ -75,11 +79,19 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
           </button>
           <h1>{title}</h1>
           {
+            help && (
+              <a class="help-link" href={help} title="Help for this page">
+                <Icon name="circle-question-mark" size={18} />
+                <span>Help</span>
+              </a>
+            )
+          }
+          {
             admin && (
               <div class="who">
                 <span class="who-text">
                   <strong>{admin.name || admin.email}</strong>
-                  <small>{admin.role === 'owner' ? 'Master admin' : 'Sub-admin'}</small>
+                  <small>{roleLine(admin)}</small>
                 </span>
                 <button class="btn btn-ghost btn-sm" type="button" data-sign-out>
                   Sign out
@@ -398,6 +410,26 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
         font-size: 1.3rem;
       }
 
+      .help-link {
+        display: inline-flex;
+        gap: 0.35rem;
+        align-items: center;
+        padding: 0.3rem 0.7rem;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--green-700);
+        text-decoration: none;
+        white-space: nowrap;
+      }
+
+      .help-link:hover,
+      .help-link:focus-visible {
+        border-color: var(--green);
+        background: var(--green-50);
+      }
+
       .who {
         display: flex;
         gap: 0.9rem;
@@ -464,6 +496,10 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
         }
 
         .who-text {
+          display: none;
+        }
+
+        .help-link span {
           display: none;
         }
       }

@@ -1,0 +1,56 @@
+---
+import Toc from '../Toc.astro';
+import type { HelpReader } from '~/lib/help';
+
+type Props = { reader: HelpReader };
+---
+
+<Toc
+  items={[
+    { id: 'activity', label: 'The activity log' },
+    { id: 'reading', label: 'Reading an entry' },
+    { id: 'files', label: 'Stored files' },
+    { id: 'storage', label: 'Staying under the free limit' },
+  ]}
+/>
+
+<section id="activity" aria-labelledby="activity-h">
+  <h2 id="activity-h">The activity log</h2>
+  <p>
+    Every change to website content, queries and people, and every sign-in, is written to the log automatically: who, when, from
+    which device and address, and the old and new values. <strong>Nobody can edit or delete it, not even you.</strong>
+  </p>
+  <ul class="plain">
+    <li>Filter by person, by area (notices, news, jobs, statistics, requests, pages, files, users, sign-in) or by kind: <em>changes</em>, <em>sign-ins</em> or <em>security</em> (password, two-step sign-in and alert tests).</li>
+    <li>Search by title, reference code, email or IP address to find everything about one item or one person.</li>
+    <li>Long texts are shortened in the log, and image data is never copied into it.</li>
+  </ul>
+</section>
+
+<section id="reading" aria-labelledby="reading-h">
+  <h2 id="reading-h">Reading an entry</h2>
+  <ul class="plain">
+    <li><strong>Created</strong> shows every value the new item started with.</li>
+    <li><strong>Edited</strong> shows only the fields that changed, each with its old and new value. Use this to put back wording changed by mistake.</li>
+    <li><strong>Deleted</strong> keeps the item’s content, so a deleted query or news post can still be read.</li>
+    <li>Sign-in entries show failures and blocks too. Many failures from one address in a short time usually mean someone guessing passwords; the panel pauses them automatically.</li>
+  </ul>
+</section>
+
+<section id="files" aria-labelledby="files-h">
+  <h2 id="files-h">Stored files</h2>
+  <p>
+    <span class="ui">Files</span> lists every uploaded image with its size, who uploaded it and where it is used. Images in use
+    can’t be deleted. An image stops being used when someone replaces a photo, deletes a news post, or uploads a photo and then
+    leaves the form without saving.
+  </p>
+</section>
+
+<section id="storage" aria-labelledby="storage-h">
+  <h2 id="storage-h">Staying under the free limit</h2>
+  <ul class="plain">
+    <li>The free database holds about 0.5 GB. The meter on Files and the dashboard shows how much is used.</li>
+    <li><span class="ui">Clean up unused images</span> deletes every unused image older than 24 hours in one go. Newer ones are kept in case someone is still working on a form.</li>
+    <li>The dashboard reminds you when unused images build up, and warns in red once the database is over 70% full.</li>
+  </ul>
+</section>

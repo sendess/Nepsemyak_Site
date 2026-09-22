@@ -1,0 +1,32 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import Icon from '~/components/Icon.astro';
+import { ROLE_LABEL, ROLE_SUMMARY } from '~/lib/roles';
+
+export const prerender = false;
+
+const me = Astro.locals.admin!;
+Astro.response.status = 403;
+---
+
+<AdminLayout title="Not part of your role">
+  <section class="form-section">
+    <h2>That part of the panel isn’t included in your role</h2>
+    <p>
+      You’re signed in as <strong>{ROLE_LABEL[me.role]}</strong>: {ROLE_SUMMARY[me.role]}
+    </p>
+    <p class="hint">If you need more access, ask the master admin. They can change your role under Users.</p>
+    <p class="actions">
+      <a class="btn btn-primary" href="/admin"><Icon name="house" size={18} /> Back to the dashboard</a>
+      <a class="btn btn-ghost" href="/admin/help/roles">What each role can do</a>
+    </p>
+  </section>
+</AdminLayout>
+
+<style>
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+</style>

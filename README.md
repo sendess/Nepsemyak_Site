@@ -82,9 +82,20 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 - **Passwords:** new admins (and anyone who forgot) use **Set or reset password** (`/admin/reset-password`): an emailed
   6-digit code lets them choose a password. The authenticator is still required afterwards, so email access alone
   isn't enough to get in. Change it under **My account**.
-- **Roles:** one *master admin* (role `owner`, enforced by the database) and any number of *sub-admins* (`editor`).
-  Sub-admins manage notices, statistics, news and jobs. The master also manages people under **Users** (add, reset
-  2FA, sign out everywhere, remove) and sees **Activity**.
+- **Roles** (`src/lib/roles.ts` is the single table of who may do what; `src/middleware.ts` checks it on every page,
+  save and upload, so hidden menu items are never the only protection):
+  - **Master** (`owner`, exactly one, enforced by the database): everything, including **Users**, **Activity**,
+    **Files** and deleting queries.
+  - **Editor** (`editor`): website content (notices, statistics, news, jobs, pages) and queries; sees visitor numbers.
+  - **Customer care** (`support`): queries only. Optionally tied to one office (`admin_users.office`), then sees and is
+    emailed about that office's queries plus those with no office chosen; a query moved away drops out of their list.
+  - **Viewer** (`viewer`): reads the dashboard, visitor numbers and queries; can't change anything. Alerts start off.
+  The master picks the role (and office) when adding someone and can change it under **Users → Change access**; it
+  applies on the person's next request and is audit-logged. Opening something outside your role shows `/admin/no-access`.
+- **Help centre** (`/admin/help`): guides in `src/components/help/topics/`, registered in `src/lib/help.ts`. Each topic
+  shows only to roles it applies to and tailors its text to the reader's role (and office). Getting started, Roles,
+  Safety, Troubleshooting and Glossary are readable before sign-in, for new staff. Every admin page's top bar links to
+  its guide (`helpFor` in `src/lib/help.ts`). Add a line to **What's new** whenever the panel changes.
 - **Activity log:** every create/edit/delete of notices, news, jobs, statistics and admins is written by database
   triggers with who, when, IP address, browser and the changed fields; sign-ins, failed attempts and password/2FA
   events are logged too. The `audit_log` table rejects updates and deletes.
@@ -115,9 +126,9 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 - **Notices:** a notice can show as a banner, a pop-up, or both. Pop-ups have their own title, details and optional
   image, open once per visitor (again after the notice is edited), and can be previewed at `/#notice-preview=<id>`
   by a signed-in admin.
-- **Adding staff:** the master adds them under **Users**. This creates their Neon Auth account (the master needs the
-  Neon Auth `admin` role: `neon neon-auth user set-role <user-id> --roles admin`). They then set a password and
-  authenticator as above.
+- **Adding staff:** the master adds them under **Users** with a role. This creates their Neon Auth account (the master
+  needs the Neon Auth `admin` role: `neon neon-auth user set-role <user-id> --roles admin`). Send them
+  `/admin/help/getting-started`, which walks them through the password and authenticator.
 - **Languages:** every field has English and Nepali boxes. If one is empty, visitors see the other.
 - **Images:** resized in the browser to WebP (max 1600 px) and stored in Postgres (`media` table).
 

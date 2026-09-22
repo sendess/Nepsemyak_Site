@@ -8,11 +8,12 @@ import { auditListSpec, listAudit, type AuditEntry } from '~/lib/audit';
 import { listAdmins } from '~/lib/content';
 import { listHref, readList } from '~/lib/listing';
 import { formatNpt } from '~/lib/admin-format';
+import { ROLE_LABEL, can, officeName, type AdminRole } from '~/lib/roles';
 
 export const prerender = false;
 
 const me = Astro.locals.admin!;
-if (me.role !== 'owner') return Astro.redirect('/admin', 303);
+if (!can(me, 'activity')) return Astro.redirect('/admin/no-access', 303);
 
 const admins = await listAdmins();
 const emails = admins.map((a) => a.email);
@@ -67,7 +68,7 @@ function describe(e: AuditEntry) {
 
 /** "title_en" → "Title (English)". */
 /** Readable names for columns that aren't content. */
-const COLUMN_NAME: Record<string, string> = { position: 'Order on page', visible: 'Shown on website', notify_requests: 'Email alerts for new queries' };
+const COLUMN_NAME: Record<string, string> = { position: 'Order on page', visible: 'Shown on website', notify_requests: 'Email alerts for new queries', role: 'Role', office: 'Office' };
 
 const fieldName = (key: string) =>
   COLUMN_NAME[key] ??
@@ -81,6 +82,15 @@ const fieldName = (key: string) =>
     .replace(/^./, (c) => c.toUpperCase());
 
 const show = (v: unknown) => (v === undefined || v === null || v === '' ? '—' : typeof v === 'string' ? v : JSON.stringify(v));
+/** Roles and offices by name rather than their stored codes. */
+const showField = (key: string, v: unknown) =>
+  key === 'role' && typeof v === 'string' && v in ROLE_LABEL
+    ? ROLE_LABEL[v as AdminRole]
+    : key === 'office' && typeof v === 'string'
+      ? (officeName(v) ?? v)
+      : key === 'office' && v === null
+        ? 'All offices'
+        : show(v);
 
 /** Short device description from the browser's user agent. */
 function device(ua: string | null) {
@@ -189,8 +199,8 @@ function device(ua: string | null) {
                             {changes.map(([key, c]) => (
                               <tr>
                                 <th scope="row">{fieldName(key)}</th>
-                                {e.action !== 'create' && <td class="from">{show(c.from)}</td>}
-                                {e.action !== 'delete' && <td class="to">{show(c.to)}</td>}
+                                {e.action !== 'create' && <td class="from">{showField(key, c.from)}</td>}
+                                {e.action !== 'delete' && <td class="to">{showField(key, c.to)}</td>}
                               </tr>
                             ))}
                           </tbody>

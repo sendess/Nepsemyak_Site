@@ -14,23 +14,29 @@ import { formatDay, formatNpt, todayNpt } from '~/lib/admin-format';
 import { formatDate } from '~/i18n/utils';
 import { visitorFigures } from '~/lib/visitors';
 import { emailConfigured, failedAlerts } from '~/lib/notify';
+import { can, officeName, officeScope, roleLine } from '~/lib/roles';
 
 export const prerender = false;
 
 const me = Astro.locals.admin!;
-const isMaster = me.role === 'owner';
+// Each role sees the parts of the dashboard it can act on.
+const isMaster = can(me, 'people');
+const showContent = can(me, 'content');
+const showVisitors = can(me, 'visitors');
+const handles = can(me, 'requests.handle');
+const scope = officeScope(me);
 
 const [req, content, live, stats, codesLeft, security, admins, storage, recent, visitors, alertsFailed] = await Promise.all([
-  requestFigures(),
-  contentFigures(),
-  getLiveNotices(),
-  getAllStats(),
+  requestFigures(scope),
+  showContent ? contentFigures() : null,
+  showContent ? getLiveNotices() : null,
+  showContent ? getAllStats() : null,
   recoveryCodesLeft(me.email),
   isMaster ? securityFigures() : null,
   isMaster ? listAdmins() : null,
   isMaster ? storageSummary() : null,
   isMaster ? recentChanges(8) : null,
-  visitorFigures(),
+  showVisitors ? visitorFigures() : null,
   isMaster ? failedAlerts() : null,
 ]);
 
@@ -60,28 +66,30 @@ const todayBs = formatDate(todayNpt(), 'ne');
 type Attention = { tone: 'bad' | 'warn' | 'info'; icon: IconName; text: string; href: string; action: string };
 const attention: Attention[] = [];
 
-if (req.overdue) {
+if (handles && req.overdue) {
   attention.push({ tone: 'bad', icon: 'messages-square', text: `${plural(req.overdue, 'query', 'queries')} waiting more than a day for a reply`, href: '/admin/requests?status=new', action: 'Answer' });
-} else if (req.waiting) {
+} else if (handles && req.waiting) {
   attention.push({ tone: 'warn', icon: 'messages-square', text: `${plural(req.waiting, 'new query', 'new queries')} to answer`, href: '/admin/requests?status=new', action: 'Answer' });
 }
-if (content.jobs.expired) {
-  attention.push({ tone: 'warn', icon: 'briefcase', text: `${plural(content.jobs.expired, 'job')} past the deadline but still marked open (already hidden from Careers)`, href: '/admin/jobs?status=expired', action: 'Close or extend' });
-}
-if (content.closingJobs.length) {
-  attention.push({ tone: 'info', icon: 'clock', text: `${plural(content.closingJobs.length, 'job')} closing within 7 days`, href: '/admin/jobs?status=open', action: 'See jobs' });
-}
 const STALE_DAYS = 180;
-const staleStats = STAT_GROUP_IDS.filter((id) => !stats[id].as_of || daysSince(stats[id].as_of!) > STALE_DAYS);
-if (staleStats.length) {
-  attention.push({ tone: 'warn', icon: 'chart-bar', text: `${plural(staleStats.length, 'statistics group')} not updated for over 6 months: ${staleStats.map((id) => STAT_GROUPS[id].title).join(', ')}`, href: '/admin/stats', action: 'Update figures' });
-}
-const newsAge = content.news.lastPublished ? daysSince(content.news.lastPublished) : null;
-if (newsAge === null || newsAge > 30) {
-  attention.push({ tone: 'info', icon: 'newspaper', text: newsAge === null ? 'No news published yet' : `No news posted for ${newsAge} days`, href: '/admin/news/new', action: 'Write a post' });
-}
-if (content.notices.endingSoon) {
-  attention.push({ tone: 'info', icon: 'megaphone', text: `${plural(content.notices.endingSoon, 'notice')} ending within 3 days`, href: '/admin/notices', action: 'Review' });
+const staleStats = stats ? STAT_GROUP_IDS.filter((id) => !stats[id].as_of || daysSince(stats[id].as_of!) > STALE_DAYS) : [];
+const newsAge = content?.news.lastPublished ? daysSince(content.news.lastPublished) : null;
+if (content) {
+  if (content.jobs.expired) {
+    attention.push({ tone: 'warn', icon: 'briefcase', text: `${plural(content.jobs.expired, 'job')} past the deadline but still marked open (already hidden from Careers)`, href: '/admin/jobs?status=expired', action: 'Close or extend' });
+  }
+  if (content.closingJobs.length) {
+    attention.push({ tone: 'info', icon: 'clock', text: `${plural(content.closingJobs.length, 'job')} closing within 7 days`, href: '/admin/jobs?status=open', action: 'See jobs' });
+  }
+  if (staleStats.length) {
+    attention.push({ tone: 'warn', icon: 'chart-bar', text: `${plural(staleStats.length, 'statistics group')} not updated for over 6 months: ${staleStats.map((id) => STAT_GROUPS[id].title).join(', ')}`, href: '/admin/stats', action: 'Update figures' });
+  }
+  if (newsAge === null || newsAge > 30) {
+    attention.push({ tone: 'info', icon: 'newspaper', text: newsAge === null ? 'No news published yet' : `No news posted for ${newsAge} days`, href: '/admin/news/new', action: 'Write a post' });
+  }
+  if (content.notices.endingSoon) {
+    attention.push({ tone: 'info', icon: 'megaphone', text: `${plural(content.notices.endingSoon, 'notice')} ending within 3 days`, href: '/admin/notices', action: 'Review' });
+  }
 }
 // Recovery codes only exist once the authenticator is set up.
 if (me.totpEnabled && codesLeft <= 3) {
@@ -161,7 +169,7 @@ const weekPoints = req.weeks.map((w, i) => ({
 
 /* ---------- Visitors (Cloudflare Web Analytics) ---------- */
 
-const v = visitors.status === 'ok' ? visitors.data : null;
+const v = visitors?.status === 'ok' ? visitors.data : null;
 const visitPoints = v ? v.days.map((d) => ({ label: shortDate(d.date), value: d.visits, tip: longDate(d.date) })) : [];
 const change = (now: number, before: number) => (before ? `${now >= before ? '+' : '−'}${Math.abs(Math.round(((now - before) / before) * 100))}% vs the week before` : 'No visits the week before');
 const visitorKpis = v
@@ -192,7 +200,20 @@ const nameOf = new Map((admins ?? []).map((a) => [a.email, a.name || a.email]));
 
 const usedPct = storage ? Math.min(100, (storage.dbBytes / STORAGE_LIMIT_BYTES) * 100) : 0;
 const imagesPct = storage ? Math.min(usedPct, (storage.mediaBytes / STORAGE_LIMIT_BYTES) * 100) : 0;
-const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is string => !!d).sort()[0] ?? null;
+const oldestAsOf = stats ? (STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is string => !!d).sort()[0] ?? null) : null;
+
+/* ---------- Quick actions for this role ---------- */
+
+const quick: { href: string; label: string; icon: IconName; show: boolean }[] = [
+  { href: '/admin/requests?status=new', label: 'Answer queries', icon: 'messages-square', show: handles },
+  { href: '/admin/requests', label: 'Browse queries', icon: 'messages-square', show: !handles },
+  { href: '/admin/news/new', label: 'Write a news post', icon: 'newspaper', show: showContent },
+  { href: '/admin/notices#new', label: 'Post a notice', icon: 'megaphone', show: showContent },
+  { href: '/admin/jobs/new', label: 'Add a job', icon: 'briefcase', show: showContent },
+  { href: '/admin/stats', label: 'Update figures', icon: 'chart-bar', show: showContent },
+  { href: '/admin/pages', label: 'Edit pages', icon: 'file-text', show: showContent },
+  { href: '/admin/help', label: 'Help for your role', icon: 'circle-question-mark', show: true },
+];
 ---
 
 <AdminLayout title="Dashboard" wide>
@@ -206,6 +227,8 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
     </a>
   </header>
 
+  {
+    (handles || showContent || attention.length > 0) && (
   <section class="card-block attention" aria-labelledby="attention-title">
     <h2 id="attention-title">Needs attention</h2>
     {
@@ -233,9 +256,11 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
       )
     }
   </section>
+    )
+  }
 
   {
-    (v || visitors.status === 'error' || isMaster) && (
+    visitors && (v || visitors.status === 'error' || isMaster) && (
       <section aria-labelledby="visitors-title">
         <h2 class="block-title" id="visitors-title">
           Website visitors
@@ -292,7 +317,8 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
   }
 
   <section aria-labelledby="queries-title">
-    <h2 class="block-title" id="queries-title">Queries from the website</h2>
+    <h2 class="block-title" id="queries-title">{scope ? `Queries for ${officeName(scope)}` : 'Queries from the website'}</h2>
+    {scope && <p class="hint scope-note">Includes queries where the customer didn’t choose an office.</p>}
     <div class="kpis">
       {
         kpis.map((k) => (
@@ -315,12 +341,18 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
         <h3>What people write about</h3>
         <p class="hint">Last 90 days</p>
         <ShareBars items={req.topics} caption="Queries by topic, last 90 days" href={(key) => `/admin/requests?topic=${key}`} empty="No queries in the last 90 days." />
-        <h3 class="sub-title">Which office</h3>
-        <ShareBars items={req.offices} caption="Queries by office, last 90 days" href={(key) => `/admin/requests?branch=${key}`} empty="No queries in the last 90 days." />
+        {!scope && (
+          <>
+            <h3 class="sub-title">Which office</h3>
+            <ShareBars items={req.offices} caption="Queries by office, last 90 days" href={(key) => `/admin/requests?branch=${key}`} empty="No queries in the last 90 days." />
+          </>
+        )}
       </div>
     </div>
   </section>
 
+  {
+    content && live && stats && (
   <section aria-labelledby="content-title">
     <h2 class="block-title" id="content-title">On the website now</h2>
     <div class="content-grid">
@@ -375,6 +407,8 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
       </a>
     </div>
   </section>
+    )
+  }
 
   {
     isMaster && admins && security && storage && recent && (
@@ -388,7 +422,7 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
                 <li>
                   <span>
                     <strong>{a.name || a.email}</strong>
-                    <small class="hint">{a.role === 'owner' ? 'Master admin' : 'Sub-admin'}</small>
+                    <small class="hint">{roleLine(a)}</small>
                   </span>
                   <span class="person-meta">
                     {a.totp_enabled_at ? (
@@ -476,12 +510,15 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
   <section class="card-block quick" aria-labelledby="quick-title">
     <h2 id="quick-title">Quick actions</h2>
     <div class="quick-links">
-      <a class="btn btn-ghost" href="/admin/requests?status=new"><Icon name="messages-square" size={18} /> Answer queries</a>
-      <a class="btn btn-ghost" href="/admin/news/new"><Icon name="newspaper" size={18} /> Write a news post</a>
-      <a class="btn btn-ghost" href="/admin/notices#new"><Icon name="megaphone" size={18} /> Post a notice</a>
-      <a class="btn btn-ghost" href="/admin/jobs/new"><Icon name="briefcase" size={18} /> Add a job</a>
-      <a class="btn btn-ghost" href="/admin/stats"><Icon name="chart-bar" size={18} /> Update figures</a>
-      <a class="btn btn-ghost" href="/admin/pages"><Icon name="file-text" size={18} /> Edit pages</a>
+      {
+        quick
+          .filter((q) => q.show)
+          .map((q) => (
+            <a class="btn btn-ghost" href={q.href}>
+              <Icon name={q.icon} size={18} /> {q.label}
+            </a>
+          ))
+      }
     </div>
   </section>
 </AdminLayout>
@@ -502,6 +539,10 @@ const oldestAsOf = STAT_GROUP_IDS.map((id) => stats[id].as_of).filter((d): d is 
     font-size: 1.35rem;
     font-weight: 700;
     color: var(--ink);
+  }
+
+  .scope-note {
+    margin: -0.4rem 0 0.75rem;
   }
 
   .hello .hint {

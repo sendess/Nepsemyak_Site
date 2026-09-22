@@ -8,11 +8,12 @@ import { deleteFile, deleteUnusedFiles, FILE_LIST, formatBytes, FRESH_HOURS, lis
 import { requestActor } from '~/lib/audit';
 import { isFiltered, listHref, readList } from '~/lib/listing';
 import { formatNpt } from '~/lib/admin-format';
+import { can } from '~/lib/roles';
 
 export const prerender = false;
 
 const me = Astro.locals.admin!;
-if (me.role !== 'owner') return Astro.redirect('/admin', 303);
+if (!can(me, 'files')) return Astro.redirect('/admin/no-access', 303);
 
 let message: { kind: 'ok' | 'error'; text: string } | null = null;
 

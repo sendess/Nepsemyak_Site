@@ -1,0 +1,159 @@
+---
+import Toc from '../Toc.astro';
+import { can, type Permission } from '~/lib/roles';
+import type { HelpReader } from '~/lib/help';
+
+type Props = { reader: HelpReader };
+const { reader } = Astro.props;
+
+// The menu as this person sees it, with what each part is for.
+const menu: { label: string; what: string; need?: Permission }[] = [
+  { label: 'Dashboard', what: 'Your starting page: what needs attention and the latest figures.' },
+  { label: 'Requests', what: 'Customer queries from the website’s contact form.', need: 'requests.view' },
+  { label: 'Notices', what: 'Announcements shown as a banner or pop-up on the website.', need: 'content' },
+  { label: 'Statistics', what: 'The facts and figures on the Home, Impact and Careers pages.', need: 'content' },
+  { label: 'News', what: 'Stories on the News page and the home page.', need: 'content' },
+  { label: 'Jobs', what: 'Vacancies on the Careers page.', need: 'content' },
+  { label: 'Pages', what: 'The text and photos of About us and Our team.', need: 'content' },
+  { label: 'Users', what: 'Who has access, and what each person may do.', need: 'people' },
+  { label: 'Activity', what: 'Every change and sign-in, which nobody can edit.', need: 'activity' },
+  { label: 'Files', what: 'Uploaded images and database storage.', need: 'files' },
+  { label: 'My account', what: 'Your password, email alerts and recovery codes.' },
+  { label: 'Help', what: 'These guides, written for your role.' },
+];
+const myMenu = reader ? menu.filter((m) => !m.need || can(reader, m.need)) : [];
+---
+
+<Toc
+  items={[
+    { id: 'before', label: 'Before you start' },
+    { id: 'first-sign-in', label: 'Your first sign-in' },
+    { id: 'signing-in', label: 'Signing in after that' },
+    { id: 'find-your-way', label: 'Finding your way around', show: Boolean(reader) },
+  ]}
+/>
+
+<section id="before" aria-labelledby="before-h">
+  <h2 id="before-h">Before you start</h2>
+  <p>Tick these off before your first sign-in. Your ticks are saved on this device only.</p>
+  <ul class="checklist">
+    <li>
+      <label>
+        <input type="checkbox" data-remember="pre-email" />
+        <span>
+          <strong>A work email address you can open.</strong>
+          <small>The master admin adds this address. The code to set your password arrives here, and so do alerts about new queries if your role answers them.</small>
+        </span>
+      </label>
+    </li>
+    <li>
+      <label>
+        <input type="checkbox" data-remember="pre-phone" />
+        <span>
+          <strong>Your own smartphone with Google Authenticator installed.</strong>
+          <small>Free from the Play Store or App Store; Microsoft Authenticator works too. It gives the 6-digit code you type after your password.</small>
+        </span>
+      </label>
+    </li>
+    <li>
+      <label>
+        <input type="checkbox" data-remember="pre-clock" />
+        <span>
+          <strong>Phone clock set to automatic time.</strong>
+          <small>The codes depend on the time. A clock a few minutes off gives codes the website rejects.</small>
+        </span>
+      </label>
+    </li>
+    <li>
+      <label>
+        <input type="checkbox" data-remember="pre-paper" />
+        <span>
+          <strong>A safe place for 10 recovery codes.</strong>
+          <small>Paper in a locked drawer, or a password manager. They get you in if your phone is lost.</small>
+        </span>
+      </label>
+    </li>
+    <li>
+      <label>
+        <input type="checkbox" data-remember="pre-browser" />
+        <span>
+          <strong>An up-to-date browser.</strong>
+          <small>Chrome, Edge, Firefox or Safari, on a computer or phone. A computer is easier for writing news and editing pages.</small>
+        </span>
+      </label>
+    </li>
+    <li>
+      <label>
+        <input type="checkbox" data-remember="pre-role" />
+        <span>
+          <strong>Know your role, and your office if you answer queries.</strong>
+          <small>The master admin chooses it when adding you. <a href="/admin/help/roles">See what each role can do.</a></small>
+        </span>
+      </label>
+    </li>
+  </ul>
+</section>
+
+<section id="first-sign-in" aria-labelledby="first-h">
+  <h2 id="first-h">Your first sign-in</h2>
+  <p>This takes about ten minutes. Do it in one go, with your phone next to you.</p>
+
+  <p class="track">The master admin does</p>
+  <ol class="steps">
+    <li>Opens <span class="ui">Users</span>, enters your email and name, chooses your role (and office for Customer care), and presses <span class="ui">Add</span>.</li>
+    <li>Sends you the link to this page: <span class="path">nepsemyak.com.np/admin/help/getting-started</span>.</li>
+  </ol>
+
+  <p class="track">You do</p>
+  <ol class="steps">
+    <li>Go to <a href="/admin/reset-password">Set or reset your password</a> (on the sign-in page it’s <span class="ui">Forgot password?</span>). New staff use this to set their first password too.</li>
+    <li>Enter your work email. A 6-digit code arrives by email within a few minutes. Check Spam or Promotions if it doesn’t.</li>
+    <li>Type the code and choose a password of <strong>at least 10 characters</strong>. Use one you don’t use anywhere else; a few unrelated words are easy to remember and hard to guess.</li>
+    <li>Sign in at <span class="path">nepsemyak.com.np/admin/login</span> with your email and new password.</li>
+    <li>The panel asks you to set up two-step sign-in. In Google Authenticator tap <span class="ui">+</span>, then <span class="ui">Scan a QR code</span>, and scan the code on screen. The app now shows <strong>Nepsemyak Admin</strong> with a 6-digit code that changes every 30 seconds.</li>
+    <li>Type the code the app shows and press <span class="ui">Turn on</span>.</li>
+    <li>Save the <strong>10 recovery codes</strong> the panel shows you. Each works once, in place of the app code. They are shown only this once.</li>
+    <li>You arrive at the <span class="ui">Dashboard</span>. If your role answers queries, open <span class="ui">My account</span>, check <span class="ui">Email me about new queries</span> is ticked, and press <span class="ui">Send me a test email</span>. If it lands in Spam, mark it “Not spam” so real alerts reach your inbox.</li>
+    <li>Tell the master admin you’re in. They can see when you last signed in under <span class="ui">Users</span>.</li>
+  </ol>
+</section>
+
+<section id="signing-in" aria-labelledby="signing-h">
+  <h2 id="signing-h">Signing in after that</h2>
+  <p>
+    Use <span class="ui">Staff login</span> at the very bottom of any page of the website, or go straight to
+    <span class="path">nepsemyak.com.np/admin/login</span>. Enter your email and password, then the 6-digit code from the app.
+    The panel asks for a fresh code every 12 hours.
+  </p>
+  <p class="callout warn">
+    <strong>Five wrong passwords or codes from one device pause sign-in for 15 minutes.</strong> Wait it out rather than guessing
+    again. Every attempt is recorded.
+  </p>
+</section>
+
+{
+  reader && (
+    <section id="find-your-way" aria-labelledby="find-h">
+      <h2 id="find-h">Finding your way around</h2>
+      <p>The menu on the left shows only the parts your role includes. Every page also has a <span class="ui">Help</span> button at the top that opens the guide for that page.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">In the menu</th>
+              <th scope="col">What it’s for</th>
+            </tr>
+          </thead>
+          <tbody>
+            {myMenu.map((m) => (
+              <tr>
+                <th scope="row">{m.label}</th>
+                <td>{m.what}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}

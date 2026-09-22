@@ -9,7 +9,10 @@ export type WeekCount = { week_start: string; n: number };
 export type Share = { key: string; label: string; value: number };
 
 /** Contact-form queries: what is waiting, how fast staff respond, and what people write about. */
-export async function requestFigures() {
+/** Query figures, for every office or (for Customer care tied to one) that office plus queries with none chosen. */
+export async function requestFigures(scope: string | null = null) {
+  const mine = scope ? sql`(branch = ${scope} or branch is null)` : sql`true`;
+  const mineR = scope ? sql`(r.branch = ${scope} or r.branch is null)` : sql`true`;
   const [totals, response, weeks, topics, offices] = await Promise.all([
     sql`
       select
@@ -24,7 +27,8 @@ export async function requestFigures() {
           and created_at < (date_trunc('month', now() at time zone ${NPT}) at time zone ${NPT}))::int as last_month,
         count(*) filter (where status <> 'spam' and created_at > now() - interval '30 days')::int as last_30,
         count(*) filter (where status = 'resolved' and created_at > now() - interval '30 days')::int as resolved_30
-      from service_requests`,
+      from service_requests
+      where ${mine}`,
     // First staff action = the first status change (activity log) or first note, whichever came first.
     sql`
       with firsts as (
@@ -34,7 +38,7 @@ export async function requestFigures() {
           (select min(n.at) from request_notes n where n.request_id = r.id)
         ) as first_at
         from service_requests r
-        where r.created_at > now() - interval '90 days' and r.status <> 'spam'
+        where r.created_at > now() - interval '90 days' and r.status <> 'spam' and ${mineR}
       )
       select percentile_cont(0.5) within group (order by extract(epoch from first_at - created_at) / 3600)
                filter (where first_at is not null) as median_hours,
@@ -47,16 +51,16 @@ export async function requestFigures() {
       )
       select (w.start - i * 7)::text as week_start,
         (select count(*) from service_requests r
-          where r.status <> 'spam'
+          where r.status <> 'spam' and ${mineR}
             and (r.created_at at time zone ${NPT})::date between w.start - i * 7 and w.start - i * 7 + 6)::int as n
       from this_week w, generate_series(11, 0, -1) as i`,
     sql`
       select topic as key, count(*)::int as value from service_requests
-      where status <> 'spam' and created_at > now() - interval '90 days'
+      where status <> 'spam' and created_at > now() - interval '90 days' and ${mine}
       group by topic order by value desc`,
     sql`
       select coalesce(branch, 'unsure') as key, count(*)::int as value from service_requests
-      where status <> 'spam' and created_at > now() - interval '90 days'
+      where status <> 'spam' and created_at > now() - interval '90 days' and ${mine}
       group by 1 order by value desc`,
   ]);
   const t = totals[0];

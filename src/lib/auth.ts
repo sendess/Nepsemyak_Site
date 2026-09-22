@@ -6,9 +6,11 @@ import { sql } from './db';
 import { logEvent, recentEvents, requestActor } from './audit';
 import { decryptSecret, encryptSecret } from './secrets';
 import { hashRecoveryCode, newRecoveryCodes, newTotpSecret, verifyTotp } from './totp';
+import type { AdminRole } from './roles';
 
-export type AdminRole = 'owner' | 'editor';
-export type AdminUser = { email: string; name: string; role: AdminRole; totpEnabled: boolean };
+export type { AdminRole };
+/** `office` is set only for Customer care tied to one office. */
+export type AdminUser = { email: string; name: string; role: AdminRole; office: string | null; totpEnabled: boolean };
 
 /** How far a visitor has got: no session → admin allowlist → authenticator set up → code entered this session. */
 export type AuthStage = 'signed-out' | 'not-admin' | 'needs-setup' | 'needs-code' | 'ok';
@@ -155,14 +157,20 @@ export async function getSession(request: Request): Promise<{ data: SessionData;
   return { data: parseSessionData(body), cookies: response.headers.getSetCookie() };
 }
 
-type AdminRow = { email: string; name: string; role: AdminRole; totp_enabled: boolean; verified: boolean };
+type AdminRow = { email: string; name: string; role: AdminRole; office: string | null; totp_enabled: boolean; verified: boolean };
 
-const toAdmin = (row: AdminRow): AdminUser => ({ email: row.email, name: row.name, role: row.role, totpEnabled: row.totp_enabled });
+const toAdmin = (row: AdminRow): AdminUser => ({
+  email: row.email,
+  name: row.name,
+  role: row.role,
+  office: row.office,
+  totpEnabled: row.totp_enabled,
+});
 
 export async function findAdmin(email: string | null | undefined): Promise<AdminUser | null> {
   if (!email) return null;
   const [row] = await sql`
-    select email, name, role, totp_enabled_at is not null as totp_enabled from admin_users where email = ${email}`;
+    select email, name, role, office, totp_enabled_at is not null as totp_enabled from admin_users where email = ${email}`;
   return row ? toAdmin(row as AdminRow) : null;
 }
 
@@ -176,7 +184,7 @@ export async function resolveAccess(request: Request): Promise<{ access: AdminAc
 
   const [row] = (await sql`
     with found as (
-      select a.email, a.name, a.role, a.totp_enabled_at is not null as totp_enabled,
+      select a.email, a.name, a.role, a.office, a.totp_enabled_at is not null as totp_enabled,
         exists (select 1 from admin_mfa_sessions m
                 where m.session_id = ${sessionId} and m.email = a.email and m.expires_at > now()) as verified
       from admin_users a where a.email = ${email}

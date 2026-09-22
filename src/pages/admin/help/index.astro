@@ -1,0 +1,141 @@
+---
+import HelpShell from '~/components/help/HelpShell.astro';
+import Icon from '~/components/Icon.astro';
+import { HELP_GROUPS, topicHref, topicsFor, type HelpGroup, type HelpReader } from '~/lib/help';
+import { ROLE_SUMMARY, roleLine } from '~/lib/roles';
+
+export const prerender = false;
+
+// Open before sign-in too (see src/middleware.ts): new staff read Getting started before they have a login.
+const me = Astro.locals.admin;
+const reader: HelpReader = me ? { role: me.role, office: me.office, name: me.name, masterName: null } : null;
+const topics = topicsFor(me);
+const groups = (Object.keys(HELP_GROUPS) as HelpGroup[])
+  .map((g) => ({ id: g, title: HELP_GROUPS[g], topics: topics.filter((t) => t.group === g) }))
+  .filter((g) => g.topics.length > 0);
+---
+
+<HelpShell
+  reader={reader}
+  title={me ? 'Help centre' : 'Admin help centre'}
+  summary={me
+    ? 'Guides for looking after nepsemyak.com.np, written for your role. Every page of the panel also has a Help button that opens the right guide.'
+    : 'Guides for Nepsemyak staff who look after the website. New here? Start with Getting started.'}
+>
+  {
+    me && (
+      <section class="role-card" aria-labelledby="role-h">
+        <h2 id="role-h">Your role: {roleLine(me)}</h2>
+        <p>{ROLE_SUMMARY[me.role]}</p>
+        <p>
+          <a href={topicHref('roles')}>See exactly what your role can do</a>
+        </p>
+      </section>
+    )
+  }
+
+  {
+    groups.map((g) => (
+      <section aria-labelledby={`group-${g.id}`}>
+        <h2 id={`group-${g.id}`}>{g.title}</h2>
+        <ul class="topic-grid">
+          {g.topics.map((t) => (
+            <li>
+              <a class="topic" href={topicHref(t.slug)}>
+                <span class="topic-icon" aria-hidden="true">
+                  <Icon name={t.icon} size={20} />
+                </span>
+                <span>
+                  <strong>{t.title}</strong>
+                  <small>{t.summary}</small>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+
+  {
+    !me && (
+      <p class="callout">
+        More guides (answering queries, updating the website, your daily routine) appear here once you <a href="/admin/login">sign in</a>,
+        chosen for your role.
+      </p>
+    )
+  }
+</HelpShell>
+
+<style>
+  .role-card {
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--green-200);
+    border-radius: 12px;
+    background: var(--green-50);
+  }
+
+  .role-card h2 {
+    font-size: 1.1rem;
+  }
+
+  .topic-grid {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (min-width: 720px) {
+    .topic-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .topic-grid li {
+    max-width: none;
+  }
+
+  .topic {
+    display: grid;
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    gap: 0.8rem;
+    align-items: start;
+    height: 100%;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .topic:hover,
+  .topic:focus-visible {
+    border-color: var(--green);
+    box-shadow: 0 0 0 1px var(--green);
+  }
+
+  .topic-icon {
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 10px;
+    background: var(--green-50);
+    color: var(--green-700);
+  }
+
+  .topic strong {
+    display: block;
+    color: var(--ink);
+  }
+
+  .topic small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+</style>

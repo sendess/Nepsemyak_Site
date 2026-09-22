@@ -118,7 +118,12 @@ function requestEmail(req: NewRequest, to: string[]): Mail {
 export async function alertNewRequest(req: NewRequest): Promise<void> {
   try {
     if (!emailConfigured()) return;
-    const rows = await sql`select email from admin_users where notify_requests order by role = 'owner' desc, email`;
+    // Customer care tied to another office isn't told; queries with no office chosen go to everyone.
+    const rows = await sql`
+      select email from admin_users
+      where notify_requests
+        and (role <> 'support' or office is null or ${req.branch}::text is null or office = ${req.branch})
+      order by role = 'owner' desc, email`;
     const to = rows.map((r) => String(r.email));
     const result: SendResult = to.length ? await sendEmail(requestEmail(req, to)) : { ok: true };
     await sql`

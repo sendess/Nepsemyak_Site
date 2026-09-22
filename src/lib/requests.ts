@@ -102,9 +102,16 @@ export const REQUEST_LIST: ListSpec<RequestSort, RequestFilter> = {
 // New first, then in progress, resolved, and spam last.
 const requestState = sql`array_position(array['new', 'in_progress', 'resolved', 'spam'], status)`;
 
-export async function listRequests(list: ListState<RequestSort, RequestFilter>): Promise<Page<ServiceRequest>> {
+/** Customer care tied to an office sees its queries plus those with no office chosen. */
+const inScope = (scope: string | null) => (scope ? sql`(branch = ${scope} or branch is null)` : sql`true`);
+
+/** Whether someone limited to `scope` (an office id, or null for all) may see this query. */
+export const requestInScope = (scope: string | null, request: Pick<ServiceRequest, 'branch'>) =>
+  !scope || request.branch === null || request.branch === scope;
+
+export async function listRequests(list: ListState<RequestSort, RequestFilter>, scope: string | null = null): Promise<Page<ServiceRequest>> {
   const { status, topic, branch } = list.filters;
-  const conds = [];
+  const conds = [inScope(scope)];
   if (status) conds.push(sql`status = ${status}`);
   if (topic) conds.push(sql`topic = ${topic}`);
   if (branch === 'unsure') conds.push(sql`branch is null`);

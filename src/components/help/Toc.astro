@@ -1,0 +1,17 @@
+---
+/** "On this page" links to a help topic's sub-sections. */
+type Props = { items: { id: string; label: string; show?: boolean }[] };
+const items = Astro.props.items.filter((i) => i.show !== false);
+---
+
+<nav aria-label="On this page">
+  <ul class="toc">
+    {
+      items.map((i) => (
+        <li>
+          <a href={`#${i.id}`}>{i.label}</a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>

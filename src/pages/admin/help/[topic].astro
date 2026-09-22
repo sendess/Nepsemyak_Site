@@ -1,0 +1,57 @@
+---
+import HelpShell from '~/components/help/HelpShell.astro';
+import GettingStarted from '~/components/help/topics/GettingStarted.astro';
+import Roles from '~/components/help/topics/Roles.astro';
+import Safety from '~/components/help/topics/Safety.astro';
+import Queries from '~/components/help/topics/Queries.astro';
+import Content from '~/components/help/topics/Content.astro';
+import Dashboard from '~/components/help/topics/Dashboard.astro';
+import Routine from '~/components/help/topics/Routine.astro';
+import People from '~/components/help/topics/People.astro';
+import Records from '~/components/help/topics/Records.astro';
+import Troubleshooting from '~/components/help/topics/Troubleshooting.astro';
+import Glossary from '~/components/help/topics/Glossary.astro';
+import WhatsNew from '~/components/help/topics/WhatsNew.astro';
+import { HELP_TOPICS, isPublicTopic, topicsFor, type HelpReader } from '~/lib/help';
+import { listAdmins } from '~/lib/content';
+import { can } from '~/lib/roles';
+
+export const prerender = false;
+
+const BODY = {
+  'getting-started': GettingStarted,
+  roles: Roles,
+  safety: Safety,
+  queries: Queries,
+  content: Content,
+  dashboard: Dashboard,
+  routine: Routine,
+  people: People,
+  records: Records,
+  troubleshooting: Troubleshooting,
+  glossary: Glossary,
+  'whats-new': WhatsNew,
+} as const;
+
+const slug = Astro.params.topic ?? '';
+const topic = HELP_TOPICS.find((t) => t.slug === slug);
+if (!topic || !(slug in BODY)) return Astro.redirect('/admin/help', 303);
+
+const me = Astro.locals.admin;
+// The middleware already sends signed-out visitors to sign in for these; this is a second check.
+if (!me && !isPublicTopic(slug)) return Astro.redirect(`/admin/login?next=${encodeURIComponent(`/admin/help/${slug}`)}`, 303);
+if (me && topic.need && !can(me, topic.need)) return Astro.redirect('/admin/no-access', 303);
+
+const visible = topicsFor(me);
+const at = visible.findIndex((t) => t.slug === slug);
+const prev = at > 0 ? visible[at - 1] : null;
+const next = at >= 0 && at < visible.length - 1 ? visible[at + 1] : null;
+
+const master = me ? (await listAdmins()).find((a) => a.role === 'owner') : null;
+const reader: HelpReader = me ? { role: me.role, office: me.office, name: me.name, masterName: master ? master.name || master.email : null } : null;
+const Body = BODY[slug as keyof typeof BODY];
+---
+
+<HelpShell reader={reader} title={topic.title} summary={topic.summary} prev={prev} next={next} isTopic>
+  <Body reader={reader} />
+</HelpShell>

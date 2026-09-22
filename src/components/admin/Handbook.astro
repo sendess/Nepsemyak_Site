@@ -1,0 +1,787 @@
+---
+/**
+ * The admin handbook: getting started, what each section changes, routines, safety and troubleshooting.
+ * Shown at /admin/help both before sign-in (new staff need the first steps) and inside the panel.
+ * Sections only the master admin acts on appear only when the master is signed in.
+ */
+type Props = {
+  /** Who is reading: null before sign-in. */
+  viewer: { role: 'owner' | 'editor'; name: string } | null;
+  /** The master admin's name, shown only to signed-in admins. */
+  masterName: string | null;
+};
+const { viewer, masterName } = Astro.props;
+const isMaster = viewer?.role === 'owner';
+
+const sections = [
+  { id: 'before', label: 'Before you start' },
+  { id: 'first-sign-in', label: 'First sign-in' },
+  { id: 'signing-in', label: 'Signing in after that' },
+  { id: 'roles', label: 'Who can do what' },
+  { id: 'map', label: 'What each section changes' },
+  { id: 'routine', label: 'Your routine' },
+  { id: 'safety', label: 'Keeping your account safe' },
+  { id: 'trouble', label: 'When something goes wrong' },
+  ...(isMaster
+    ? [
+        { id: 'outside', label: 'Accounts outside the panel' },
+        { id: 'leaving', label: 'When someone leaves' },
+      ]
+    : []),
+];
+---
+
+<div class="handbook">
+  <header class="intro">
+    <p class="lede">
+      Everything you need to look after nepsemyak.com.np: what to have ready, how to sign in the first time, which part of
+      the panel changes which part of the website, and what to do each day.
+    </p>
+    {
+      viewer ? (
+        <p class="hint">
+          You’re signed in as {isMaster ? 'the master admin' : 'a sub-admin'}. Ticks in the checklists are saved on this device
+          only.
+        </p>
+      ) : (
+        <p class="hint">
+          Already set up? <a href="/admin/login">Sign in</a>. Ticks in the checklists are saved on this device only.
+        </p>
+      )
+    }
+    <nav class="toc" aria-label="Handbook contents">
+      {sections.map((s) => <a href={`#${s.id}`}>{s.label}</a>)}
+    </nav>
+  </header>
+
+  <section id="before" aria-labelledby="before-h">
+    <h2 id="before-h">Before you start</h2>
+    <ul class="checklist">
+      <li>
+        <label>
+          <input type="checkbox" data-remember="pre-email" />
+          <span>
+            <strong>A work email address you can open.</strong>
+            <small>The master admin adds this address. The code to set your password arrives here, and so do alerts about new customer queries.</small>
+          </span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="checkbox" data-remember="pre-phone" />
+          <span>
+            <strong>Your own smartphone with Google Authenticator installed.</strong>
+            <small>Free from the Play Store or App Store; Microsoft Authenticator works too. It gives the 6-digit code you type after your password.</small>
+          </span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="checkbox" data-remember="pre-clock" />
+          <span>
+            <strong>Phone clock set to automatic time.</strong>
+            <small>The codes depend on the time. A clock a few minutes off gives codes the website rejects.</small>
+          </span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="checkbox" data-remember="pre-paper" />
+          <span>
+            <strong>A safe place for 10 recovery codes.</strong>
+            <small>Paper in a locked drawer, or a password manager. They get you in if your phone is lost.</small>
+          </span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="checkbox" data-remember="pre-browser" />
+          <span>
+            <strong>An up-to-date browser.</strong>
+            <small>Chrome, Edge, Firefox or Safari. A computer is easier for writing news and editing pages.</small>
+          </span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="checkbox" data-remember="pre-office" />
+          <span>
+            <strong>Know which office’s queries you look after.</strong>
+            <small>Agree this with the master admin, so every query has an owner.</small>
+          </span>
+        </label>
+      </li>
+    </ul>
+  </section>
+
+  <section id="first-sign-in" aria-labelledby="first-h">
+    <h2 id="first-h">First sign-in, step by step</h2>
+    <p>This takes about ten minutes. Do it in one go, with your phone next to you.</p>
+
+    <p class="track">The master admin does</p>
+    <ol class="steps">
+      <li>Opens <span class="ui">Users</span>, enters your email and name under <span class="ui">Add a sub-admin</span>, and presses <span class="ui">Add</span>.</li>
+      <li>Tells you it’s ready and sends you the link to this page: <span class="path">nepsemyak.com.np/admin/help</span>.</li>
+    </ol>
+
+    <p class="track">You do</p>
+    <ol class="steps">
+      <li>Go to <a href="/admin/reset-password">Set or reset your password</a> (on the sign-in page it’s <span class="ui">Forgot password?</span>). New staff use this to set their first password too.</li>
+      <li>Enter your work email. A 6-digit code arrives by email within a few minutes. Check Spam or Promotions if it doesn’t.</li>
+      <li>Type the code and choose a password of <strong>at least 10 characters</strong>. Use one you don’t use anywhere else; a few unrelated words are easy to remember and hard to guess.</li>
+      <li>Sign in at <span class="path">nepsemyak.com.np/admin/login</span> with your email and new password.</li>
+      <li>The panel asks you to set up two-step sign-in. In Google Authenticator tap <span class="ui">+</span>, then <span class="ui">Scan a QR code</span>, and scan the code on screen. The app now shows <strong>Nepsemyak Admin</strong> with a 6-digit code that changes every 30 seconds.</li>
+      <li>Type the code the app shows and press <span class="ui">Turn on</span>.</li>
+      <li>Save the <strong>10 recovery codes</strong> the panel shows you. Each works once, in place of the app code. They are shown only this once.</li>
+      <li>You arrive at the <span class="ui">Dashboard</span>. Open <span class="ui">My account</span>, check <span class="ui">Email me about new queries</span> is ticked, and press <span class="ui">Send me a test email</span>. If it lands in Spam, mark it “Not spam” so real alerts reach your inbox.</li>
+      <li>Tell the master admin you’re in. They can see when you last signed in under <span class="ui">Users</span>.</li>
+    </ol>
+  </section>
+
+  <section id="signing-in" aria-labelledby="signing-h">
+    <h2 id="signing-h">Signing in after that</h2>
+    <p>
+      Use <span class="ui">Staff login</span> at the very bottom of any page of the website, or go straight to
+      <span class="path">nepsemyak.com.np/admin/login</span>. Enter your email and password, then the 6-digit code from the
+      app. The panel asks for a fresh code every 12 hours.
+    </p>
+    <p class="callout warn">
+      <strong>Five wrong passwords or codes from one device pause sign-in for 15 minutes.</strong> Wait it out rather than
+      guessing again. Every attempt is recorded.
+    </p>
+  </section>
+
+  <section id="roles" aria-labelledby="roles-h">
+    <h2 id="roles-h">Who can do what</h2>
+    <p>
+      There is exactly one <strong>master admin</strong>{masterName && `, currently ${masterName}`}. Everyone else is a
+      <strong>sub-admin</strong>. Sub-admins run the website day to day; the master also looks after people, files and the
+      record of changes.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Task</th><th scope="col" class="c">Sub-admin</th><th scope="col" class="c">Master</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Answer customer queries (Requests)</th><td class="c yes">Yes</td><td class="c yes">Yes</td></tr>
+          <tr><th scope="row">Notices, Statistics, News, Jobs</th><td class="c yes">Yes</td><td class="c yes">Yes</td></tr>
+          <tr><th scope="row">Edit page content (About us, Our team)</th><td class="c yes">Yes</td><td class="c yes">Yes</td></tr>
+          <tr><th scope="row">See the dashboard, including visitor numbers</th><td class="c yes">Yes</td><td class="c yes">Yes</td></tr>
+          <tr><th scope="row">Delete a query</th><td class="c no">No</td><td class="c yes">Yes</td></tr>
+          <tr><th scope="row">Add or remove admins, reset someone’s two-step sign-in</th><td class="c no">No</td><td class="c yes">Yes</td></tr>
+          <tr><th scope="row">Read the Activity log</th><td class="c no">No</td><td class="c yes">Yes</td></tr>
+          <tr><th scope="row">Manage uploaded files and storage</th><td class="c no">No</td><td class="c yes">Yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="map" aria-labelledby="map-h">
+    <h2 id="map-h">What each section changes on the website</h2>
+    <p>The menu on the left of the panel, matched to what visitors see. Saved changes appear on the website straight away; refresh the page to see them.</p>
+    <div class="table-wrap">
+      <table class="map">
+        <thead>
+          <tr><th scope="col">Section</th><th scope="col">Where it shows on the website</th><th scope="col">What you do there</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Dashboard</th>
+            <td>Nowhere. This is your starting page.</td>
+            <td>See what needs attention, queries waiting, visitor numbers, and what is live on the site.</td>
+          </tr>
+          <tr>
+            <th scope="row">Requests</th>
+            <td>The form on the <strong>Contact</strong> page. Each sender gets a reference code like <code>NS-7K4P2Q</code>.</td>
+            <td>Read each query, call or reply, set its status (New, In progress, Resolved, Spam), choose the office handling it, and add notes. Customers never see the notes.</td>
+          </tr>
+          <tr>
+            <th scope="row">Notices</th>
+            <td>A strip across the top of every page, a pop-up on the home page, or both.</td>
+            <td>Announce holidays, schedule changes and fee notices. Set a start and an end time (Nepal time) so the notice switches itself off.</td>
+          </tr>
+          <tr>
+            <th scope="row">Statistics</th>
+            <td>The figures on the <strong>Home</strong>, <strong>Impact</strong> and <strong>Careers</strong> pages, with their “Data as of” date.</td>
+            <td>Update numbers and the “as of” date together. Figures the home page needs can’t be removed.</td>
+          </tr>
+          <tr>
+            <th scope="row">News</th>
+            <td>The <strong>News</strong> page and the latest stories on the home page.</td>
+            <td>Write a post with an optional cover photo. <span class="ui">Save draft</span> keeps it hidden, <span class="ui">Publish</span> puts it live and <span class="ui">Unpublish</span> takes it down again.</td>
+          </tr>
+          <tr>
+            <th scope="row">Jobs</th>
+            <td>The vacancies on the <strong>Careers</strong> page.</td>
+            <td>Post openings with a deadline. Jobs past their deadline disappear from Careers by themselves; close or extend them here.</td>
+          </tr>
+          <tr>
+            <th scope="row">Pages</th>
+            <td><strong>About us</strong> (introduction, history, chairman’s message and photo, goals, links) and <strong>Our team</strong>. The home page reuses the introduction, history and chairman’s message.</td>
+            <td>Edit text and photos, hide or reorder sections, add your own text-and-photo sections. <span class="ui">Restore original</span> puts a section back to how it was built.</td>
+          </tr>
+          <tr>
+            <th scope="row">Users <span class="tag">Master</span></th>
+            <td>Nowhere.</td>
+            <td>Add and remove admins, reset two-step sign-in, sign someone out everywhere.</td>
+          </tr>
+          <tr>
+            <th scope="row">Activity <span class="tag">Master</span></th>
+            <td>Nowhere.</td>
+            <td>Every change and sign-in: who, when, from which device, and the old and new values. Nobody can edit or delete it.</td>
+          </tr>
+          <tr>
+            <th scope="row">Files <span class="tag">Master</span></th>
+            <td>The images used on pages, news and notices.</td>
+            <td>See storage use (0.5 GB free limit), where each image is used, and clean up unused uploads.</td>
+          </tr>
+          <tr>
+            <th scope="row">My account</th>
+            <td>Nowhere.</td>
+            <td>Change your password, turn email alerts on or off, send a test alert, make new recovery codes, sign out other devices.</td>
+          </tr>
+          <tr>
+            <th scope="row">Help</th>
+            <td>Nowhere.</td>
+            <td>This handbook.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <strong>Every text box comes in English and Nepali.</strong> Fill in both: if one is empty, visitors to that language
+      see the other one instead. Photos are resized automatically when you upload them.
+    </p>
+    <p>Not in the panel yet: office addresses and phone numbers, Services, FAQ and Downloads. Send changes to these to the master admin.</p>
+  </section>
+
+  <section id="routine" aria-labelledby="routine-h">
+    <h2 id="routine-h">Your routine</h2>
+    <div class="routine">
+      <div>
+        <h3>When an alert email arrives</h3>
+        <ul>
+          <li>Press <span class="ui">Open in the admin panel</span> in the email.</li>
+          <li>Call or reply. Replying to the alert email writes to the customer directly.</li>
+          <li>Set the status to <span class="ui">In progress</span> and note what you did.</li>
+          <li>Set <span class="ui">Resolved</span> when it’s done. Junk goes to <span class="ui">Spam</span>.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Every working day</h3>
+        <ul>
+          <li>Open the Dashboard and clear <strong>Needs attention</strong>.</li>
+          <li>Queries waiting more than a day show in red. Aim to answer every query the same day.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Every week</h3>
+        <ul>
+          <li>Close or extend jobs past their deadline.</li>
+          <li>Check notices about to end, and take down any that are out of date.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Every month and every six months</h3>
+        <ul>
+          <li>Post at least one news story a month. The dashboard reminds you after 30 quiet days.</li>
+          <li>Update Statistics and their “as of” dates every six months.</li>
+          {isMaster && <li><em>You, as master:</em> look through Activity, clean up Files, and check the Users list is current.</li>}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="safety" aria-labelledby="safety-h">
+    <h2 id="safety-h">Keeping your account safe</h2>
+    <ul class="checklist">
+      <li>
+        <label>
+          <input type="checkbox" data-remember="safe-own" />
+          <span>
+            <strong>One person, one account.</strong>
+            <small>Never share your password or your authenticator. The Activity log records every change under your name.</small>
+          </span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="checkbox" data-remember="safe-ask" />
+          <span>
+            <strong>Nobody from Nepsemyak will ask for your code or password.</strong>
+            <small>Not by phone, email, WhatsApp or chat. Anyone who asks is not us: say no and tell the master admin.</small>
+          </span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="checkbox" data-remember="safe-shared" />
+          <span>
+            <strong>On shared office computers, don’t let the browser save your password, and sign out when you finish.</strong>
+            <small><span class="ui">Sign out</span> is at the top right of every admin page.</small>
+          </span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="checkbox" data-remember="safe-codes" />
+          <span>
+            <strong>Recovery codes stay on paper or in a password manager.</strong>
+            <small>Not in email, WhatsApp or your phone’s photos. When only three are left, make new ones in <span class="ui">My account</span>.</small>
+          </span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="checkbox" data-remember="safe-suspect" />
+          <span>
+            <strong>If you think someone knows your password, change it at once.</strong>
+            <small>Changing it in <span class="ui">My account</span> signs out every other device. Then tell the master admin.</small>
+          </span>
+        </label>
+      </li>
+    </ul>
+  </section>
+
+  <section id="trouble" aria-labelledby="trouble-h">
+    <h2 id="trouble-h">When something goes wrong</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Problem</th><th scope="col">What to do</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">The password code email didn’t come</th><td>Wait a few minutes and check Spam and Promotions, then ask for a new one. After several requests the panel makes you wait an hour.</td></tr>
+          <tr><th scope="row">The app’s code is refused</th><td>Set your phone’s clock to automatic time, and type the code before it changes.</td></tr>
+          <tr><th scope="row">“Too many attempts”</th><td>Wait 15 minutes, then try once more, carefully.</td></tr>
+          <tr><th scope="row">Lost or new phone</th><td>Sign in with one of your recovery codes instead of the app code. Then ask the master admin to reset your two-step sign-in, and scan a new QR code at your next sign-in.</td></tr>
+          <tr><th scope="row">Lost phone <em>and</em> recovery codes</th><td>Ask the master admin to reset your two-step sign-in under <span class="ui">Users</span>. If the master is locked out, the website developer can reset it.</td></tr>
+          <tr><th scope="row">No alert emails</th><td>In <span class="ui">My account</span>, check alerts are ticked and press <span class="ui">Send me a test email</span>. Check Spam. Each query’s page says whether its alert was sent, and the master sees a warning on the dashboard if sending fails.</td></tr>
+          <tr><th scope="row">A change doesn’t show on the website</th><td>Refresh the page. Check that news is <em>published</em> (not a draft), that a notice’s start time has passed, and that a page section isn’t hidden.</td></tr>
+          <tr><th scope="row">Something was changed by mistake</th><td>For page sections, <span class="ui">Restore original</span> brings back the built-in text. For anything else, the master admin can find the old wording in <span class="ui">Activity</span>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {
+    isMaster && (
+      <>
+        <section id="outside" aria-labelledby="outside-h">
+          <h2 id="outside-h">
+            Accounts outside the panel <span class="tag">Master</span>
+          </h2>
+          <p>The website relies on a few outside services. Staff need none of these logins except the authenticator app.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th scope="col">Service</th><th scope="col">What it does</th><th scope="col">Who needs a login</th></tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">Google Authenticator</th><td>6-digit sign-in codes</td><td>Every admin, on their own phone</td></tr>
+                <tr><th scope="row">Netlify</th><td>Hosts the website, its DNS records and secret settings</td><td>Master admin and the developer</td></tr>
+                <tr><th scope="row">Neon</th><td>The database: content, queries, admin accounts</td><td>Master admin and the developer</td></tr>
+                <tr><th scope="row">Resend</th><td>Sends the query alert emails</td><td>Master admin</td></tr>
+                <tr><th scope="row">Cloudflare Web Analytics</th><td>Counts visitors for the dashboard</td><td>Master admin; staff see the figures on the dashboard</td></tr>
+                <tr><th scope="row">tawk.to</th><td>The <strong>Chat with us</strong> links on the website</td><td>Each person who answers live chats, invited by the tawk.to owner</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="leaving" aria-labelledby="leaving-h">
+          <h2 id="leaving-h">
+            When someone leaves <span class="tag">Master</span>
+          </h2>
+          <p>Do this on their last day.</p>
+          <ul class="checklist">
+            <li>
+              <label>
+                <input type="checkbox" data-remember="leave-remove" />
+                <span>
+                  <strong>Remove them under Users.</strong>
+                  <small>This signs them out everywhere at once. Their past changes stay in the Activity log.</small>
+                </span>
+              </label>
+            </li>
+            <li>
+              <label>
+                <input type="checkbox" data-remember="leave-chat" />
+                <span>
+                  <strong>Remove them from tawk.to</strong> if they answered live chats.
+                </span>
+              </label>
+            </li>
+            <li>
+              <label>
+                <input type="checkbox" data-remember="leave-shared" />
+                <span>
+                  <strong>Change any shared office passwords they knew</strong>, such as the Facebook pages.
+                </span>
+              </label>
+            </li>
+            <li>
+              <label>
+                <input type="checkbox" data-remember="leave-queries" />
+                <span>
+                  <strong>Hand over their open queries.</strong>
+                  <small>Filter Requests by their office and status <span class="ui">In progress</span>, and agree who takes each one.</small>
+                </span>
+              </label>
+            </li>
+          </ul>
+        </section>
+      </>
+    )
+  }
+</div>
+
+<script>
+  // Remembers ticked boxes on this device only; the page works the same without it.
+  document.querySelectorAll<HTMLInputElement>('.handbook input[data-remember]').forEach((box) => {
+    const key = `admin-handbook:${box.dataset.remember}`;
+    try {
+      box.checked = localStorage.getItem(key) === '1';
+    } catch {
+      /* storage blocked: start unticked */
+    }
+    box.addEventListener('change', () => {
+      try {
+        localStorage.setItem(key, box.checked ? '1' : '0');
+      } catch {
+        /* storage blocked: the tick lasts until the page is closed */
+      }
+    });
+  });
+</script>
+
+<style>
+  .handbook {
+    display: grid;
+    gap: 2.25rem;
+    max-width: 52rem;
+    color: var(--text);
+  }
+
+  .intro {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .lede {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 1.1rem;
+    color: var(--ink);
+  }
+
+  .hint {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--muted);
+  }
+
+  .toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
+  }
+
+  .toc a {
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: 0.88rem;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--surface);
+  }
+
+  .toc a:hover,
+  .toc a:focus-visible {
+    border-color: var(--green);
+    background: var(--green-50);
+  }
+
+  section {
+    display: grid;
+    gap: 0.75rem;
+    scroll-margin-top: 5rem;
+  }
+
+  h2 {
+    margin: 0;
+    font-family: var(--font-head);
+    font-size: 1.3rem;
+    color: var(--navy);
+    text-wrap: balance;
+  }
+
+  h3 {
+    margin: 0 0 0.4rem;
+    font-family: var(--font-head);
+    font-size: 1rem;
+    color: var(--ink);
+  }
+
+  p {
+    margin: 0;
+    max-width: 66ch;
+  }
+
+  strong {
+    color: var(--ink);
+  }
+
+  a {
+    color: var(--green-700);
+  }
+
+  code,
+  .path {
+    padding: 0.05em 0.35em;
+    border-radius: 4px;
+    background: var(--green-50);
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-size: 0.88em;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+
+  /* A button or menu label exactly as it appears in the panel. */
+  .ui {
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .ui::before,
+  .ui::after {
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .ui::before {
+    content: '“';
+  }
+
+  .ui::after {
+    content: '”';
+  }
+
+  .tag {
+    display: inline-block;
+    margin-left: 0.3rem;
+    padding: 0 0.45rem;
+    border-radius: 999px;
+    background: var(--yellow-soft);
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink);
+    vertical-align: 2px;
+    white-space: nowrap;
+  }
+
+  /* ---------- Checklists ---------- */
+  .checklist {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .checklist label {
+    display: grid;
+    grid-template-columns: 1.3rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.55rem 0.7rem;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .checklist label:hover {
+    background: var(--green-50);
+  }
+
+  .checklist input {
+    width: 1.15rem;
+    height: 1.15rem;
+    margin: 0.25rem 0 0;
+    accent-color: var(--green);
+  }
+
+  .checklist span {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .checklist small {
+    font-size: 0.93rem;
+    color: var(--muted);
+  }
+
+  .checklist input:checked + span strong {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-color: var(--line-strong);
+  }
+
+  /* ---------- Steps: a real sequence, so numbered ---------- */
+  .track {
+    margin-top: 0.4rem;
+    font-family: var(--font-head);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .steps {
+    counter-reset: step;
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .steps li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 1.9rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+    max-width: 70ch;
+  }
+
+  .steps li::before {
+    content: counter(step);
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid var(--green-200);
+    border-radius: 50%;
+    background: var(--green-50);
+    font-family: var(--font-head);
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--green-700);
+  }
+
+  .callout {
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: var(--green-50);
+  }
+
+  .callout.warn {
+    border-color: #e8c95a;
+    background: #fff8e1;
+  }
+
+  /* ---------- Tables ---------- */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  th,
+  td {
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  tbody tr:last-child > * {
+    border-bottom: 0;
+  }
+
+  thead th {
+    background: var(--bg);
+    font-family: var(--font-head);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  tbody th {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .c {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .yes {
+    font-weight: 600;
+    color: var(--green-700);
+  }
+
+  .no {
+    color: var(--muted);
+  }
+
+  .map th[scope='row'] {
+    min-width: 8rem;
+  }
+
+  .map td {
+    min-width: 13rem;
+  }
+
+  /* ---------- Routine ---------- */
+  .routine {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  @media (min-width: 720px) {
+    .routine {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .routine > div {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .routine ul {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.96rem;
+  }
+
+  @media print {
+    .toc {
+      display: none;
+    }
+  }
+</style>

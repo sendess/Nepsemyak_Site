@@ -3,8 +3,8 @@ import { Font } from 'astro:assets';
 import '~/styles/global.css';
 
 /** Centered card for the sign-in steps (outside the admin panel). */
-type Props = { title: string; wide?: boolean };
-const { title, wide = false } = Astro.props;
+type Props = { title: string; wide?: boolean; /** Reading pages such as the handbook. */ full?: boolean };
+const { title, wide = false, full = false } = Astro.props;
 ---
 
 <!doctype html>
@@ -20,7 +20,7 @@ const { title, wide = false } = Astro.props;
   </head>
   <body class="auth">
     <main class="wrap">
-      <div class:list={['panel', { wide }]}>
+      <div class:list={['panel', { wide, full }]}>
         <a class="brand" href="/">
           <img src="/images/logo-96.webp" alt="" width="56" height="56" />
           <span>
@@ -121,6 +121,10 @@ const { title, wide = false } = Astro.props;
 
       .panel.wide {
         width: min(560px, 100%);
+      }
+
+      .panel.full {
+        width: min(920px, 100%);
       }
 
       .brand {

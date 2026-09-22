@@ -5,6 +5,8 @@ export const CODE = '/admin/two-factor';
 export const SETUP = '/admin/two-factor/setup';
 /** Open at any stage: setting a password is how new admins get started. */
 export const RESET = '/admin/reset-password';
+/** Open at any stage: new admins read the handbook before they can sign in. */
+export const HELP = '/admin/help';
 
 export const trimSlash = (path: string) => path.replace(/\/+$/, '') || '/';
 

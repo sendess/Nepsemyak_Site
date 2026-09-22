@@ -21,6 +21,7 @@ const nav: { href: string; label: string; icon: IconName; ownerOnly?: boolean }[
   { href: '/admin/activity', label: 'Activity', icon: 'clock', ownerOnly: true },
   { href: '/admin/files', label: 'Files', icon: 'folder-open', ownerOnly: true },
   { href: '/admin/account', label: 'My account', icon: 'circle-check' },
+  { href: '/admin/help', label: 'Help', icon: 'circle-question-mark' },
 ];
 const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path === href || path.startsWith(`${href}/`));
 ---

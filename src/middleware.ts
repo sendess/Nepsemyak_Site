@@ -1,6 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
 import type { AuthStage } from './lib/auth';
-import { CODE, LOGIN, RESET, SETUP, safeNext, trimSlash } from './lib/admin-routes';
+import { CODE, HELP, LOGIN, RESET, SETUP, safeNext, trimSlash } from './lib/admin-routes';
 
 const isAdminArea = (path: string) => path === '/admin' || path.startsWith('/admin/') || path.startsWith('/api/admin/');
 
@@ -51,7 +51,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         ? await next()
         : new Response(JSON.stringify({ message: 'Sign in required' }), { status: 401, headers: { 'content-type': 'application/json' } });
   } else {
-    const target = path === RESET ? null : redirectFor(access.stage, path, context.url);
+    const target = path === RESET || path === HELP ? null : redirectFor(access.stage, path, context.url);
     response = target ? new Response(null, { status: 303, headers: { Location: target } }) : await next();
   }
 

@@ -1,0 +1,26 @@
+---
+import AdminLayout from '~/layouts/AdminLayout.astro';
+import AuthLayout from '~/layouts/AuthLayout.astro';
+import Handbook from '~/components/admin/Handbook.astro';
+import { listAdmins } from '~/lib/content';
+
+export const prerender = false;
+
+// Open before sign-in too (see src/middleware.ts): new staff read the first steps before they have an account.
+const me = Astro.locals.admin;
+const master = me ? (await listAdmins()).find((a) => a.role === 'owner') : null;
+const viewer = me ? { role: me.role, name: me.name } : null;
+---
+
+{
+  me ? (
+    <AdminLayout title="Help">
+      <Handbook viewer={viewer} masterName={master ? master.name || master.email : null} />
+    </AdminLayout>
+  ) : (
+    <AuthLayout title="Admin handbook" full>
+      <h1 class="h3">Admin handbook</h1>
+      <Handbook viewer={null} masterName={null} />
+    </AuthLayout>
+  )
+}

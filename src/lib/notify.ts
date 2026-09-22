@@ -61,16 +61,26 @@ ${body}
 </body></html>`;
 }
 
-type NewRequest = RequestInput & { id: number; ref: string };
+type NewRequest = RequestInput & { id: number; ref: string; created_at?: string };
 
-function requestEmail(req: NewRequest, to: string[]): Mail {
+type QueryMail = {
+  heading: string;
+  subject: string;
+  /** Who did what, shown above the details (the hand-over and assignment emails). */
+  lead?: string;
+  extra?: [string, string][];
+};
+
+/** An email about one query: its details, the message and a button to open it in the panel. */
+function queryEmail(req: NewRequest, to: string[], mail: QueryMail): Mail {
   const topic = TOPIC_LABEL[req.topic];
   const office = branches.find((b) => b.id === req.branch)?.name.en ?? 'Not chosen';
   const link = `${SITE}/admin/requests/${req.id}`;
   const message = req.message.length > 1500 ? `${req.message.slice(0, 1500)}…` : req.message;
   const details: [string, string][] = [
+    ...(mail.extra ?? []),
     ['Reference', req.ref],
-    ['Received', nepalTime(new Date())],
+    ['Received', nepalTime(req.created_at ? new Date(req.created_at) : new Date())],
     ['About', topic],
     ['Office', office],
     ['Name', req.name],
@@ -82,12 +92,13 @@ function requestEmail(req: NewRequest, to: string[]): Mail {
   const reply = req.email
     ? 'Replying to this email writes to the customer directly. Remember to update the query in the admin panel too.'
     : 'The customer left no email address, so please phone them.';
+  const intro = mail.lead ? `${mail.lead} ${reply}` : reply;
   return {
     to,
     replyTo: req.email || undefined,
-    subject: oneLine(`New query ${req.ref}: ${topic} (${office}) from ${req.name}`).slice(0, 180),
+    subject: oneLine(mail.subject).slice(0, 180),
     text: [
-      `A new query was sent from the website contact form.`,
+      mail.lead ?? 'A new query was sent from the website contact form.',
       '',
       ...details.map(([k, v]) => `${k}: ${v}`),
       '',
@@ -100,8 +111,8 @@ function requestEmail(req: NewRequest, to: string[]): Mail {
       `You get these emails because alerts are on in My account (${SITE}/admin/account).`,
     ].join('\n'),
     html: layout(
-      'New query on the website',
-      reply,
+      mail.heading,
+      intro,
       details.map(([k, v]) => [
         k,
         k === 'Phone' ? `<a href="tel:${escapeHtml(v.replace(/[^0-9+]/g, ''))}">${escapeHtml(v)}</a>` : k === 'Reference' ? `<strong>${escapeHtml(v)}</strong>` : escapeHtml(v),
@@ -112,6 +123,14 @@ function requestEmail(req: NewRequest, to: string[]): Mail {
       `You get these emails because alerts are on in <a href="${SITE}/admin/account" style="color:#2c4964">My account</a> on the Nepsemyak admin panel.`,
     ),
   };
+}
+
+function requestEmail(req: NewRequest, to: string[]): Mail {
+  const office = branches.find((b) => b.id === req.branch)?.name.en ?? 'Not chosen';
+  return queryEmail(req, to, {
+    heading: 'New query on the website',
+    subject: `New query ${req.ref}: ${TOPIC_LABEL[req.topic]} (${office}) from ${req.name}`,
+  });
 }
 
 /** Emails every admin who has alerts on, and notes the outcome on the query. Never throws. */
@@ -132,6 +151,60 @@ export async function alertNewRequest(req: NewRequest): Promise<void> {
       on conflict (request_id) do update set attempted_at = now(), sent_to = excluded.sent_to, error = excluded.error`;
   } catch {
     // The query is saved either way; a failed alert only means nobody got an email for it.
+  }
+}
+
+/** Customer care tied to this office who have alerts on: the people told when a query is passed to it. */
+export async function officeRecipients(office: string): Promise<string[]> {
+  const rows = await sql`
+    select email from admin_users where notify_requests and role = 'support' and office = ${office} order by email`;
+  return rows.map((r) => String(r.email));
+}
+
+/** Tells an office's Customer care that a query was passed to them, and notes the outcome on the hand-over. Never throws. */
+export async function alertHandover(
+  req: NewRequest,
+  handoverId: number,
+  to: string[],
+  by: { name: string; fromOffice: string | null; note: string | null },
+): Promise<void> {
+  try {
+    // Without a key sendEmail reports "not set up", which is then shown in the query's history.
+    if (to.length === 0) return;
+    const office = branches.find((b) => b.id === req.branch)?.name.en ?? 'your office';
+    const from = branches.find((b) => b.id === by.fromOffice)?.name.en;
+    const result = await sendEmail(
+      queryEmail(req, to, {
+        heading: `Query passed to ${office}`,
+        subject: `Passed to ${office}: ${req.ref} ${TOPIC_LABEL[req.topic]} from ${req.name}`,
+        lead: `${by.name} passed this query to ${office}${from ? ` from ${from}` : ''}.`,
+        extra: [['Passed by', by.name], ...(by.note ? ([['Their note', by.note]] as [string, string][]) : [])],
+      }),
+    );
+    await sql`
+      update request_handovers set sent_to = ${result.ok ? to.length : 0}, error = ${result.ok ? null : result.error}
+      where id = ${handoverId}`;
+  } catch {
+    // The hand-over is saved either way; the office still sees the query in its list.
+  }
+}
+
+/** Tells someone a query was given to them by a colleague (not when they take it themselves). Never throws. */
+export async function alertAssigned(req: NewRequest, assignee: string, byName: string): Promise<void> {
+  try {
+    if (!emailConfigured()) return;
+    const [row] = await sql`select notify_requests from admin_users where email = ${assignee}`;
+    if (!row?.notify_requests) return;
+    await sendEmail(
+      queryEmail(req, [assignee], {
+        heading: 'A query was given to you',
+        subject: `Assigned to you: ${req.ref} ${TOPIC_LABEL[req.topic]} from ${req.name}`,
+        lead: `${byName} asked you to deal with this query.`,
+        extra: [['Assigned by', byName]],
+      }),
+    );
+  } catch {
+    // The assignment is saved either way; it shows under "My queries".
   }
 }
 

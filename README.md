@@ -95,7 +95,9 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
 - **Help centre** (`/admin/help`): guides in `src/components/help/topics/`, registered in `src/lib/help.ts`. Each topic
   shows only to roles it applies to and tailors its text to the reader's role (and office). Getting started, Roles,
   Safety, Troubleshooting and Glossary are readable before sign-in, for new staff. Every admin page's top bar links to
-  its guide (`helpFor` in `src/lib/help.ts`). Add a line to **What's new** whenever the panel changes.
+  its guide (`helpFor` in `src/lib/help.ts`). Add a line to **What's new** whenever the panel changes. An English |
+  नेपाली switch (remembered in the `help-lang` cookie) shows Nepali titles everywhere and Nepali text for the topics in
+  `src/components/help/topics/ne/` (getting started, safety, queries); keep those in step with the English ones.
 - **Activity log:** every create/edit/delete of notices, news, jobs, statistics and admins is written by database
   triggers with who, when, IP address, browser and the changed fields; sign-ins, failed attempts and password/2FA
   events are logged too. The `audit_log` table rejects updates and deletes.
@@ -106,6 +108,14 @@ Try risky changes on a throwaway database branch first: `neon checkout dev --cre
   code like `NS-7K4P2Q` shown to the sender, and staff work through them under **Requests** — status (new, in progress,
   resolved, spam), which office is handling it, and internal notes. A hidden field catches bots and one visitor may
   send five messages an hour.
+- **Assigning and passing queries:** each query can be assigned to one person (`service_requests.assigned_to`):
+  **Assign to me**, or automatically to whoever first marks an unassigned query In progress; only people who can see
+  the query's office can be chosen, and moving it clears an assignee who can't. Passing a query to another office is
+  recorded in `request_handovers` and emails that office's Customer care with the mover's note (or warns on screen if
+  nobody there gets alerts); for that office the "waiting" clock starts on arrival. Assignees get an email too.
+- **Track a message** (`/track`, `/ne/track`): customers enter their reference code and the last 4 digits of their phone
+  number and see only the status, office and dates. Lookups are logged in `track_lookups` for limits (20 an hour per
+  device, 8 wrong tries an hour per reference) and kept 30 days. Linked from Contact, the thank-you page and the footer.
 - **Email alerts:** when someone sends the contact form, every admin who has alerts on (**My account**, on by default)
   gets one email with the details and a link to the query; replying to it writes to the customer. Sent through
   [Resend](https://resend.com) (free: 3,000 emails a month, 100 a day) from `no-reply@nepsemyak.com.np`, after the

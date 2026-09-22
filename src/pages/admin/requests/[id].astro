@@ -2,33 +2,51 @@
 import AdminLayout from '~/layouts/AdminLayout.astro';
 import Icon from '~/components/Icon.astro';
 import StatusBadge from '~/components/admin/StatusBadge.astro';
-import { addNote, deleteRequest, getRequest, listNotes, requestInScope, updateRequest, REQUEST_STATUSES, STATUS_LABEL, TOPIC_LABEL, type RequestStatus } from '~/lib/requests';
-import { can, officeScope } from '~/lib/roles';
+import {
+  addNote,
+  adminName,
+  assigneesFor,
+  deleteRequest,
+  getRequest,
+  listHandovers,
+  listNotes,
+  recordHandover,
+  requestInScope,
+  updateRequest,
+  REQUEST_STATUSES,
+  STATUS_LABEL,
+  TOPIC_LABEL,
+  type RequestStatus,
+} from '~/lib/requests';
+import { can, officeName, officeScope, isOffice } from '~/lib/roles';
 import { requestActor } from '~/lib/audit';
 import { branches } from '~/data/site';
 import { formatNpt, parseId } from '~/lib/admin-format';
 import { paragraphs } from '~/lib/forms';
 import { telHref } from '~/i18n/utils';
-import { alertFor } from '~/lib/notify';
+import { alertAssigned, alertFor, alertHandover, officeRecipients } from '~/lib/notify';
+import { afterResponse } from '~/lib/background';
 
 export const prerender = false;
 
 const me = Astro.locals.admin!;
+const myName = me.name || me.email;
 const canDelete = can(me, 'requests.delete');
 const canHandle = can(me, 'requests.handle');
 const scope = officeScope(me);
 
 const id = parseId(Astro.params.id);
 if (typeof id !== 'number') return Astro.redirect('/admin/requests', 303);
-let request = await getRequest(id);
+const request = await getRequest(id);
 // Customer care for one office can't open other offices' queries, even with a direct link.
 if (!request || !requestInScope(scope, request)) return Astro.redirect('/admin/requests', 303);
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const actor = requestActor(Astro, me.email);
+  const action = form.get('_action');
 
-  if (form.get('_action') === 'delete') {
+  if (action === 'delete') {
     // Only the master admin may remove a message for good.
     if (!canDelete) return Astro.redirect(`/admin/requests/${request.id}`, 303);
     await deleteRequest(request.id, actor);
@@ -38,35 +56,100 @@ if (Astro.request.method === 'POST') {
   // Viewers read queries but can't change them (the middleware stops them too).
   if (!canHandle) return Astro.redirect(`/admin/requests/${request.id}`, 303);
 
-  const status = String(form.get('status') ?? '');
+  if (action === 'take') {
+    await updateRequest(request.id, request.status, request.branch, me.email, actor);
+    return Astro.redirect(`/admin/requests/${request.id}?saved=1`, 303);
+  }
+
+  const statusValue = String(form.get('status') ?? '');
+  const status = (REQUEST_STATUSES as readonly string[]).includes(statusValue) ? (statusValue as RequestStatus) : request.status;
   const branchValue = String(form.get('branch') ?? '');
+  const branch = isOffice(branchValue) ? branchValue : null;
   const note = String(form.get('note') ?? '').trim().slice(0, 2000);
 
-  if ((REQUEST_STATUSES as readonly string[]).includes(status)) {
-    const branch = branches.some((b) => b.id === branchValue) ? branchValue : null;
-    if (status !== request.status || branch !== request.branch) {
-      await updateRequest(request.id, status as RequestStatus, branch, actor);
-    }
+  // Only someone who can see the query's (new) office can be given it; anyone else is cleared.
+  const eligible = await assigneesFor(branch);
+  const chosen = String(form.get('assigned_to') ?? '');
+  let assignedTo = eligible.some((a) => a.email === chosen) ? chosen : null;
+  // Whoever first marks an unassigned query In progress takes it on.
+  if (!assignedTo && !request.assigned_to && status === 'in_progress' && request.status !== 'in_progress' && eligible.some((a) => a.email === me.email)) {
+    assignedTo = me.email;
+  }
+
+  const moved = branch !== request.branch;
+  if (status !== request.status || moved || assignedTo !== request.assigned_to) {
+    await updateRequest(request.id, status, branch, assignedTo, actor);
   }
   if (note) await addNote(request.id, note, actor);
+  const updated = (await getRequest(request.id))!;
+
+  // Passed to another office: record it, and tell that office's Customer care (or warn that nobody there is told).
+  let nobodyAt: string | null = null;
+  if (moved) {
+    const handoverId = await recordHandover(request.id, request.branch, branch, me.email, note || null);
+    if (branch) {
+      const to = (await officeRecipients(branch)).filter((email) => email !== me.email);
+      if (to.length === 0) nobodyAt = branch;
+      else await afterResponse(Astro.locals, alertHandover(updated, handoverId, to, { name: myName, fromOffice: request.branch, note: note || null }));
+    }
+  }
+  if (assignedTo && assignedTo !== request.assigned_to && assignedTo !== me.email) {
+    await afterResponse(Astro.locals, alertAssigned(updated, assignedTo, myName));
+  }
+
+  const warn = nobodyAt ? `&nobody=${nobodyAt}` : '';
   // Moved to an office this person doesn't look after: it now belongs to that office's staff.
-  const updated = await getRequest(request.id);
-  if (updated && !requestInScope(scope, updated)) return Astro.redirect('/admin/requests?done=moved', 303);
-  return Astro.redirect(`/admin/requests/${request.id}?saved=1`, 303);
+  if (!requestInScope(scope, updated)) return Astro.redirect(`/admin/requests?done=moved${warn}`, 303);
+  return Astro.redirect(`/admin/requests/${request.id}?saved=1${warn}`, 303);
 }
 
-const [notes, alert] = await Promise.all([listNotes(request.id), alertFor(request.id)]);
+const [notes, alert, handovers, assignees, assignedName] = await Promise.all([
+  listNotes(request.id),
+  alertFor(request.id),
+  listHandovers(request.id),
+  canHandle ? assigneesFor(request.branch) : Promise.resolve([]),
+  adminName(request.assigned_to),
+]);
 const saved = Astro.url.searchParams.has('saved');
+const nobodyParam = Astro.url.searchParams.get('nobody') ?? '';
+const nobodyAt = isOffice(nobodyParam) ? officeName(nobodyParam) : null;
 const branchName = (bid: string | null) => branches.find((b) => b.id === bid)?.name.en ?? 'Not sure';
 const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 3_600_000);
+const canTake = canHandle && request.assigned_to !== me.email && assignees.some((a) => a.email === me.email);
+// Keep someone listed even if they could no longer be chosen, so saving doesn't silently clear them.
+const assigneeOptions =
+  request.assigned_to && !assignees.some((a) => a.email === request.assigned_to)
+    ? [...assignees, { email: request.assigned_to, name: assignedName ?? request.assigned_to }]
+    : assignees;
+const nameFor = new Map(assigneeOptions.map((a) => [a.email, a.name || a.email]));
 ---
 
 <AdminLayout title={`Request ${request.ref}`}>
   {saved && <p class="flash"><Icon name="circle-check" size={20} /> Saved.</p>}
+  {
+    nobodyAt && (
+      <p class="flash error">
+        Nobody at {nobodyAt} receives email alerts yet, so they haven’t been told about this query. Please phone them.
+      </p>
+    )
+  }
 
   <div class="toolbar">
     <a class="link-arrow" href="/admin/requests"><Icon name="arrow-left" size={16} /> All requests</a>
-    <StatusBadge status={request.status} label={STATUS_LABEL[request.status]} />
+    <span class="toolbar-right">
+      <span class="assignee">
+        <Icon name="users" size={16} /> {request.assigned_to ? (request.assigned_to === me.email ? 'Assigned to you' : `Assigned to ${assignedName}`) : 'Not assigned yet'}
+      </span>
+      {
+        canTake && (
+          <form method="post">
+            <input type="hidden" name="_action" value="take" />
+            <button class="btn btn-ghost btn-sm" type="submit">Assign to me</button>
+          </form>
+        )
+      }
+      <StatusBadge status={request.status} label={STATUS_LABEL[request.status]} />
+    </span>
   </div>
 
   <div class="grid">
@@ -138,9 +221,27 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
             </div>
           </div>
           <div class="field">
+            <label for="assigned_to">Assigned to</label>
+            <select class="select" id="assigned_to" name="assigned_to">
+              <option value="">Nobody yet</option>
+              {assigneeOptions.map((a) => (
+                <option value={a.email} selected={request.assigned_to === a.email}>
+                  {a.email === me.email ? `${a.name || a.email} (you)` : a.name || a.email}
+                </option>
+              ))}
+            </select>
+            <p class="hint">
+              The person dealing with it. If nobody is chosen when you mark it In progress, it’s assigned to you. Moving it to
+              an office they don’t cover clears it.
+            </p>
+          </div>
+          <div class="field">
             <label for="note">Add a note (optional)</label>
             <textarea class="textarea" id="note" name="note" rows="3" maxlength="2000" placeholder="Called the customer, collection arranged for Sunday…"></textarea>
-            <p class="hint">Notes stay in the admin panel. The person who wrote in doesn’t see them.</p>
+            <p class="hint">
+              Notes stay in the admin panel; the person who wrote in doesn’t see them. When you move the query to another
+              office, this note is included in the email to that office.
+            </p>
           </div>
           <button class="btn btn-primary" type="submit"><Icon name="check" size={18} /> Save</button>
         </form>
@@ -181,6 +282,36 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
           </section>
         )
       }
+
+    {
+      handovers.length > 0 && (
+        <section class="form-section handovers">
+          <h2>Passed between offices</h2>
+          <ol class="notes">
+            {handovers.map((h) => (
+              <li>
+                <p class="hint">
+                  {formatNpt(h.at)} · {h.by_email ? (nameFor.get(h.by_email) ?? h.by_email) : 'system'}
+                </p>
+                <p>
+                  {branchName(h.from_branch)} → <strong>{branchName(h.to_branch)}</strong>
+                  {h.note && <span class="muted"> · “{h.note}”</span>}
+                </p>
+                <p class="hint">
+                  {!h.to_branch
+                    ? 'No office chosen.'
+                    : h.error
+                      ? `The email to that office failed: ${h.error}`
+                      : h.sent_to
+                        ? `Emailed ${h.sent_to} ${h.sent_to === 1 ? 'person' : 'people'} there.`
+                        : 'Nobody there receives email alerts.'}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )
+    }
     </div>
 
     <aside class="form-section who">
@@ -228,6 +359,25 @@ const waitingSince = Math.round((Date.now() - Date.parse(request.created_at)) / 
 <style>
   .alert-failed {
     color: #a61b1b;
+  }
+
+  .toolbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+  }
+
+  .assignee {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  .muted {
+    color: var(--muted);
   }
 
   .read-only {

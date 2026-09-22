@@ -1,7 +1,7 @@
 ---
 import HelpShell from '~/components/help/HelpShell.astro';
 import Icon from '~/components/Icon.astro';
-import { HELP_GROUPS, topicHref, topicsFor, type HelpGroup, type HelpReader } from '~/lib/help';
+import { HELP_GROUPS, HELP_GROUPS_NE, NEPALI_TOPICS, ROLE_SUMMARY_NE, helpLang, topicHref, topicSummary, topicTitle, topicsFor, type HelpGroup, type HelpReader } from '~/lib/help';
 import { ROLE_SUMMARY, roleLine } from '~/lib/roles';
 
 export const prerender = false;
@@ -10,25 +10,29 @@ export const prerender = false;
 const me = Astro.locals.admin;
 const reader: HelpReader = me ? { role: me.role, office: me.office, name: me.name, masterName: null } : null;
 const topics = topicsFor(me);
+const lang = helpLang(Astro.url, Astro.cookies);
+const ne = lang === 'ne';
 const groups = (Object.keys(HELP_GROUPS) as HelpGroup[])
-  .map((g) => ({ id: g, title: HELP_GROUPS[g], topics: topics.filter((t) => t.group === g) }))
+  .map((g) => ({ id: g, title: ne ? HELP_GROUPS_NE[g] : HELP_GROUPS[g], topics: topics.filter((t) => t.group === g) }))
   .filter((g) => g.topics.length > 0);
+const title = ne ? (me ? 'सहायता केन्द्र' : 'एडमिन सहायता केन्द्र') : me ? 'Help centre' : 'Admin help centre';
+const summary = ne
+  ? me
+    ? 'nepsemyak.com.np हेरचाह गर्ने निर्देशिका, तपाईंको भूमिकाअनुसार लेखिएका। प्यानलको हरेक पृष्ठमा रहेको Help बटनले सम्बन्धित निर्देशिका खोल्छ।'
+    : 'वेबसाइट हेर्ने नेप्सेम्याकका कर्मचारीका लागि निर्देशिका। नयाँ हुनुहुन्छ भने “सुरुवात” बाट थाल्नुहोस्।'
+  : me
+    ? 'Guides for looking after nepsemyak.com.np, written for your role. Every page of the panel also has a Help button that opens the right guide.'
+    : 'Guides for Nepsemyak staff who look after the website. New here? Start with Getting started.';
 ---
 
-<HelpShell
-  reader={reader}
-  title={me ? 'Help centre' : 'Admin help centre'}
-  summary={me
-    ? 'Guides for looking after nepsemyak.com.np, written for your role. Every page of the panel also has a Help button that opens the right guide.'
-    : 'Guides for Nepsemyak staff who look after the website. New here? Start with Getting started.'}
->
+<HelpShell reader={reader} title={title} summary={summary} lang={lang}>
   {
     me && (
       <section class="role-card" aria-labelledby="role-h">
-        <h2 id="role-h">Your role: {roleLine(me)}</h2>
-        <p>{ROLE_SUMMARY[me.role]}</p>
+        <h2 id="role-h">{ne ? 'तपाईंको भूमिका' : 'Your role'}: {roleLine(me)}</h2>
+        <p>{ne ? ROLE_SUMMARY_NE[me.role] : ROLE_SUMMARY[me.role]}</p>
         <p>
-          <a href={topicHref('roles')}>See exactly what your role can do</a>
+          <a href={topicHref('roles')}>{ne ? 'तपाईंको भूमिकाले के-के गर्न सक्छ हेर्नुहोस्' : 'See exactly what your role can do'}</a>
         </p>
       </section>
     )
@@ -46,8 +50,9 @@ const groups = (Object.keys(HELP_GROUPS) as HelpGroup[])
                   <Icon name={t.icon} size={20} />
                 </span>
                 <span>
-                  <strong>{t.title}</strong>
-                  <small>{t.summary}</small>
+                  <strong>{topicTitle(t, lang)}</strong>
+                  <small>{topicSummary(t, lang)}</small>
+                  {ne && !NEPALI_TOPICS.includes(t.slug) && <small class="en-only">अङ्ग्रेजीमा मात्र</small>}
                 </span>
               </a>
             </li>
@@ -60,8 +65,17 @@ const groups = (Object.keys(HELP_GROUPS) as HelpGroup[])
   {
     !me && (
       <p class="callout">
-        More guides (answering queries, updating the website, your daily routine) appear here once you <a href="/admin/login">sign in</a>,
-        chosen for your role.
+        {ne ? (
+          <>
+            थप निर्देशिका (सोधपुछको जवाफ, वेबसाइट अद्यावधिक, दिनचर्या) तपाईंको भूमिकाअनुसार <a href="/admin/login">साइन इन</a> गरेपछि यहाँ
+            देखिन्छन्।
+          </>
+        ) : (
+          <>
+            More guides (answering queries, updating the website, your daily routine) appear here once you <a href="/admin/login">sign in</a>,
+            chosen for your role.
+          </>
+        )}
       </p>
     )
   }
@@ -137,5 +151,14 @@ const groups = (Object.keys(HELP_GROUPS) as HelpGroup[])
     margin-top: 0.15rem;
     font-size: 0.9rem;
     color: var(--muted);
+  }
+
+  .topic .en-only {
+    display: inline-block;
+    margin-top: 0.35rem;
+    padding: 0 0.45rem;
+    border-radius: 999px;
+    background: var(--bg);
+    font-size: 0.75rem;
   }
 </style>

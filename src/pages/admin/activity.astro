@@ -68,7 +68,7 @@ function describe(e: AuditEntry) {
 
 /** "title_en" → "Title (English)". */
 /** Readable names for columns that aren't content. */
-const COLUMN_NAME: Record<string, string> = { position: 'Order on page', visible: 'Shown on website', notify_requests: 'Email alerts for new queries', role: 'Role', office: 'Office' };
+const COLUMN_NAME: Record<string, string> = { position: 'Order on page', visible: 'Shown on website', notify_requests: 'Email alerts for new queries', role: 'Role', office: 'Office', assigned_to: 'Assigned to' };
 
 const fieldName = (key: string) =>
   COLUMN_NAME[key] ??

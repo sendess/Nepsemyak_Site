@@ -1,0 +1,266 @@
+---
+import Icon from '~/components/Icon.astro';
+import PageHero from '~/components/PageHero.astro';
+import { branches } from '~/data/site';
+import type { TrackState } from '~/lib/track-form';
+import { formatDate, localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
+import type { IconName } from '~/components/icons';
+
+type Props = { lang: Lang; state: TrackState };
+const { lang, state } = Astro.props;
+const t = useTranslations(lang);
+const { values, errors, result } = state;
+
+// The day in Nepal time, shown in BS on the Nepali page.
+const day = (iso: string) => formatDate(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kathmandu' }).format(new Date(iso)), lang);
+const office = result ? branches.find((b) => b.id === result.branch) ?? null : null;
+const STATUS_ICON: Record<string, IconName> = { new: 'mail', in_progress: 'clock', resolved: 'circle-check', spam: 'circle-x' };
+const STATUS: Record<string, [title: string, text: string]> = {
+  new: [t('track.status.new'), t('track.status.new.text')],
+  in_progress: [t('track.status.in_progress'), t('track.status.in_progress.text')],
+  resolved: [t('track.status.resolved'), t('track.status.resolved.text')],
+  spam: [t('track.status.spam'), t('track.status.spam.text')],
+};
+---
+
+<PageHero lang={lang} title={t('track.title')} lead={t('track.intro')} />
+
+<section class="section section-white">
+  <div class="container-narrow track">
+    {
+      result && (
+        <div class:list={['result', result.status]} role="status">
+          <span class="result-icon" aria-hidden="true">
+            <Icon name={STATUS_ICON[result.status]} size={28} />
+          </span>
+          <div class="result-body">
+            <p class="result-ref">{result.ref}</p>
+            <h2 class="h3">{STATUS[result.status][0]}</h2>
+            <p>{STATUS[result.status][1]}</p>
+            <dl class="facts">
+              <div>
+                <dt>{t('track.received')}</dt>
+                <dd>{day(result.created_at)}</dd>
+              </div>
+              <div>
+                <dt>{t('track.office')}</dt>
+                <dd>{office ? office.name[lang] : t('track.officeNone')}</dd>
+              </div>
+              <div>
+                <dt>{t('track.updated')}</dt>
+                <dd>{day(result.updated_at)}</dd>
+              </div>
+            </dl>
+            {office && (
+              <a class="btn btn-ghost" href={telHref(office.phones[0])}>
+                <Icon name="phone" size={18} /> {t('track.call')} {office.name[lang]}: {office.phones[0]}
+              </a>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    <div class="form-card">
+      {result && <h2 class="h4">{t('track.again')}</h2>}
+      <form method="POST" novalidate>
+        {errors.form && <p class="form-error" role="alert">{errors.form}</p>}
+        <div class="row">
+          <div class="field">
+            <label for="t-ref">{t('track.ref')}</label>
+            <input
+              class="input code"
+              id="t-ref"
+              name="ref"
+              type="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              placeholder="NS-7K4P2Q"
+              maxlength="12"
+              required
+              value={result ? '' : values.ref}
+              aria-invalid={errors.ref ? 'true' : undefined}
+              aria-describedby={errors.ref ? 't-ref-error' : undefined}
+            />
+            {errors.ref && <p class="field-error" id="t-ref-error">{errors.ref}</p>}
+          </div>
+          <div class="field">
+            <label for="t-phone">{t('track.phone')}</label>
+            <input
+              class="input code"
+              id="t-phone"
+              name="phone"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              pattern="[0-9]{4}"
+              maxlength="4"
+              required
+              aria-invalid={errors.phone ? 'true' : undefined}
+              aria-describedby={errors.phone ? 't-phone-error' : 't-phone-help'}
+            />
+            {errors.phone ? <p class="field-error" id="t-phone-error">{errors.phone}</p> : <p class="small muted" id="t-phone-help">{t('track.phoneHelp')}</p>}
+          </div>
+        </div>
+        <div class="submit">
+          <button class="btn btn-primary" type="submit">
+            <Icon name="search" size={18} />
+            {t('track.submit')}
+          </button>
+          <p class="small muted">{t('track.privacy')}</p>
+        </div>
+      </form>
+    </div>
+
+    <p class="muted back">
+      <a href={localizePath('/contact/', lang)}>
+        <Icon name="arrow-left" size={16} />
+        {t('nav.contact')}
+      </a>
+    </p>
+  </div>
+</section>
+
+<style>
+  .track {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .result {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 1rem;
+    padding: clamp(1.1rem, 3vw, 1.6rem);
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--green);
+    border-radius: var(--radius);
+    background: var(--green-50);
+  }
+
+  .result.new {
+    border-left-color: var(--navy);
+    background: #eef3f8;
+  }
+
+  .result.spam {
+    border-left-color: var(--muted);
+    background: var(--bg);
+  }
+
+  .result-icon {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: #fff;
+    color: var(--green-700);
+  }
+
+  .result.new .result-icon {
+    color: var(--navy);
+  }
+
+  .result-body {
+    display: grid;
+    gap: 0.6rem;
+    justify-items: start;
+  }
+
+  .result-body > * {
+    margin: 0;
+  }
+
+  .result-ref {
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem 1.5rem;
+    width: 100%;
+    margin: 0.25rem 0;
+  }
+
+  .facts dt {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .facts dd {
+    margin: 0;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .form-card {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+  }
+
+  .form-card h2 {
+    margin: 0;
+  }
+
+  form {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  @media (max-width: 640px) {
+    .row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .code {
+    letter-spacing: 0.08em;
+  }
+
+  .field-error,
+  .form-error {
+    margin: 0.3rem 0 0;
+    color: #b42318;
+    font-weight: 600;
+    font-size: 0.92rem;
+  }
+
+  .form-error {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: #fdecea;
+  }
+
+  .submit {
+    display: grid;
+    gap: 0.6rem;
+    justify-items: start;
+  }
+
+  .back {
+    margin: 0;
+  }
+
+  .back a {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+  }
+</style>

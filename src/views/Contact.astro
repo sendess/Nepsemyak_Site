@@ -5,7 +5,7 @@ import BranchCard from '~/components/BranchCard.astro';
 import BranchMap from '~/components/BranchMap.astro';
 import { org, branches } from '~/data/site';
 import type { ContactFormState } from '~/lib/contact-form';
-import { telHref, useTranslations, type Lang } from '~/i18n/utils';
+import { localizePath, telHref, useTranslations, type Lang } from '~/i18n/utils';
 
 /** `form` is set when a submission came back with something to correct. */
 type Props = { lang: Lang; form?: ContactFormState | null };
@@ -114,6 +114,14 @@ const central = branches[0];
         <a class="btn btn-yellow" href={org.chatUrl} target="_blank" rel="noopener">
           {t('cta.chat')}
           <Icon name="arrow-up-right" size={18} />
+        </a>
+      </div>
+      <div class="card quick">
+        <h2 class="h4">{t('track.cardTitle')}</h2>
+        <p>{t('track.cardText')}</p>
+        <a class="btn btn-ghost" href={localizePath('/track/', lang)}>
+          <Icon name="search" size={18} />
+          {t('track.link')}
         </a>
       </div>
       <div class="card quick">

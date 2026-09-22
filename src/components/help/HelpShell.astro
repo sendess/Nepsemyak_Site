@@ -7,7 +7,7 @@ import AdminLayout from '~/layouts/AdminLayout.astro';
 import AuthLayout from '~/layouts/AuthLayout.astro';
 import HelpFoot from './HelpFoot.astro';
 import { HELP } from '~/lib/admin-routes';
-import type { HelpReader, HelpTopic } from '~/lib/help';
+import type { HelpLang, HelpReader, HelpTopic } from '~/lib/help';
 import { roleLine } from '~/lib/roles';
 
 type Props = {
@@ -18,47 +18,87 @@ type Props = {
   prev?: HelpTopic | null;
   next?: HelpTopic | null;
   isTopic?: boolean;
+  lang?: HelpLang;
+  /** A Nepali reader on a page not yet written in Nepali. */
+  englishOnly?: boolean;
 };
-const { reader, title, summary, prev = null, next = null, isTopic = false } = Astro.props;
+const { reader, title, summary, prev = null, next = null, isTopic = false, lang = 'en', englishOnly = false } = Astro.props;
+const ne = lang === 'ne';
+const home = ne ? 'सहायता केन्द्र' : 'Help centre';
+const here = Astro.url.pathname;
 ---
 
 {
   reader ? (
     <AdminLayout title={isTopic ? 'Help' : 'Help centre'}>
-      <div class="help-article">
+      <div class="help-article" lang={lang}>
         <header class="help-head">
-          {isTopic && (
-            <nav class="crumbs" aria-label="Breadcrumb">
-              <a href={HELP}>Help centre</a> <span aria-hidden="true">/</span> <span>{title}</span>
+          <div class="head-row">
+            {isTopic ? (
+              <nav class="crumbs" aria-label="Breadcrumb">
+                <a href={HELP}>{home}</a> <span aria-hidden="true">/</span> <span>{title}</span>
+              </nav>
+            ) : (
+              <span />
+            )}
+            <nav class="lang-switch" aria-label="Language / भाषा">
+              <a href={`${here}?lang=en`} lang="en" aria-current={ne ? undefined : 'true'}>English</a>
+              <a href={`${here}?lang=ne`} lang="ne" aria-current={ne ? 'true' : undefined}>नेपाली</a>
             </nav>
-          )}
+          </div>
           <h2 class="help-title">{title}</h2>
           {summary && <p class="lede">{summary}</p>}
           <p class="reading-as">
-            Written for you as <strong>{roleLine(reader)}</strong>. Parts that don’t apply to your role are left out.
+            {ne ? (
+              <>
+                तपाईंको भूमिका <strong>{roleLine(reader)}</strong> अनुसार लेखिएको। तपाईंको भूमिकामा नपर्ने भाग हटाइएको छ।
+              </>
+            ) : (
+              <>
+                Written for you as <strong>{roleLine(reader)}</strong>. Parts that don’t apply to your role are left out.
+              </>
+            )}
           </p>
+          {englishOnly && <p class="callout" lang="ne">यो पृष्ठ अहिले अङ्ग्रेजीमा मात्र उपलब्ध छ।</p>}
         </header>
         <slot />
-        <HelpFoot prev={prev} next={next} isTopic={isTopic} />
+        <HelpFoot prev={prev} next={next} isTopic={isTopic} lang={lang} />
       </div>
     </AdminLayout>
   ) : (
     <AuthLayout title={title} full>
-      <div class="help-article public">
+      <div class="help-article public" lang={lang}>
         <header class="help-head">
-          {isTopic && (
-            <nav class="crumbs" aria-label="Breadcrumb">
-              <a href={HELP}>Help centre</a> <span aria-hidden="true">/</span> <span>{title}</span>
+          <div class="head-row">
+            {isTopic ? (
+              <nav class="crumbs" aria-label="Breadcrumb">
+                <a href={HELP}>{home}</a> <span aria-hidden="true">/</span> <span>{title}</span>
+              </nav>
+            ) : (
+              <span />
+            )}
+            <nav class="lang-switch" aria-label="Language / भाषा">
+              <a href={`${here}?lang=en`} lang="en" aria-current={ne ? undefined : 'true'}>English</a>
+              <a href={`${here}?lang=ne`} lang="ne" aria-current={ne ? 'true' : undefined}>नेपाली</a>
             </nav>
-          )}
+          </div>
           <h1 class="help-title">{title}</h1>
           {summary && <p class="lede">{summary}</p>}
           <p class="reading-as">
-            Already have an account? <a href="/admin/login">Sign in</a> to see the guides for your role.
+            {ne ? (
+              <>
+                पहिले नै खाता छ? तपाईंको भूमिकाका निर्देशिका हेर्न <a href="/admin/login">साइन इन गर्नुहोस्</a>।
+              </>
+            ) : (
+              <>
+                Already have an account? <a href="/admin/login">Sign in</a> to see the guides for your role.
+              </>
+            )}
           </p>
+          {englishOnly && <p class="callout" lang="ne">यो पृष्ठ अहिले अङ्ग्रेजीमा मात्र उपलब्ध छ।</p>}
         </header>
         <slot />
-        <HelpFoot prev={prev} next={next} isTopic={isTopic} />
+        <HelpFoot prev={prev} next={next} isTopic={isTopic} lang={lang} />
       </div>
     </AuthLayout>
   )
@@ -92,9 +132,44 @@ const { reader, title, summary, prev = null, next = null, isTopic = false } = As
     color: var(--text);
   }
 
+  /* Carries the language of a topic's text without changing the layout. */
+  .help-article .help-body {
+    display: contents;
+  }
+
   .help-article .help-head {
     display: grid;
     gap: 0.5rem;
+  }
+
+  .help-article .head-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .help-article .lang-switch {
+    display: inline-flex;
+    padding: 0.15rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+
+  .help-article .lang-switch a {
+    padding: 0.2rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .help-article .lang-switch a[aria-current='true'] {
+    background: var(--green);
+    color: #fff;
+    font-weight: 600;
   }
 
   .help-article .crumbs {

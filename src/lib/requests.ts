@@ -43,6 +43,7 @@ export type ServiceRequest = {
   status: RequestStatus;
   handled_by: string | null;
   handled_at: string | null;
+  assigned_to: string | null;
   ip: string | null;
   user_agent: string | null;
 };
@@ -86,7 +87,7 @@ export async function recentFromIp(ip: string | null, minutes = 60): Promise<num
 /* ---------------- Admin inbox ---------------- */
 
 export type RequestSort = 'received' | 'name' | 'topic' | 'branch' | 'status';
-export type RequestFilter = 'status' | 'topic' | 'branch';
+export type RequestFilter = 'status' | 'topic' | 'branch' | 'assigned';
 
 export const REQUEST_LIST: ListSpec<RequestSort, RequestFilter> = {
   id: 'requests',
@@ -96,6 +97,7 @@ export const REQUEST_LIST: ListSpec<RequestSort, RequestFilter> = {
     status: REQUEST_STATUSES,
     topic: REQUEST_TOPICS,
     branch: [...branches.map((b) => b.id), 'unsure'],
+    assigned: ['me', 'none'],
   },
 };
 
@@ -109,13 +111,22 @@ const inScope = (scope: string | null) => (scope ? sql`(branch = ${scope} or bra
 export const requestInScope = (scope: string | null, request: Pick<ServiceRequest, 'branch'>) =>
   !scope || request.branch === null || request.branch === scope;
 
-export async function listRequests(list: ListState<RequestSort, RequestFilter>, scope: string | null = null): Promise<Page<ServiceRequest>> {
-  const { status, topic, branch } = list.filters;
+/** A row in the inbox: the query, plus when (and from where) it was last passed to its current office. */
+export type RequestRow = ServiceRequest & { passed_at: string | null; passed_from: string | null };
+
+export async function listRequests(
+  list: ListState<RequestSort, RequestFilter>,
+  scope: string | null = null,
+  me: string | null = null,
+): Promise<Page<RequestRow>> {
+  const { status, topic, branch, assigned } = list.filters;
   const conds = [inScope(scope)];
   if (status) conds.push(sql`status = ${status}`);
   if (topic) conds.push(sql`topic = ${topic}`);
   if (branch === 'unsure') conds.push(sql`branch is null`);
   else if (branch) conds.push(sql`branch = ${branch}`);
+  if (assigned === 'me') conds.push(sql`assigned_to = ${me}`);
+  else if (assigned === 'none') conds.push(sql`assigned_to is null`);
   if (list.q) {
     const like = likePattern(list.q);
     conds.push(sql`(name ilike ${like} or phone ilike ${like} or email ilike ${like} or address ilike ${like}
@@ -129,11 +140,17 @@ export async function listRequests(list: ListState<RequestSort, RequestFilter>, 
     status: requestState,
   }[list.sort];
   const rows = await sql`
-    select *, count(*) over()::int as total_count from service_requests
+    select r.*, count(*) over()::int as total_count, h.at as passed_at, h.from_branch as passed_from
+    from service_requests r
+    left join lateral (
+      select at, from_branch from request_handovers
+      where request_id = r.id and to_branch is not distinct from r.branch
+      order by at desc limit 1
+    ) h on true
     where ${conds.reduce((acc, c) => sql`${acc} and ${c}`, sql`true`)}
     order by ${sortBy} ${sql.unsafe(list.dir === 'asc' ? 'asc' : 'desc')} nulls last, created_at desc, id desc
     limit ${list.pageSize} offset ${(list.page - 1) * list.pageSize}`;
-  return { rows: rows as ServiceRequest[], total: rows.length ? Number(rows[0].total_count) : 0 };
+  return { rows: rows as RequestRow[], total: rows.length ? Number(rows[0].total_count) : 0 };
 }
 
 export async function getRequest(id: number): Promise<ServiceRequest | null> {
@@ -146,10 +163,11 @@ export async function listNotes(requestId: number): Promise<RequestNote[]> {
     select id, at, author_email, note from request_notes where request_id = ${requestId} order by at, id`) as RequestNote[];
 }
 
-/** Changes status and/or the branch dealing with it. */
-export async function updateRequest(id: number, status: RequestStatus, branch: string | null, actor: Actor) {
+/** Changes status, the office dealing with it, and who is dealing with it. */
+export async function updateRequest(id: number, status: RequestStatus, branch: string | null, assignedTo: string | null, actor: Actor) {
   await asActor(actor, [
-    sql`update service_requests set status = ${status}, branch = ${branch}, handled_by = ${actor.email}, handled_at = now()
+    sql`update service_requests
+        set status = ${status}, branch = ${branch}, assigned_to = ${assignedTo}, handled_by = ${actor.email}, handled_at = now()
         where id = ${id}`,
   ]);
 }
@@ -161,4 +179,106 @@ export async function deleteRequest(id: number, actor: Actor) {
 
 export async function addNote(requestId: number, note: string, actor: Actor) {
   await sql`insert into request_notes (request_id, author_email, note) values (${requestId}, ${actor.email}, ${note})`;
+}
+
+/* ---------------- Who deals with a query ---------------- */
+
+export type Assignee = { email: string; name: string };
+
+/**
+ * People a query can be given to: anyone who answers queries and can see its office. Viewers never;
+ * Customer care tied to an office only for that office's queries and those with no office.
+ */
+export async function assigneesFor(branch: string | null): Promise<Assignee[]> {
+  return (await sql`
+    select email, name from admin_users
+    where role in ('owner', 'editor')
+       or (role = 'support' and (office is null or ${branch}::text is null or office = ${branch}))
+    order by lower(coalesce(nullif(name, ''), email))`) as Assignee[];
+}
+
+export async function adminName(email: string | null): Promise<string | null> {
+  if (!email) return null;
+  const [row] = await sql`select name from admin_users where email = ${email}`;
+  return row ? String(row.name || email) : email;
+}
+
+/* ---------------- Passing a query to another office ---------------- */
+
+export type Handover = {
+  id: number;
+  at: string;
+  from_branch: string | null;
+  to_branch: string | null;
+  by_email: string | null;
+  note: string | null;
+  sent_to: number;
+  error: string | null;
+};
+
+export async function recordHandover(
+  requestId: number,
+  from: string | null,
+  to: string | null,
+  by: string | null,
+  note: string | null,
+): Promise<number> {
+  const [row] = await sql`
+    insert into request_handovers (request_id, from_branch, to_branch, by_email, note)
+    values (${requestId}, ${from}, ${to}, ${by}, ${note}) returning id`;
+  return Number(row.id);
+}
+
+export async function listHandovers(requestId: number): Promise<Handover[]> {
+  return (await sql`
+    select id, at, from_branch, to_branch, by_email, note, sent_to, error
+    from request_handovers where request_id = ${requestId} order by at, id`) as Handover[];
+}
+
+/* ---------------- Public "Track your query" ---------------- */
+
+/** Lookups one device may make in an hour, and wrong phone digits allowed for one reference in an hour. */
+const TRACK_PER_IP = 20;
+const TRACK_FAILS_PER_REF = 8;
+
+export type TrackResult =
+  | { kind: 'found'; ref: string; status: RequestStatus; branch: string | null; created_at: string; updated_at: string }
+  | { kind: 'not-found' }
+  | { kind: 'too-many' };
+
+const digits = (s: string) => s.replace(/\D/g, '');
+
+/**
+ * Finds a query by its reference code and the last four digits of the phone number it was sent with.
+ * Only the status, office and dates are returned: never the message, notes or staff names.
+ */
+export async function trackRequest(refInput: string, phoneEnd: string, ip: string | null): Promise<TrackResult> {
+  // Accept "NS-7K4P2Q", "ns 7k4p2q" or just "7K4P2Q". Codes are 6 characters and may themselves start with NS.
+  const cleaned = refInput.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const ref = `NS-${(cleaned.length === 8 && cleaned.startsWith('NS') ? cleaned.slice(2) : cleaned).slice(0, 6)}`;
+  const last4 = digits(phoneEnd).slice(-4);
+  const [limits] = await sql`
+    select count(*) filter (where ip = ${ip})::int as by_ip,
+           count(*) filter (where ref = ${ref} and not found)::int as fails
+    from track_lookups where at > now() - interval '1 hour'`;
+  if ((ip && Number(limits.by_ip) >= TRACK_PER_IP) || Number(limits.fails) >= TRACK_FAILS_PER_REF) return { kind: 'too-many' };
+
+  const [row] = await sql`
+    select ref, status, branch, created_at, greatest(created_at, handled_at) as updated_at, phone
+    from service_requests where ref = ${ref}`;
+  const found = Boolean(row && last4.length === 4 && digits(String(row.phone)).endsWith(last4));
+  // Old lookups are only needed for the hourly limits.
+  await sql.transaction([
+    sql`insert into track_lookups (ip, ref, found) values (${ip}, ${ref}, ${found})`,
+    sql`delete from track_lookups where at < now() - interval '30 days'`,
+  ]);
+  if (!found) return { kind: 'not-found' };
+  return {
+    kind: 'found',
+    ref: String(row.ref),
+    status: row.status as RequestStatus,
+    branch: (row.branch as string | null) ?? null,
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
 }

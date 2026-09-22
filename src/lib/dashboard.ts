@@ -9,17 +9,25 @@ export type WeekCount = { week_start: string; n: number };
 export type Share = { key: string; label: string; value: number };
 
 /** Contact-form queries: what is waiting, how fast staff respond, and what people write about. */
-/** Query figures, for every office or (for Customer care tied to one) that office plus queries with none chosen. */
-export async function requestFigures(scope: string | null = null) {
+/**
+ * Query figures, for every office or (for Customer care tied to one) that office plus queries with none chosen.
+ * For an office, a query passed to it counts as waiting from when it arrived there, not from when the customer wrote.
+ */
+export async function requestFigures(scope: string | null = null, me: string | null = null) {
   const mine = scope ? sql`(branch = ${scope} or branch is null)` : sql`true`;
   const mineR = scope ? sql`(r.branch = ${scope} or r.branch is null)` : sql`true`;
-  const [totals, response, weeks, topics, offices] = await Promise.all([
+  const since = scope
+    ? sql`greatest(created_at, coalesce((select max(h.at) from request_handovers h
+        where h.request_id = service_requests.id and h.to_branch = service_requests.branch), created_at))`
+    : sql`created_at`;
+  const [totals, response, weeks, topics, offices, workload] = await Promise.all([
     sql`
       select
         count(*) filter (where status = 'new')::int as waiting,
         count(*) filter (where status = 'in_progress')::int as in_progress,
-        count(*) filter (where status = 'new' and created_at < now() - interval '24 hours')::int as overdue,
-        min(created_at) filter (where status = 'new') as oldest_waiting,
+        count(*) filter (where status = 'new' and ${since} < now() - interval '24 hours')::int as overdue,
+        min(${since}) filter (where status = 'new') as oldest_waiting,
+        count(*) filter (where assigned_to = ${me} and status in ('new', 'in_progress'))::int as my_open,
         count(*) filter (where status <> 'spam'
           and created_at >= (date_trunc('month', now() at time zone ${NPT}) at time zone ${NPT}))::int as this_month,
         count(*) filter (where status <> 'spam'
@@ -62,6 +70,12 @@ export async function requestFigures(scope: string | null = null) {
       select coalesce(branch, 'unsure') as key, count(*)::int as value from service_requests
       where status <> 'spam' and created_at > now() - interval '90 days' and ${mine}
       group by 1 order by value desc`,
+    // Open queries per person, and those nobody has taken yet.
+    sql`
+      select coalesce(r.assigned_to, '') as key, coalesce(nullif(a.name, ''), r.assigned_to, '') as name, count(*)::int as value
+      from service_requests r left join admin_users a on a.email = r.assigned_to
+      where r.status in ('new', 'in_progress') and ${mineR}
+      group by 1, 2 order by value desc`,
   ]);
   const t = totals[0];
   const r = response[0];
@@ -71,6 +85,12 @@ export async function requestFigures(scope: string | null = null) {
     inProgress: Number(t.in_progress),
     overdue: Number(t.overdue),
     oldestWaiting: (t.oldest_waiting as string | null) ?? null,
+    myOpen: Number(t.my_open),
+    workload: workload.map((x) => ({
+      key: String(x.key) || 'none',
+      label: x.key ? String(x.name) : 'Not assigned yet',
+      value: Number(x.value),
+    })) as Share[],
     thisMonth: Number(t.this_month),
     lastMonth: Number(t.last_month),
     last30: Number(t.last_30),

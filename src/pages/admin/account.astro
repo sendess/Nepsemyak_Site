@@ -131,7 +131,8 @@ const flash = (section: string) => (message?.section === section ? message : nul
       {flash('alerts') && <p class:list={['flash', { error: flash('alerts')!.kind === 'error' }]}>{flash('alerts')!.text}</p>}
       <p class="hint">
         Get an email at <strong>{me.email}</strong> each time someone sends the contact form{me.office && `, for ${officeName(me.office)} or with no office chosen`},
-        with their details and a link to the query.
+        {me.office ? 'when a query is passed to your office,' : ''} and when a colleague assigns a query to you. Each email has the details
+        and a link to the query.
       </p>
       {
         !canEmail && (

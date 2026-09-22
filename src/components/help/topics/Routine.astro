@@ -15,7 +15,7 @@ const blocks: { title: string; items: string[] }[] = [
     title: 'When an alert email arrives',
     items: handles
       ? [
-          'Press “Open in the admin panel” in the email.',
+          'Press “Open in the admin panel” in the email, and “Assign to me” if you’re taking it.',
           'Call or reply, then set the status to In progress with a note of what you did.',
           'Set Resolved when it’s done. Junk goes to Spam.',
         ]
@@ -28,6 +28,8 @@ const blocks: { title: string; items: string[] }[] = [
         ? [
             `Open the dashboard and clear “Needs attention”${officeLabel ? ` for ${officeLabel}` : ''}.`,
             'By the end of the day, no query should still be New. Anything waiting more than a day shows in red.',
+            'Check “My queries” in Requests: everything assigned to you should be moving.',
+            'Look for queries marked “Passed from …” that just arrived from another office.',
           ]
         : []),
       ...(content ? ['Check that the live banner or pop-up is still correct.'] : []),

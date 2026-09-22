@@ -27,7 +27,7 @@ const handles = can(me, 'requests.handle');
 const scope = officeScope(me);
 
 const [req, content, live, stats, codesLeft, security, admins, storage, recent, visitors, alertsFailed] = await Promise.all([
-  requestFigures(scope),
+  requestFigures(scope, me.email),
   showContent ? contentFigures() : null,
   showContent ? getLiveNotices() : null,
   showContent ? getAllStats() : null,
@@ -71,6 +71,12 @@ if (handles && req.overdue) {
 } else if (handles && req.waiting) {
   attention.push({ tone: 'warn', icon: 'messages-square', text: `${plural(req.waiting, 'new query', 'new queries')} to answer`, href: '/admin/requests?status=new', action: 'Answer' });
 }
+if (handles && req.myOpen) {
+  attention.push({ tone: 'warn', icon: 'users', text: `${plural(req.myOpen, 'query', 'queries')} assigned to you still open`, href: '/admin/requests?assigned=me', action: 'My queries' });
+}
+// Open queries per person; "You" for the reader.
+const workload = req.workload.map((w) => (w.key === me.email ? { ...w, label: 'You' } : w));
+const workloadHref = (key: string) => (key === 'none' ? '/admin/requests?assigned=none' : key === me.email ? '/admin/requests?assigned=me' : '/admin/requests');
 const STALE_DAYS = 180;
 const staleStats = stats ? STAT_GROUP_IDS.filter((id) => !stats[id].as_of || daysSince(stats[id].as_of!) > STALE_DAYS) : [];
 const newsAge = content?.news.lastPublished ? daysSince(content.news.lastPublished) : null;
@@ -347,6 +353,8 @@ const quick: { href: string; label: string; icon: IconName; show: boolean }[] = 
             <ShareBars items={req.offices} caption="Queries by office, last 90 days" href={(key) => `/admin/requests?branch=${key}`} empty="No queries in the last 90 days." />
           </>
         )}
+        <h3 class="sub-title">Who is handling open queries</h3>
+        <ShareBars items={workload} caption="Open queries by the person dealing with them" href={workloadHref} empty="No open queries." />
       </div>
     </div>
   </section>

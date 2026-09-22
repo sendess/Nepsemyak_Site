@@ -9,13 +9,25 @@ import { listRequests, REQUEST_LIST, REQUEST_STATUSES, REQUEST_TOPICS, STATUS_LA
 import { isFiltered, listHref, readList } from '~/lib/listing';
 import { branches } from '~/data/site';
 import { formatNpt } from '~/lib/admin-format';
-import { officeName, officeScope } from '~/lib/roles';
+import { can, isOffice, officeName, officeScope } from '~/lib/roles';
+import { listAdmins } from '~/lib/content';
 
 export const prerender = false;
 
-const scope = officeScope(Astro.locals.admin);
+const me = Astro.locals.admin!;
+const scope = officeScope(me);
 const list = readList(Astro.url, Astro.cookies, REQUEST_LIST);
-const { rows, total } = await listRequests(list, scope);
+const [{ rows, total }, admins] = await Promise.all([listRequests(list, scope, me.email), listAdmins()]);
+const nameOf = new Map(admins.map((a) => [a.email, a.name || a.email]));
+const handles = can(me, 'requests.handle');
+/** "Passed from Lalitpur · 3 h ago" for queries handed over in the last week. */
+const passedLabel = (at: string | null, from: string | null) => {
+  if (!at) return null;
+  const hours = (Date.now() - Date.parse(at)) / 3_600_000;
+  if (hours > 24 * 7) return null;
+  const ago = hours < 1 ? 'just now' : hours < 48 ? `${Math.round(hours)} h ago` : `${Math.round(hours / 24)} days ago`;
+  return `Passed from ${from ? (officeName(from) ?? 'another office') : 'no office'} · ${ago}`;
+};
 if (rows.length === 0 && list.page > 1) return Astro.redirect(listHref(list, { page: 1 }));
 
 const branchName = (id: string | null) => branches.find((b) => b.id === id)?.name.en ?? 'Not sure';
@@ -24,12 +36,15 @@ const DONE: Record<string, string> = {
   moved: 'Request moved to another office. Staff there will take it from here.',
 };
 const flash = DONE[Astro.url.searchParams.get('done') ?? ''];
+const nobodyParam = Astro.url.searchParams.get('nobody') ?? '';
+const nobodyAt = isOffice(nobodyParam) ? officeName(nobodyParam) : null;
 // Customer care for one office only chooses between that office and “Not sure”.
 const officeOptions = [...branches.filter((b) => !scope || b.id === scope).map((b) => ({ value: b.id, label: b.name.en })), { value: 'unsure', label: 'Not sure' }];
 ---
 
 <AdminLayout title="Requests" wide>
   {flash && <p class="flash"><Icon name="circle-check" size={20} /> {flash}</p>}
+  {nobodyAt && <p class="flash error">Nobody at {nobodyAt} receives email alerts yet, so they haven’t been told. Please phone them.</p>}
 
   <div class="toolbar">
     <p class="hint">
@@ -57,6 +72,18 @@ const officeOptions = [...branches.filter((b) => !scope || b.id === scope).map((
               all: 'All offices',
               options: officeOptions,
             },
+            ...(handles
+              ? [
+                  {
+                    name: 'assigned' as const,
+                    all: 'Anyone',
+                    options: [
+                      { value: 'me', label: 'My queries' },
+                      { value: 'none', label: 'Not assigned yet' },
+                    ],
+                  },
+                ]
+              : []),
           ]}
         />
         {total === 0 ? (
@@ -74,6 +101,7 @@ const officeOptions = [...branches.filter((b) => !scope || b.id === scope).map((
                   <SortTh list={list} sort="topic" label="About" />
                   <SortTh list={list} sort="branch" label="Office" />
                   <SortTh list={list} sort="status" label="Status" />
+                  <th scope="col">Assigned to</th>
                 </tr>
               </thead>
               <tbody>
@@ -91,10 +119,14 @@ const officeOptions = [...branches.filter((b) => !scope || b.id === scope).map((
                       {TOPIC_LABEL[r.topic]}
                       <small class="sub message">{r.message}</small>
                     </td>
-                    <td class="hint">{branchName(r.branch)}</td>
+                    <td class="hint">
+                      {branchName(r.branch)}
+                      {passedLabel(r.passed_at, r.passed_from) && <small class="sub passed">{passedLabel(r.passed_at, r.passed_from)}</small>}
+                    </td>
                     <td>
                       <StatusBadge status={r.status} label={STATUS_LABEL[r.status]} />
                     </td>
+                    <td class="hint">{r.assigned_to ? (r.assigned_to === me.email ? 'You' : (nameOf.get(r.assigned_to) ?? r.assigned_to)) : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -124,6 +156,11 @@ const officeOptions = [...branches.filter((b) => !scope || b.id === scope).map((
     overflow: hidden;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
+  }
+
+  .passed {
+    color: var(--green-700);
+    font-weight: 600;
   }
 
   .unread strong,

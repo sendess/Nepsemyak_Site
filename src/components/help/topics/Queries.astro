@@ -18,11 +18,13 @@ const officeLabel = officeName(office);
     { id: 'read-only', label: 'Reading without changing', show: !handles },
     { id: 'statuses', label: 'What each status means' },
     { id: 'answering', label: 'Answering a query', show: handles },
-    { id: 'offices', label: 'Offices and moving a query', show: handles },
+    { id: 'assigning', label: 'Who is dealing with it', show: handles },
+    { id: 'offices', label: 'Passing a query to another office', show: handles },
     { id: 'notes', label: 'Writing notes', show: handles },
     { id: 'finding', label: 'Finding a query' },
     { id: 'spam', label: 'Spam and deleting', show: handles },
     { id: 'good-practice', label: 'Good practice', show: handles },
+    { id: 'tracking', label: 'What customers can see' },
   ]}
 />
 
@@ -100,12 +102,34 @@ const officeLabel = officeName(office);
 
 {
   handles && (
-    <section id="offices" aria-labelledby="offices-h">
-      <h2 id="offices-h">Offices and moving a query</h2>
+    <section id="assigning" aria-labelledby="assigning-h">
+      <h2 id="assigning-h">Who is dealing with it</h2>
+      <p>Each query can be assigned to one person, so two people don’t call the same customer and nothing is left because everyone thought someone else had it.</p>
       <ul class="plain">
-        <li>The office is the one the customer chose, or <em>Not sure</em>. Change it under <span class="ui">Office dealing with it</span> if another office should handle it.</li>
-        <li>Customer care staff tied to that office see it in their list straight away. If it’s urgent, phone them too.</li>
-        {officeLabel && <li>When you move a query away from {officeLabel}, it leaves your list and you go back to <span class="ui">Requests</span> with a message saying so.</li>}
+        <li>Press <span class="ui">Assign to me</span> at the top of a query to take it on, or choose someone under <span class="ui">Assigned to</span> and press <span class="ui">Save</span>.</li>
+        <li>If nobody is assigned when you mark a query <span class="ui">In progress</span>, it’s assigned to you automatically.</li>
+        <li>When a colleague gives you a query, you get an email (if alerts are on in My account).</li>
+        <li>Only people who can see the query’s office can be chosen. Moving the query to an office they don’t cover clears the assignment.</li>
+        <li>In <span class="ui">Requests</span>, filter by <span class="ui">My queries</span> or <span class="ui">Not assigned yet</span>. The dashboard shows how many of your queries are still open.</li>
+      </ul>
+    </section>
+  )
+}
+
+{
+  handles && (
+    <section id="offices" aria-labelledby="offices-h">
+      <h2 id="offices-h">Passing a query to another office</h2>
+      <ol class="steps">
+        <li>Under <span class="ui">Office dealing with it</span>, choose the office that should handle it.</li>
+        <li>In <span class="ui">Add a note</span>, say why and what’s been done so far. The note goes into the email to that office.</li>
+        <li>Press <span class="ui">Save</span>. Customer care tied to that office get an email straight away, and the query shows “Passed from …” in their list.</li>
+      </ol>
+      <ul class="plain">
+        <li>If nobody at that office receives alerts, the panel tells you so: phone them instead.</li>
+        <li>For the receiving office, a passed query counts as waiting from when it arrived there, not from when the customer wrote.</li>
+        <li>Every move is listed under <span class="ui">Passed between offices</span> on the query, with who moved it, the note, and whether the email went out.</li>
+        {officeLabel && <li>When you pass a query away from {officeLabel}, it leaves your list and you go back to <span class="ui">Requests</span> with a message saying so.</li>}
       </ul>
     </section>
   )
@@ -161,3 +185,25 @@ const officeLabel = officeName(office);
     </section>
   )
 }
+
+<section id="tracking" aria-labelledby="tracking-h">
+  <h2 id="tracking-h">What customers can see</h2>
+  <p>
+    Customers can check their message on the website’s <strong>Track a message</strong> page (linked from the Contact page and
+    the footer) with their reference code and the last 4 digits of their phone number. They see only:
+  </p>
+  <div class="table-wrap">
+    <table class="wide-cells">
+      <thead>
+        <tr><th scope="col">Status in the panel</th><th scope="col">What the customer sees</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">New</th><td>“Received”: someone will contact them.</td></tr>
+        <tr><th scope="row">In progress</th><td>“Being worked on”, with the office and its phone number.</td></tr>
+        <tr><th scope="row">Resolved</th><td>“Resolved”, and to call if the problem is still there.</td></tr>
+        <tr><th scope="row">Spam</th><td>“Closed”, and to call the office if they still need help.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>They also see the date it was received and the date of the last update. They never see notes, staff names or who it’s assigned to. Keeping the status up to date is what keeps this page accurate.</p>
+</section>

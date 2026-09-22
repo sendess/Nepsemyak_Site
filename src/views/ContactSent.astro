@@ -21,6 +21,7 @@ const t = useTranslations(lang);
           <span class="ref-label">{t('contact.refLabel')}</span>
           <strong class="ref-code">{reference}</strong>
           <span class="small muted">{t('contact.refHelp')}</span>
+          <a class="small" href={`${localizePath('/track/', lang)}?ref=${reference}`}>{t('contact.trackThis')}</a>
         </div>
       )
     }

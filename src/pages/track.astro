@@ -1,0 +1,20 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import View from '~/views/Track.astro';
+import { emptyTrackState, handleTrackPost, type TrackState } from '~/lib/track-form';
+import { useTranslations } from '~/i18n/utils';
+
+// Looks up the database, so this page is rendered per request and never cached.
+export const prerender = false;
+
+const lang = 'en';
+const t = useTranslations(lang);
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+let state: TrackState = emptyTrackState(Astro.url);
+if (Astro.request.method === 'POST') state = await handleTrackPost(Astro, lang);
+---
+
+<BaseLayout title={t('track.title')} description={t('track.intro')}>
+  <View lang={lang} state={state} />
+</BaseLayout>

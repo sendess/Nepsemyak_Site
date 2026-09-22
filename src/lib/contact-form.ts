@@ -2,6 +2,7 @@
 import type { APIContext } from 'astro';
 import { branches } from '~/data/site';
 import { localizePath, useTranslations, type Lang } from '~/i18n/utils';
+import { afterResponse } from './background';
 import { alertNewRequest } from './notify';
 import { createRequest, recentFromIp, REQUEST_TOPICS, type RequestTopic } from './requests';
 
@@ -75,10 +76,7 @@ export async function handleContactPost(context: APIContext, lang: Lang): Promis
   }
 
   // Email the admins. On Netlify this finishes after the visitor has been sent on, so they never wait for it.
-  const alert = alertNewRequest({ ...input, ...saved });
-  const netlify = context.locals.netlify?.context;
-  if (netlify) netlify.waitUntil(alert);
-  else await alert;
+  await afterResponse(context.locals, alertNewRequest({ ...input, ...saved }));
 
   return context.redirect(`${sentPath}?ref=${encodeURIComponent(saved.ref)}`, 303);
 }

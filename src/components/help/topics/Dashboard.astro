@@ -31,7 +31,8 @@ const officeLabel = reader?.role === 'support' ? officeName(reader.office) : nul
       <h2 id="attention-h">Needs attention</h2>
       <p>A to-do list worked out for you, most urgent first: red needs action now, yellow soon, and the rest are for information.</p>
       <ul class="plain">
-        {handles && <li>Queries waiting for a reply{officeLabel && ` (for ${officeLabel} and those with no office)`}; red once any has waited more than a day.</li>}
+        {handles && <li>Queries waiting for a reply{officeLabel && ` (for ${officeLabel} and those with no office)`}; red once any has waited more than a day. A query passed to {officeLabel ? 'your' : 'an'} office counts from when it arrived there.</li>}
+        {handles && <li>Queries assigned to you that are still open.</li>}
         {content && <li>Jobs past their deadline or closing within a week, notices ending within three days, statistics not updated for six months, and no news for 30 days.</li>}
         <li>Only three or fewer recovery codes left for your account.</li>
         {isMaster && <li>For you as master: people without two-step sign-in, email alerts failing or not set up, many failed sign-ins, unused images to clean up, and storage over 70% full.</li>}
@@ -55,6 +56,7 @@ const officeLabel = reader?.role === 'support' ? officeName(reader.office) : nul
         <tr><th scope="row">Resolved</th><td>Of the queries received in the last 30 days, the share now marked Resolved.</td></tr>
         <tr><th scope="row">Queries per week</th><td>The last 12 weeks, Sunday to Saturday. The last point is this week so far.</td></tr>
         <tr><th scope="row">What people write about</th><td>Topics chosen by customers over the last 90 days{!officeLabel && ', and which office they were for'}.</td></tr>
+        <tr><th scope="row">Who is handling open queries</th><td>Queries still New or In progress, by the person they’re assigned to, and how many nobody has taken yet. Click “You” or “Not assigned yet” to see them.</td></tr>
       </tbody>
     </table>
   </div>

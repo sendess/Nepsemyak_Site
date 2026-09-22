@@ -615,12 +615,14 @@ const sections = [
     accent-color: var(--green);
   }
 
-  .checklist span {
-    display: grid;
-    gap: 0.1rem;
+  /* Plain text flow: labels, links and bold words stay inline in the sentence. */
+  .checklist label > span {
+    display: block;
   }
 
   .checklist small {
+    display: block;
+    margin-top: 0.1rem;
     font-size: 0.93rem;
     color: var(--muted);
   }
@@ -651,17 +653,20 @@ const sections = [
     list-style: none;
   }
 
+  /* The number sits in the padding, so the step's text (with its links and labels) flows as one paragraph. */
   .steps li {
     counter-increment: step;
-    display: grid;
-    grid-template-columns: 1.9rem minmax(0, 1fr);
-    gap: 0.75rem;
-    align-items: start;
+    position: relative;
+    min-height: 1.9rem;
     max-width: 70ch;
+    padding: 0.2rem 0 0 2.75rem;
   }
 
   .steps li::before {
     content: counter(step);
+    position: absolute;
+    top: 0;
+    left: 0;
     display: grid;
     place-items: center;
     width: 1.9rem;

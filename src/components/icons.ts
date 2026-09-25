@@ -8,6 +8,7 @@ import BookOpen from '@lucide/astro/icons/book-open';
 import Briefcase from '@lucide/astro/icons/briefcase';
 import BrushCleaning from '@lucide/astro/icons/brush-cleaning';
 import Building from '@lucide/astro/icons/building';
+import Calculator from '@lucide/astro/icons/calculator';
 import CalendarIcon from '@lucide/astro/icons/calendar';
 import ChartBar from '@lucide/astro/icons/chart-bar';
 import Check from '@lucide/astro/icons/check';
@@ -24,6 +25,7 @@ import ExternalLink from '@lucide/astro/icons/external-link';
 import Eye from '@lucide/astro/icons/eye';
 import Factory from '@lucide/astro/icons/factory';
 import FileText from '@lucide/astro/icons/file-text';
+import Flower from '@lucide/astro/icons/flower';
 import FolderOpen from '@lucide/astro/icons/folder-open';
 import GraduationCap from '@lucide/astro/icons/graduation-cap';
 import Handshake from '@lucide/astro/icons/handshake';
@@ -33,6 +35,7 @@ import Landmark from '@lucide/astro/icons/landmark';
 import Languages from '@lucide/astro/icons/languages';
 import Leaf from '@lucide/astro/icons/leaf';
 import Library from '@lucide/astro/icons/library';
+import Lightbulb from '@lucide/astro/icons/lightbulb';
 import Mail from '@lucide/astro/icons/mail';
 import MapIcon from '@lucide/astro/icons/map';
 import MapPin from '@lucide/astro/icons/map-pin';
@@ -40,13 +43,17 @@ import Megaphone from '@lucide/astro/icons/megaphone';
 import Menu from '@lucide/astro/icons/menu';
 import MessageCircle from '@lucide/astro/icons/message-circle';
 import MessagesSquare from '@lucide/astro/icons/messages-square';
+import Minus from '@lucide/astro/icons/minus';
 import Mountain from '@lucide/astro/icons/mountain';
 import Newspaper from '@lucide/astro/icons/newspaper';
 import PawPrint from '@lucide/astro/icons/paw-print';
 import Phone from '@lucide/astro/icons/phone';
 import Play from '@lucide/astro/icons/play';
+import Plus from '@lucide/astro/icons/plus';
+import Printer from '@lucide/astro/icons/printer';
 import Quote from '@lucide/astro/icons/quote';
 import Recycle from '@lucide/astro/icons/recycle';
+import RotateCcw from '@lucide/astro/icons/rotate-ccw';
 import Scale from '@lucide/astro/icons/scale';
 import Search from '@lucide/astro/icons/search';
 import Send from '@lucide/astro/icons/send';
@@ -54,6 +61,8 @@ import Sparkles from '@lucide/astro/icons/sparkles';
 import Sprout from '@lucide/astro/icons/sprout';
 import Target from '@lucide/astro/icons/target';
 import Trash from '@lucide/astro/icons/trash';
+import TriangleAlert from '@lucide/astro/icons/triangle-alert';
+import Trophy from '@lucide/astro/icons/trophy';
 import Truck from '@lucide/astro/icons/truck';
 import Users from '@lucide/astro/icons/users';
 import Warehouse from '@lucide/astro/icons/warehouse';
@@ -69,6 +78,7 @@ export const icons = {
   briefcase: Briefcase,
   'brush-cleaning': BrushCleaning,
   building: Building,
+  calculator: Calculator,
   calendar: CalendarIcon,
   'chart-bar': ChartBar,
   check: Check,
@@ -85,6 +95,7 @@ export const icons = {
   eye: Eye,
   factory: Factory,
   'file-text': FileText,
+  flower: Flower,
   'folder-open': FolderOpen,
   'graduation-cap': GraduationCap,
   handshake: Handshake,
@@ -94,6 +105,7 @@ export const icons = {
   languages: Languages,
   leaf: Leaf,
   library: Library,
+  lightbulb: Lightbulb,
   mail: Mail,
   map: MapIcon,
   'map-pin': MapPin,
@@ -101,13 +113,17 @@ export const icons = {
   menu: Menu,
   'message-circle': MessageCircle,
   'messages-square': MessagesSquare,
+  minus: Minus,
   mountain: Mountain,
   newspaper: Newspaper,
   'paw-print': PawPrint,
   phone: Phone,
   play: Play,
+  plus: Plus,
+  printer: Printer,
   quote: Quote,
   recycle: Recycle,
+  'rotate-ccw': RotateCcw,
   scale: Scale,
   search: Search,
   send: Send,
@@ -115,6 +131,8 @@ export const icons = {
   sprout: Sprout,
   target: Target,
   trash: Trash,
+  'triangle-alert': TriangleAlert,
+  trophy: Trophy,
   truck: Truck,
   users: Users,
   warehouse: Warehouse,

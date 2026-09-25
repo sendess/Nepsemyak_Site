@@ -1,0 +1,11 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import View from '~/views/WasteGuide.astro';
+import { g } from '~/data/waste-guide';
+
+const lang = 'en';
+---
+
+<BaseLayout title={g.title[lang]} description={g.lead[lang]}>
+  <View lang={lang} />
+</BaseLayout>

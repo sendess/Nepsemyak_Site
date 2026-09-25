@@ -1,0 +1,400 @@
+---
+// Printable A4 kitchen poster. Always bilingual (Nepali first), whichever language the page is in.
+import Icon from '~/components/Icon.astro';
+import PageHero from '~/components/PageHero.astro';
+import { binIcon, bins, shortName, sortItems, type Bin } from '~/data/sorting';
+import { org } from '~/data/site';
+import { g, posterTips } from '~/data/waste-guide';
+import { formatDigits, localizePath, tr, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const s = (key: keyof typeof g) => tr(g[key], lang);
+
+const pick = (bin: Bin) => sortItems.filter((i) => i.bin === bin && i.poster);
+const becomes: Record<'degradable' | 'nondegradable', { ne: string; en: string }> = {
+  degradable: { ne: 'कम्पोस्ट मल बन्छ', en: 'Becomes compost' },
+  nondegradable: { ne: 'पुनःप्रशोधन हुन्छ', en: 'Can be recycled' },
+};
+---
+
+<div class="no-print">
+  <PageHero lang={lang} title={s('posterTitle')} lead={s('posterLead')} parent={{ path: '/waste-guide/', label: s('title') }}>
+    <div class="print-row">
+      <button class="btn btn-yellow" type="button" data-print><Icon name="printer" size={18} /> {s('posterPrint')}</button>
+      <a class="btn btn-light" href={localizePath('/waste-guide/', lang)}><Icon name="arrow-left" size={18} /> {s('posterBack')}</a>
+    </div>
+    <p class="small print-tip">{s('posterTip')}</p>
+  </PageHero>
+</div>
+
+<section class="poster-stage">
+  <article class="poster" lang="ne">
+    <header class="p-top">
+      <img src="/images/logo-192.webp" alt="" width="192" height="192" />
+      <div>
+        <h1>फोहोर छुट्याऔँ, सफा सहर बनाऔँ</h1>
+        <p lang="en">Sort your waste — keep our city clean</p>
+      </div>
+    </header>
+
+    <div class="p-bins">
+      {
+        (['degradable', 'nondegradable'] as const).map((bin) => (
+          <section class:list={['p-bin', `p-${bin}`]}>
+            <h2>
+              <span class="p-icon">
+                <Icon name={binIcon[bin]} size={30} />
+              </span>
+              <span>
+                {bins[bin].title.ne}
+                <small lang="en">{bins[bin].title.en}</small>
+              </span>
+            </h2>
+            <ul>
+              {pick(bin).map((i) => (
+                <li>
+                  <strong>{shortName(i.name.ne)}</strong>
+                  <span lang="en">{shortName(i.name.en)}</span>
+                </li>
+              ))}
+            </ul>
+            <p class="p-rule">
+              {becomes[bin].ne} · <span lang="en">{becomes[bin].en}</span>
+              <small>
+                {bins[bin].collected.ne} · <span lang="en">{bins[bin].collected.en}</span>
+              </small>
+            </p>
+          </section>
+        ))
+      }
+    </div>
+
+    <section class="p-hazardous">
+      <h2>
+        <Icon name="triangle-alert" size={26} />
+        <span>
+          {bins.hazardous.title.ne} — {bins.hazardous.short.ne}
+          <small lang="en">
+            {bins.hazardous.title.en} — {bins.hazardous.short.en}
+          </small>
+        </span>
+      </h2>
+      <ul>
+        {
+          pick('hazardous').map((i) => (
+            <li>
+              <strong>{shortName(i.name.ne)}</strong>
+              <span lang="en">{shortName(i.name.en)}</span>
+            </li>
+          ))
+        }
+      </ul>
+      <p>कहिल्यै नजलाउनुहोस् · <span lang="en">Never burn them</span></p>
+    </section>
+
+    <ul class="p-tips">
+      {
+        posterTips.map((tip) => (
+          <li>
+            <Icon name="check" size={20} />
+            <span>
+              {tip.ne}
+              <small lang="en">{tip.en}</small>
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+
+    <footer class="p-foot">
+      <span>{org.legalName.ne} · <span lang="en">{org.legalName.en}</span></span>
+      <span>nepsemyak.com.np · {formatDigits(org.mainPhone, 'ne')}</span>
+    </footer>
+  </article>
+</section>
+
+<script>
+  document.querySelector('[data-print]')?.addEventListener('click', () => print());
+</script>
+
+<style>
+  .print-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.75rem;
+  }
+
+  .print-tip {
+    margin-top: 0.85rem;
+    color: #e3efdd;
+  }
+
+  .poster-stage {
+    padding-block: clamp(2rem, 5vw, 3.5rem);
+    padding-inline: var(--gutter);
+    background: var(--bg);
+  }
+
+  /* Sizes use container units, so the preview and the printed A4 page share one layout. */
+  .poster {
+    container-type: inline-size;
+    width: min(100%, 794px);
+    aspect-ratio: 210 / 297;
+    margin-inline: auto;
+    display: grid;
+    grid-template-rows: auto 1fr auto auto auto;
+    gap: 2cqw;
+    padding: 4.4cqw 4.6cqw;
+    background: #fff;
+    box-shadow: var(--shadow-lg);
+    border-radius: 6px;
+    font-family: var(--font-sans);
+    color: var(--ink);
+    line-height: 1.25;
+  }
+
+  .poster small {
+    display: block;
+    font-weight: 400;
+    color: var(--muted);
+    font-size: 0.72em;
+    line-height: 1.3;
+  }
+
+  .p-top {
+    display: flex;
+    align-items: center;
+    gap: 3.5cqw;
+    padding-bottom: 2.4cqw;
+    border-bottom: 0.5cqw solid var(--green);
+  }
+
+  .p-top img {
+    width: 14cqw;
+    height: auto;
+    flex: none;
+  }
+
+  .p-top h1 {
+    font-family: var(--font-sans);
+    font-size: 5.2cqw;
+    line-height: 1.25;
+    letter-spacing: 0;
+    color: var(--green-800);
+  }
+
+  .p-top p {
+    font-size: 2.6cqw;
+    font-weight: 600;
+    color: var(--navy);
+  }
+
+  .p-bins {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3cqw;
+  }
+
+  .p-bin {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 1.6cqw;
+    padding: 2.4cqw 2.8cqw;
+    border-radius: 2.4cqw;
+    border: 0.4cqw solid;
+  }
+
+  .p-bin h2,
+  .p-hazardous h2 {
+    display: flex;
+    align-items: center;
+    gap: 2cqw;
+    font-family: var(--font-sans);
+    font-size: 3.4cqw;
+    line-height: 1.25;
+    letter-spacing: 0;
+    color: var(--ink);
+  }
+
+  .p-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 7cqw;
+    height: 7cqw;
+    border-radius: 2cqw;
+    color: #fff;
+  }
+
+  .p-icon :global(svg) {
+    width: 4.4cqw;
+    height: 4.4cqw;
+  }
+
+  .p-bin ul,
+  .p-hazardous ul {
+    list-style: none;
+    display: grid;
+    align-content: start;
+    margin: 0;
+    padding: 0;
+  }
+
+  .p-bin li {
+    display: grid;
+    padding: 0.8cqw 0;
+    border-top: 0.2cqw solid rgb(0 0 0 / 0.08);
+  }
+
+  .p-bin li strong,
+  .p-hazardous li strong {
+    font-size: 2.45cqw;
+  }
+
+  .p-bin li span,
+  .p-hazardous li span {
+    font-size: 1.8cqw;
+    color: var(--muted);
+  }
+
+  .p-rule {
+    font-weight: 700;
+    font-size: 2.2cqw;
+  }
+
+  .p-rule small {
+    margin-top: 0.4cqw;
+    font-weight: 600;
+  }
+
+  .p-degradable {
+    border-color: var(--green);
+    background: var(--green-50);
+  }
+
+  .p-degradable .p-icon {
+    background: var(--green);
+  }
+
+  .p-degradable .p-rule {
+    color: var(--green-800);
+  }
+
+  .p-nondegradable {
+    border-color: var(--navy);
+    background: #eef3f8;
+  }
+
+  .p-nondegradable .p-icon {
+    background: var(--navy);
+  }
+
+  .p-nondegradable .p-rule {
+    color: var(--navy);
+  }
+
+  .p-hazardous {
+    display: grid;
+    gap: 1.6cqw;
+    padding: 2.6cqw 3cqw;
+    border-radius: 2.4cqw;
+    border: 0.4cqw dashed #c9a400;
+    background: #fffbe0;
+  }
+
+  .p-hazardous h2 :global(svg) {
+    flex: none;
+    width: 5cqw;
+    height: 5cqw;
+    color: #8a7000;
+  }
+
+  .p-hazardous ul {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2cqw;
+  }
+
+  .p-hazardous li {
+    display: grid;
+    align-content: start;
+  }
+
+  .p-hazardous > p {
+    font-weight: 700;
+    font-size: 2.2cqw;
+    color: #6b5800;
+  }
+
+  .p-tips {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2cqw;
+    margin: 0;
+    padding: 0;
+  }
+
+  .p-tips li {
+    display: flex;
+    gap: 1.2cqw;
+    align-items: flex-start;
+    font-size: 2.2cqw;
+    font-weight: 600;
+  }
+
+  .p-tips :global(svg) {
+    flex: none;
+    width: 3cqw;
+    height: 3cqw;
+    color: var(--green);
+  }
+
+  .p-foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1cqw 3cqw;
+    padding-top: 2cqw;
+    border-top: 0.3cqw solid var(--line);
+    font-size: 1.9cqw;
+    color: var(--muted);
+  }
+
+  @media print {
+    @page {
+      size: A4;
+      margin: 8mm;
+    }
+
+    /* Only the poster goes on paper. */
+    :global(.site-header),
+    :global(.site-footer),
+    :global(.notice-bar),
+    :global(.notice-popup),
+    :global(.skip-link),
+    .no-print {
+      display: none !important;
+    }
+
+    :global(body) {
+      background: #fff;
+    }
+
+    .poster-stage {
+      padding: 0;
+      background: none;
+    }
+
+    /* Fit the page whatever the paper (A4 or Letter): as wide as possible without getting taller than the page. */
+    .poster {
+      width: min(100%, calc((100vh - 2mm) * 210 / 297));
+      break-inside: avoid;
+      box-shadow: none;
+      border-radius: 0;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+  }
+</style>

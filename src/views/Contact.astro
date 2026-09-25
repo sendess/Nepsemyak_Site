@@ -12,7 +12,12 @@ type Props = { lang: Lang; form?: ContactFormState | null };
 const { lang, form = null } = Astro.props;
 const t = useTranslations(lang);
 const errors = form?.errors ?? {};
-const value = (name: keyof ContactFormState['values']) => form?.values[name] ?? '';
+// The Waste guide links here with a question already written (?topic=other&message=…).
+const params = form ? null : Astro.url.searchParams;
+const prefill: Partial<ContactFormState['values']> = params
+  ? { topic: params.get('topic') ?? '', message: (params.get('message') ?? '').slice(0, 500) }
+  : {};
+const value = (name: keyof ContactFormState['values']) => form?.values[name] ?? prefill[name] ?? '';
 
 // Option values stay in English so submissions read the same from both languages.
 const topics = [

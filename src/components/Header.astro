@@ -46,6 +46,9 @@ const links = [
         <li>
           <a class="nav-link" href={href('/services')} aria-current={isActive('/services') ? 'page' : undefined}>{t('nav.services')}</a>
         </li>
+        <li>
+          <a class="nav-link" href={href('/waste-guide')} aria-current={isActive('/waste-guide') ? 'page' : undefined}>{t('nav.guide')}</a>
+        </li>
         <li class="has-menu">
           <a class="nav-link" href={href('/about')} data-active={aboutActive || undefined}>
             {t('nav.about')}
@@ -242,6 +245,25 @@ const links = [
   :global(:lang(ne)) .nav-link {
     font-family: var(--font-sans);
     font-size: 1.05rem;
+    padding-inline: 0.55rem;
+  }
+
+  /* Just above the mobile menu the links are packed a little tighter, so the tagline keeps its room. */
+  @media (min-width: 1100px) and (max-width: 1279px) {
+    .bar {
+      gap: 1rem;
+    }
+
+    .nav-link {
+      padding-inline: 0.5rem;
+    }
+  }
+
+  /* Narrowest desktop widths: the name stays, the tagline steps aside for the menu. */
+  @media (min-width: 1100px) and (max-width: 1249px) {
+    .brand-tagline {
+      display: none;
+    }
   }
 
   .nav-link:hover {

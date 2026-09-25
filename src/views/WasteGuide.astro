@@ -1,0 +1,696 @@
+---
+// The Waste guide: practical tools for households, grouped on one page with an "On this page" bar.
+import Icon from '~/components/Icon.astro';
+import PageHero from '~/components/PageHero.astro';
+import PageNav from '~/components/PageNav.astro';
+import SectionHead from '~/components/SectionHead.astro';
+import SortFinder from '~/components/guide/SortFinder.astro';
+import SortGame from '~/components/guide/SortGame.astro';
+import WasteCalculator from '~/components/guide/WasteCalculator.astro';
+import { binIcon, bins } from '~/data/sorting';
+import { compostAvoid, compostFixes, compostSteps, festivals, g, journey, myths } from '~/data/waste-guide';
+import { formatDigits, localizePath, tr, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const s = (key: keyof typeof g) => tr(g[key], lang);
+const href = (path: string) => localizePath(path, lang);
+
+const sections = [
+  { id: 'finder', label: s('finderNav') },
+  { id: 'challenge', label: s('gameNav') },
+  { id: 'where-it-goes', label: s('journeyNav') },
+  { id: 'household', label: s('calcNav') },
+  { id: 'compost', label: s('compostNav') },
+  { id: 'festivals', label: s('festNav') },
+  { id: 'myths', label: s('mythNav') },
+];
+---
+
+<PageHero lang={lang} title={s('title')} lead={s('lead')}>
+  <div class="hero-actions">
+    <a class="btn btn-yellow" href="#finder"><Icon name="search" size={18} /> {s('finderNav')}</a>
+    <a class="btn btn-light" href={href('/waste-guide/poster/')}><Icon name="printer" size={18} /> {s('heroPoster')}</a>
+  </div>
+</PageHero>
+
+<PageNav items={sections} label={s('onThisPage')} />
+
+<div class="guide">
+  <section class="section section-white" id="finder" aria-labelledby="finder-title">
+    <div class="container">
+      <SectionHead eyebrow={s('finderNav')} title={s('finderTitle')} intro={s('finderIntro')} id="finder-title" />
+      <SortFinder lang={lang} />
+    </div>
+  </section>
+
+  <section class="section section-tint" id="challenge" aria-labelledby="challenge-title">
+    <div class="container">
+      <SectionHead eyebrow={s('gameEyebrow')} title={s('gameTitle')} center id="challenge-title" />
+      <SortGame lang={lang} />
+    </div>
+  </section>
+
+  <section class="section section-white" id="where-it-goes" aria-labelledby="journey-title">
+    <div class="container">
+      <SectionHead eyebrow={s('journeyEyebrow')} title={s('journeyTitle')} intro={s('journeyIntro')} id="journey-title" />
+      <div class="journeys">
+        {
+          journey.map((j) => (
+            <article class:list={['journey', `j-${j.bin}`]}>
+              <header>
+                <span class="j-icon" aria-hidden="true">
+                  <Icon name={binIcon[j.bin]} size={24} />
+                </span>
+                <h3>{tr(bins[j.bin].title, lang)}</h3>
+              </header>
+              <ol>
+                {j.steps.map((step) => (
+                  <li>{tr(step, lang)}</li>
+                ))}
+              </ol>
+              <p class="j-outcome">
+                <Icon name={j.icon} size={20} />
+                {tr(j.outcome, lang)}
+              </p>
+            </article>
+          ))
+        }
+      </div>
+      <div class="journey-foot">
+        <p><Icon name="info" size={20} /> {s('journeyNote')}</p>
+        <a class="link-arrow" href={`${href('/services/')}#recovery`}>
+          {s('journeyMore')}
+          <Icon name="arrow-right" size={18} />
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-tint" id="household" aria-labelledby="calc-title">
+    <div class="container">
+      <SectionHead eyebrow={s('calcEyebrow')} title={s('calcTitle')} intro={s('calcIntro')} id="calc-title" />
+      <WasteCalculator lang={lang} />
+    </div>
+  </section>
+
+  <section class="section section-white" id="compost" aria-labelledby="compost-title">
+    <div class="container">
+      <SectionHead eyebrow={s('compostEyebrow')} title={s('compostTitle')} intro={s('compostIntro')} id="compost-title" />
+      <ol class="steps">
+        {
+          compostSteps.map((step, i) => (
+            <li class="step">
+              <span class="step-n" aria-hidden="true">
+                {formatDigits(i + 1, lang)}
+              </span>
+              <h3>{tr(step.title, lang)}</h3>
+              <p>{tr(step.text, lang)}</p>
+            </li>
+          ))
+        }
+      </ol>
+      <div class="compost-more">
+        <div class="box">
+          <h3><Icon name="circle-x" size={20} /> {s('compostAvoid')}</h3>
+          <ul>
+            {compostAvoid.map((a) => <li>{tr(a, lang)}</li>)}
+          </ul>
+        </div>
+        <div class="box">
+          <h3><Icon name="circle-question-mark" size={20} /> {s('compostFix')}</h3>
+          <dl>
+            {
+              compostFixes.map((f) => (
+                <div>
+                  <dt>{tr(f.problem, lang)}</dt>
+                  <dd>{tr(f.fix, lang)}</dd>
+                </div>
+              ))
+            }
+          </dl>
+        </div>
+        <div class="box box-links">
+          <a class="res-link" href={`${href('/resources/')}#composting`}>
+            <span class="icon-tile" aria-hidden="true"><Icon name="book-open" size={20} /></span>
+            <span>{s('compostManuals')}</span>
+            <Icon name="arrow-right" size={18} />
+          </a>
+          <p>{s('compostTraining')}</p>
+          <a class="btn btn-ghost btn-sm" href={`${href('/contact/')}?${new URLSearchParams({ topic: 'other', message: s('trainingMessage') })}#query`}>
+            <Icon name="graduation-cap" size={18} />
+            {s('compostAskTraining')}
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-tint" id="festivals" aria-labelledby="fest-title">
+    <div class="container">
+      <SectionHead eyebrow={s('festEyebrow')} title={s('festTitle')} intro={s('festIntro')} id="fest-title" />
+      <div class="fests">
+        {
+          festivals.map((f) => (
+            <article class="card fest">
+              <header>
+                <span class="icon-tile" aria-hidden="true">
+                  <Icon name={f.icon} size={22} />
+                </span>
+                <h3>{tr(f.title, lang)}</h3>
+              </header>
+              <ul class="check-list">
+                {f.tips.map((tip) => (
+                  <li>
+                    <Icon name="check" size={18} />
+                    <span>{tr(tip, lang)}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-white" id="myths" aria-labelledby="myth-title">
+    <div class="container">
+      <SectionHead eyebrow={s('mythEyebrow')} title={s('mythTitle')} intro={s('mythIntro')} id="myth-title" />
+      <div class="myths">
+        {
+          myths.map((m) => (
+            <details class="myth">
+              <summary>
+                <Icon name="lightbulb" size={22} class="m-bulb" />
+                <span class="m-claim">{tr(m.claim, lang)}</span>
+                <span class="m-show">
+                  {s('mythShow')}
+                  <Icon name="chevron-down" size={16} />
+                </span>
+              </summary>
+              <div class="m-answer">
+                <span class:list={['verdict', `v-${m.verdict}`]}>
+                  <Icon name={m.verdict === 'fact' ? 'circle-check' : 'circle-x'} size={18} />
+                  {s(m.verdict)}
+                </span>
+                <p>{tr(m.answer, lang)}</p>
+              </div>
+            </details>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-white poster-band-wrap">
+    <div class="container">
+      <div class="poster-band">
+        <div class="pb-copy">
+          <h2 class="h2">{s('posterBandTitle')}</h2>
+          <p>{s('posterBandText')}</p>
+        </div>
+        <a class="btn btn-yellow" href={href('/waste-guide/poster/')}>
+          <Icon name="printer" size={18} />
+          {s('posterOpen')}
+        </a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.75rem;
+  }
+
+  /* A long page of tools: a little less air between sections than the rest of the site. */
+  .guide .section {
+    padding-block: clamp(3rem, 7vw, 5.5rem);
+    scroll-margin-top: 3.25rem;
+  }
+
+  .guide .section-head {
+    margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
+  }
+
+  /* ---- Where it goes ---- */
+  .journeys {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+
+  .journey {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .journey header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1.1rem 1.35rem;
+    color: #fff;
+  }
+
+  .journey h3 {
+    color: inherit;
+    font-size: 1.2rem;
+  }
+
+  .j-icon {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 12px;
+    background: rgb(255 255 255 / 0.18);
+  }
+
+  .j-degradable header {
+    background: linear-gradient(120deg, var(--green-bright), var(--green));
+  }
+
+  .j-nondegradable header {
+    background: linear-gradient(120deg, var(--navy), var(--slate));
+  }
+
+  .j-hazardous header {
+    background: var(--yellow);
+    color: var(--green-900);
+  }
+
+  .j-hazardous .j-icon {
+    background: rgb(23 53 16 / 0.1);
+  }
+
+  .journey ol {
+    display: grid;
+    align-content: start;
+    gap: 0;
+    margin: 0;
+    padding: 1.25rem 1.35rem 0.5rem;
+    list-style: none;
+    counter-reset: step;
+  }
+
+  .journey li {
+    position: relative;
+    padding: 0 0 1.1rem 2.4rem;
+    counter-increment: step;
+    color: var(--text);
+  }
+
+  .journey li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.1rem;
+    display: grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    background: var(--green-100);
+    color: var(--green-800);
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  :global(:lang(ne)) .journey li::before {
+    content: counter(step, devanagari);
+  }
+
+  /* A line joining the numbers, like a route. */
+  .journey li:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 0.78rem;
+    top: 1.9rem;
+    bottom: 0.2rem;
+    width: 2px;
+    background: var(--line);
+  }
+
+  .j-nondegradable li::before {
+    background: #dde7f0;
+    color: var(--navy);
+  }
+
+  .j-hazardous li::before {
+    background: var(--yellow-soft);
+    color: #4d3f00;
+  }
+
+  .j-outcome {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 1.35rem 1.35rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+  }
+
+  .j-degradable .j-outcome {
+    background: var(--green-50);
+    color: var(--green-800);
+  }
+
+  .j-nondegradable .j-outcome {
+    background: #eef3f8;
+    color: var(--navy);
+  }
+
+  .j-hazardous .j-outcome {
+    background: #fffbe0;
+    color: #4d3f00;
+  }
+
+  .journey-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    margin-top: 1.5rem;
+  }
+
+  .journey-foot p {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    max-width: 44rem;
+    color: var(--ink);
+  }
+
+  .journey-foot p :global(.icon) {
+    flex: none;
+    margin-top: 0.25em;
+    color: var(--navy);
+  }
+
+  /* ---- Compost ---- */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .step {
+    display: grid;
+    align-content: start;
+    gap: 0.4rem;
+    padding: 1.25rem 1.35rem;
+    border-radius: var(--radius);
+    background: var(--green-50);
+    border: 1px solid var(--green-100);
+  }
+
+  .step-n {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin-bottom: 0.25rem;
+    border-radius: 50%;
+    background: var(--green);
+    color: #fff;
+    font-family: var(--font-head);
+    font-weight: 700;
+  }
+
+  /* The heading font draws Nepali digits as English ones. */
+  :global(:lang(ne)) .step-n {
+    font-family: var(--font-sans);
+  }
+
+  .step h3 {
+    font-size: 1.1rem;
+  }
+
+  .compost-more {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1.25rem;
+  }
+
+  .box {
+    display: grid;
+    align-content: start;
+    gap: 0.75rem;
+    padding: 1.25rem 1.35rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .box h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.05rem;
+  }
+
+  .box h3 :global(.icon) {
+    flex: none;
+    color: var(--green);
+  }
+
+  .box ul {
+    margin: 0;
+    padding-left: 1.2rem;
+  }
+
+  .box li::marker {
+    color: var(--slate);
+  }
+
+  .box dl {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0;
+  }
+
+  .box dt {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .box dd {
+    margin: 0;
+    font-size: var(--step--1);
+  }
+
+  .box-links {
+    background: var(--green-50);
+    border-color: var(--green-100);
+  }
+
+  .box-links .btn {
+    justify-self: start;
+  }
+
+  .res-link {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--green-200);
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .res-link:hover {
+    color: var(--green-700);
+  }
+
+  .res-link > :global(.icon) {
+    color: var(--green);
+    transition: transform 0.2s var(--ease);
+  }
+
+  .res-link:hover > :global(.icon) {
+    transform: translateX(3px);
+  }
+
+  /* ---- Festivals ---- */
+  .fests {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+
+  .fest header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .fest h3 {
+    font-size: 1.2rem;
+  }
+
+  /* ---- Myth or fact ---- */
+  .myths {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .myth {
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    transition:
+      border-color 0.2s var(--ease),
+      box-shadow 0.2s var(--ease);
+  }
+
+  .myth[open] {
+    border-color: var(--green-200);
+    box-shadow: var(--shadow);
+  }
+
+  .myth summary {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1.25rem 1.35rem;
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .myth summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .myth :global(.m-bulb) {
+    color: #c9a400;
+  }
+
+  .m-claim {
+    font-family: var(--font-head);
+    font-size: 1.08rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--navy);
+  }
+
+  :global(:lang(ne)) .m-claim {
+    font-family: var(--font-sans);
+    font-size: 1.15rem;
+  }
+
+  .m-show {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    justify-self: start;
+    color: var(--green-700);
+    font-weight: 600;
+    font-size: var(--step--1);
+  }
+
+  .m-show :global(.icon) {
+    transition: transform 0.2s var(--ease);
+  }
+
+  .myth[open] .m-show :global(.icon) {
+    transform: rotate(180deg);
+  }
+
+  .m-answer {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0 1.35rem 1.35rem;
+  }
+
+  .verdict {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    justify-self: start;
+    padding: 0.15rem 0.75rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: var(--step--1);
+  }
+
+  .v-fact {
+    background: var(--green-100);
+    color: var(--green-800);
+  }
+
+  .v-myth {
+    background: #eceaf1;
+    color: var(--slate-700);
+  }
+
+  /* ---- Poster band ---- */
+  .poster-band-wrap {
+    padding-top: 0;
+  }
+
+  .poster-band {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem 2rem;
+    padding: clamp(1.75rem, 4vw, 2.75rem);
+    border-radius: var(--radius-lg);
+    background:
+      radial-gradient(600px 300px at 100% 0%, rgb(255 228 31 / 0.2), transparent 60%),
+      linear-gradient(120deg, var(--green-bright), var(--green) 40%, var(--slate));
+    color: #eef6ea;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .pb-copy {
+    display: grid;
+    gap: 0.5rem;
+    max-width: 40rem;
+  }
+
+  .poster-band h2 {
+    color: #fff;
+  }
+
+  @media (max-width: 960px) {
+    .journeys,
+    .compost-more {
+      grid-template-columns: 1fr;
+    }
+
+    .steps,
+    .myths {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .steps,
+    .myths,
+    .fests {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

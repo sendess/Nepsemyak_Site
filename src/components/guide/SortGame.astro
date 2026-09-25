@@ -1,0 +1,558 @@
+---
+// Sorting challenge: eight random items (three of each kind we collect, two hazardous), one tap each.
+// Needs JavaScript; without it a note points back to the full list.
+import Icon from '~/components/Icon.astro';
+import { binIcon, binOrder, bins, sortItems } from '~/data/sorting';
+import { g } from '~/data/waste-guide';
+import { tr, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const s = (key: keyof typeof g) => tr(g[key], lang);
+
+const ROUND = 8;
+const data = {
+  items: sortItems.map((i) => ({ name: tr(i.name, lang), bin: i.bin, tip: i.tip ? tr(i.tip, lang) : '' })),
+  bins: Object.fromEntries(binOrder.map((b) => [b, { title: tr(bins[b].title, lang), rule: tr(bins[b].rule, lang) }])),
+  text: {
+    progress: s('gameProgress'),
+    right: s('gameRight'),
+    wrong: s('gameWrong'),
+    next: s('gameNext'),
+    finish: s('gameFinish'),
+    score: s('gameScore'),
+    best: s('gameBest'),
+    perfect: s('gamePerfect'),
+    good: s('gameGood'),
+    ok: s('gameOk'),
+  },
+  round: ROUND,
+  lang,
+};
+---
+
+<div class="game" data-game>
+  <script type="application/json" data-game-data set:html={JSON.stringify(data)} />
+  <noscript><p class="g-noscript">{s('gameNoScript')}</p></noscript>
+
+  <div class="g-card" data-game-card hidden>
+    <div class="g-screen g-start" data-screen="start">
+      <span class="g-badge" aria-hidden="true"><Icon name="trophy" size={34} /></span>
+      <p class="g-lead">{s('gameIntro')}</p>
+      <button type="button" class="btn btn-primary" data-start>
+        <Icon name="play" size={18} />
+        {s('gameStart')}
+      </button>
+      <p class="g-best small muted" data-best hidden></p>
+    </div>
+
+    <div class="g-screen" data-screen="play" hidden>
+      <div class="g-top">
+        <span class="g-progress" data-progress></span>
+        <ol class="g-dots" aria-hidden="true">
+          {Array.from({ length: ROUND }, () => <li />)}
+        </ol>
+      </div>
+      <p class="g-q">{s('gameQuestion')}</p>
+      <p class="g-item" data-item tabindex="-1"></p>
+      <div class="g-choices" role="group" aria-label={s('gameQuestion')}>
+        {
+          binOrder.map((b) => (
+            <button type="button" class:list={['g-choice', `c-${b}`]} data-choice={b}>
+              <span class="c-icon" aria-hidden="true">
+                <Icon name={binIcon[b]} size={22} />
+              </span>
+              <span class="c-text">
+                <strong>{tr(bins[b].title, lang)}</strong>
+                <small>{tr(bins[b].short, lang)}</small>
+              </span>
+            </button>
+          ))
+        }
+      </div>
+      <div class="g-feedback" data-feedback aria-live="polite"></div>
+      <button type="button" class="btn btn-primary g-next" data-next hidden>
+        <span data-next-label></span>
+        <Icon name="arrow-right" size={18} class="icon-shift" />
+      </button>
+    </div>
+
+    <div class="g-screen g-result" data-screen="result" hidden>
+      <span class="g-badge" aria-hidden="true"><Icon name="trophy" size={34} /></span>
+      <h3 class="g-score" data-result-score tabindex="-1"></h3>
+      <p class="g-lead" data-result-message></p>
+      <p class="small muted" data-result-best></p>
+      <div class="g-missed" data-missed-wrap hidden>
+        <h4>{s('gameMissed')}</h4>
+        <ul data-missed></ul>
+      </div>
+      <button type="button" class="btn btn-primary" data-again>
+        <Icon name="rotate-ccw" size={18} />
+        {s('gameAgain')}
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  type Bin = 'degradable' | 'nondegradable' | 'hazardous';
+  type Item = { name: string; bin: Bin; tip: string };
+  type Data = {
+    items: Item[];
+    bins: Record<Bin, { title: string; rule: string }>;
+    text: Record<string, string>;
+    round: number;
+    lang: 'en' | 'ne';
+  };
+
+  const root = document.querySelector<HTMLElement>('[data-game]');
+  const raw = root?.querySelector('[data-game-data]')?.textContent;
+  if (root && raw) {
+    const data: Data = JSON.parse(raw);
+    const T = data.text;
+    const KEY = 'nepsemyak-sort-best';
+    const card = root.querySelector<HTMLElement>('[data-game-card]')!;
+    const screens = [...root.querySelectorAll<HTMLElement>('[data-screen]')];
+    const itemEl = root.querySelector<HTMLElement>('[data-item]')!;
+    const progress = root.querySelector<HTMLElement>('[data-progress]')!;
+    const dots = [...root.querySelectorAll<HTMLLIElement>('.g-dots li')];
+    const choices = [...root.querySelectorAll<HTMLButtonElement>('[data-choice]')];
+    const feedback = root.querySelector<HTMLElement>('[data-feedback]')!;
+    const next = root.querySelector<HTMLButtonElement>('[data-next]')!;
+    const nextLabel = root.querySelector<HTMLElement>('[data-next-label]')!;
+    const bestStart = root.querySelector<HTMLElement>('[data-best]')!;
+
+    const digits = (n: number) => (data.lang === 'ne' ? String(n).replace(/\d/g, (d) => '०१२३४५६७८९'[+d]) : String(n));
+    const fill = (text: string, vars: Record<string, number | string>) =>
+      text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? (typeof vars[k] === 'number' ? digits(vars[k] as number) : String(vars[k])) : m));
+    const shuffle = <X,>(list: X[]) => {
+      const a = [...list];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    };
+    const readBest = () => {
+      try {
+        return Number(localStorage.getItem(KEY)) || 0;
+      } catch {
+        return 0;
+      }
+    };
+    const saveBest = (n: number) => {
+      try {
+        localStorage.setItem(KEY, String(n));
+      } catch {
+        /* Private windows may block storage; the game works without it. */
+      }
+    };
+
+    let round: Item[] = [];
+    let index = 0;
+    let score = 0;
+    let missed: Item[] = [];
+
+    const show = (name: string) => screens.forEach((el) => (el.hidden = el.dataset.screen !== name));
+
+    const showBest = () => {
+      const best = readBest();
+      bestStart.hidden = !best;
+      if (best) bestStart.textContent = fill(T.best, { best, total: data.round });
+    };
+
+    const pickRound = () => {
+      const of = (bin: Bin, n: number) => shuffle(data.items.filter((i) => i.bin === bin)).slice(0, n);
+      const hazardous = Math.max(1, data.round - 6);
+      const each = Math.floor((data.round - hazardous) / 2);
+      return shuffle([...of('degradable', each), ...of('nondegradable', data.round - hazardous - each), ...of('hazardous', hazardous)]);
+    };
+
+    const ask = () => {
+      const item = round[index];
+      progress.textContent = fill(T.progress, { n: index + 1, total: round.length });
+      itemEl.textContent = item.name;
+      feedback.replaceChildren();
+      feedback.className = 'g-feedback';
+      next.hidden = true;
+      for (const c of choices) {
+        c.disabled = false;
+        c.classList.remove('is-right', 'is-wrong', 'is-dim');
+      }
+      dots.forEach((d, i) => d.classList.toggle('is-now', i === index));
+    };
+
+    const start = () => {
+      round = pickRound();
+      index = 0;
+      score = 0;
+      missed = [];
+      dots.forEach((d) => d.classList.remove('is-right', 'is-wrong'));
+      show('play');
+      ask();
+      itemEl.focus();
+    };
+
+    const answer = (choice: Bin) => {
+      const item = round[index];
+      const right = choice === item.bin;
+      if (right) score++;
+      else missed.push(item);
+      dots[index].classList.add(right ? 'is-right' : 'is-wrong');
+      for (const c of choices) {
+        c.disabled = true;
+        const bin = c.dataset.choice as Bin;
+        if (bin === item.bin) c.classList.add('is-right');
+        else if (bin === choice) c.classList.add('is-wrong');
+        else c.classList.add('is-dim');
+      }
+      const head = document.createElement('strong');
+      head.textContent = right ? T.right : fill(T.wrong, { bin: data.bins[item.bin].title });
+      const why = document.createElement('span');
+      why.textContent = item.tip || data.bins[item.bin].rule;
+      feedback.className = `g-feedback ${right ? 'is-right' : 'is-wrong'}`;
+      feedback.replaceChildren(head, why);
+      const last = index === round.length - 1;
+      nextLabel.textContent = last ? T.finish : T.next;
+      next.hidden = false;
+      next.focus();
+    };
+
+    const finish = () => {
+      const total = round.length;
+      const best = Math.max(readBest(), score);
+      saveBest(best);
+      root.querySelector('[data-result-score]')!.textContent = fill(T.score, { score, total });
+      root.querySelector('[data-result-message]')!.textContent = score === total ? T.perfect : score >= total - 2 ? T.good : T.ok;
+      root.querySelector('[data-result-best]')!.textContent = fill(T.best, { best, total });
+      const wrap = root.querySelector<HTMLElement>('[data-missed-wrap]')!;
+      const list = root.querySelector<HTMLElement>('[data-missed]')!;
+      wrap.hidden = missed.length === 0;
+      list.replaceChildren(
+        ...missed.map((m) => {
+          const li = document.createElement('li');
+          const name = document.createElement('span');
+          name.textContent = m.name;
+          const bin = document.createElement('strong');
+          bin.textContent = data.bins[m.bin].title;
+          bin.className = `m-${m.bin}`;
+          li.append(name, bin);
+          return li;
+        }),
+      );
+      show('result');
+      root.querySelector<HTMLElement>('[data-result-score]')!.focus();
+    };
+
+    card.hidden = false;
+    showBest();
+    root.querySelector('[data-start]')!.addEventListener('click', start);
+    root.querySelector('[data-again]')!.addEventListener('click', start);
+    choices.forEach((c) => c.addEventListener('click', () => answer(c.dataset.choice as Bin)));
+    next.addEventListener('click', () => {
+      if (index === round.length - 1) return finish();
+      index++;
+      ask();
+      itemEl.focus();
+    });
+  }
+</script>
+
+<style>
+  .g-noscript {
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    border: 1px solid var(--line);
+  }
+
+  .g-card {
+    max-width: 46rem;
+    margin-inline: auto;
+    padding: clamp(1.4rem, 4vw, 2.25rem);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .g-screen {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .g-start,
+  .g-result {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .g-badge {
+    display: grid;
+    place-items: center;
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 50%;
+    background: var(--yellow-soft);
+    color: var(--green-800);
+  }
+
+  .g-lead {
+    max-width: 32rem;
+    font-size: var(--step-1);
+    color: var(--ink);
+  }
+
+  .g-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+  }
+
+  .g-progress {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: var(--step--1);
+  }
+
+  .g-dots {
+    display: flex;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .g-dots li {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    background: var(--line);
+    transition: background-color 0.2s var(--ease), transform 0.2s var(--ease);
+  }
+
+  .g-dots li.is-now {
+    transform: scale(1.3);
+    background: var(--line-strong);
+  }
+
+  .g-dots li.is-right {
+    background: var(--green);
+  }
+
+  .g-dots li.is-wrong {
+    background: var(--slate);
+  }
+
+  .g-q {
+    margin-top: 0.5rem;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .g-item {
+    font-family: var(--font-head);
+    font-size: var(--step-2);
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--navy);
+    outline: none;
+  }
+
+  :global(:lang(ne)) .g-item {
+    font-family: var(--font-sans);
+    line-height: 1.45;
+  }
+
+  .g-choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .g-choice {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem;
+    border: 2px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color 0.2s var(--ease),
+      background-color 0.2s var(--ease),
+      transform 0.2s var(--ease),
+      opacity 0.2s var(--ease);
+  }
+
+  .g-choice:not(:disabled):hover {
+    transform: translateY(-2px);
+  }
+
+  .g-choice:disabled {
+    cursor: default;
+  }
+
+  .c-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 12px;
+    color: #fff;
+  }
+
+  .c-text {
+    display: grid;
+    line-height: 1.3;
+  }
+
+  .c-text strong {
+    color: var(--ink);
+  }
+
+  .c-text small {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  .c-degradable .c-icon {
+    background: linear-gradient(135deg, var(--green-bright), var(--green));
+  }
+
+  .c-degradable:not(:disabled):hover {
+    border-color: var(--green);
+  }
+
+  .c-nondegradable .c-icon {
+    background: linear-gradient(135deg, var(--navy), var(--slate));
+  }
+
+  .c-nondegradable:not(:disabled):hover {
+    border-color: var(--navy);
+  }
+
+  .c-hazardous .c-icon {
+    background: var(--yellow);
+    color: var(--green-900);
+  }
+
+  .c-hazardous:not(:disabled):hover {
+    border-color: #c9a400;
+  }
+
+  .g-choice.is-right {
+    border-color: var(--green);
+    background: var(--green-50);
+  }
+
+  .g-choice.is-wrong {
+    border-color: var(--slate);
+    background: #f1f0f4;
+  }
+
+  .g-choice.is-dim {
+    opacity: 0.45;
+  }
+
+  .g-feedback {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: var(--radius-sm);
+    border-left: 4px solid;
+  }
+
+  .g-feedback:empty {
+    display: none;
+  }
+
+  .g-feedback.is-right {
+    background: var(--green-50);
+    border-color: var(--green);
+  }
+
+  .g-feedback.is-right :global(strong) {
+    color: var(--green-800);
+  }
+
+  .g-feedback.is-wrong {
+    background: #f1f0f4;
+    border-color: var(--slate);
+  }
+
+  .g-feedback :global(strong) {
+    color: var(--ink);
+  }
+
+  .g-feedback :global(span) {
+    font-size: var(--step--1);
+  }
+
+  .g-next {
+    justify-self: end;
+  }
+
+  .g-score {
+    font-size: var(--step-2);
+    outline: none;
+  }
+
+  .g-missed {
+    width: 100%;
+    max-width: 30rem;
+    text-align: left;
+  }
+
+  .g-missed h4 {
+    margin-bottom: 0.4rem;
+    font-size: 1rem;
+  }
+
+  .g-missed ul {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .g-missed li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--line);
+    font-size: var(--step--1);
+  }
+
+  .g-missed li :global(strong) {
+    flex: none;
+  }
+
+  .g-missed :global(.m-degradable) {
+    color: var(--green-700);
+  }
+
+  .g-missed :global(.m-nondegradable) {
+    color: var(--navy);
+  }
+
+  .g-missed :global(.m-hazardous) {
+    color: #6b5800;
+  }
+
+  @media (max-width: 640px) {
+    .g-choices {
+      grid-template-columns: 1fr;
+    }
+
+    .g-next {
+      justify-self: stretch;
+    }
+  }
+</style>

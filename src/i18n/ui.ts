@@ -8,6 +8,7 @@ const en = {
   'site.home': 'Home',
 
   'nav.services': 'Services',
+  'nav.guide': 'Waste guide',
   'nav.about': 'About',
   'nav.aboutUs': 'Our story',
   'nav.aboutUsDesc': 'History, vision and the chairman’s message',
@@ -84,6 +85,10 @@ const en = {
   'home.sort.nondegradableNe': 'नकुहिने',
   'home.sort.nondegradableFreq': 'Collected once a week',
   'home.sort.tipsTitle': 'Good habits',
+  'home.sort.searchLabel': 'Not sure where something goes?',
+  'home.sort.searchPlaceholder': 'e.g. milk pouch, battery, tissue',
+  'home.sort.search': 'Search',
+  'home.sort.fullGuide': 'Full waste guide',
 
   'home.services.eyebrow': 'What we do',
   'home.services.title': 'Services that keep the valley clean',
@@ -277,6 +282,7 @@ const ne: Record<UiKey, string> = {
   'site.home': 'गृहपृष्ठ',
 
   'nav.services': 'सेवाहरू',
+  'nav.guide': 'फोहोर मार्गदर्शन',
   'nav.about': 'हाम्रो बारेमा',
   'nav.aboutUs': 'हाम्रो यात्रा',
   'nav.aboutUsDesc': 'इतिहास, दृष्टिकोण तथा अध्यक्षको सन्देश',
@@ -353,6 +359,10 @@ const ne: Record<UiKey, string> = {
   'home.sort.nondegradableNe': 'Non-degradable',
   'home.sort.nondegradableFreq': 'हप्तामा एक पटक सङ्कलन',
   'home.sort.tipsTitle': 'असल बानी',
+  'home.sort.searchLabel': 'कुन फोहोरमा पर्छ, थाहा छैन?',
+  'home.sort.searchPlaceholder': 'जस्तै: दूधको प्याकेट, ब्याट्री, टिस्यु',
+  'home.sort.search': 'खोज्नुहोस्',
+  'home.sort.fullGuide': 'पूरा फोहोर मार्गदर्शन',
 
   'home.services.eyebrow': 'हाम्रा काम',
   'home.services.title': 'उपत्यका सफा राख्ने सेवाहरू',

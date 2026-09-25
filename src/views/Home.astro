@@ -244,6 +244,18 @@ const sharedAsOf = statDates.length === 1 ? statDates[0] : null;
         }
       </ul>
     </div>
+    <form class="sort-search" action={href('/waste-guide/')} method="get" role="search">
+      <label class="h4" for="home-sort-q">{t('home.sort.searchLabel')}</label>
+      <div class="ss-field">
+        <Icon name="search" size={20} />
+        <input class="input" id="home-sort-q" type="search" name="q" autocomplete="off" spellcheck="false" placeholder={t('home.sort.searchPlaceholder')} />
+        <button class="btn btn-primary" type="submit">{t('home.sort.search')}</button>
+      </div>
+      <a class="link-arrow" href={href('/waste-guide/')}>
+        {t('home.sort.fullGuide')}
+        <Icon name="arrow-right" size={18} />
+      </a>
+    </form>
   </div>
 </section>
 
@@ -829,9 +841,53 @@ const sharedAsOf = statDates.length === 1 ? statDates[0] : null;
     color: var(--green);
   }
 
+  /* Search box that opens the Waste guide with the item already looked up. */
+  .sort-search {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 1rem 1.75rem;
+    align-items: center;
+    margin-top: 1rem;
+    padding: 1.25rem 1.75rem;
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .sort-search label {
+    color: var(--navy);
+  }
+
+  .ss-field {
+    position: relative;
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .ss-field > :global(.icon) {
+    position: absolute;
+    left: 0.9rem;
+    top: 50%;
+    translate: 0 -50%;
+    color: var(--green);
+    pointer-events: none;
+  }
+
+  .ss-field .input {
+    padding-left: 2.6rem;
+    border-radius: 999px;
+  }
+
   @media (max-width: 760px) {
     .tips {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 960px) {
+    .sort-search {
+      grid-template-columns: 1fr;
+      padding: 1.25rem;
     }
   }
 

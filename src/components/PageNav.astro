@@ -1,0 +1,118 @@
+---
+// Sticky "On this page" bar for long pages. Highlights the section being read.
+type Props = { items: { id: string; label: string }[]; label: string };
+const { items, label } = Astro.props;
+---
+
+<nav class="page-nav" aria-label={label} data-page-nav>
+  <div class="container">
+    <ul>
+      {
+        items.map((i) => (
+          <li>
+            <a href={`#${i.id}`} data-target={i.id}>
+              {i.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</nav>
+
+<script>
+  const nav = document.querySelector<HTMLElement>('[data-page-nav]');
+  if (nav) {
+    const list = nav.querySelector('ul')!;
+    const links = [...nav.querySelectorAll<HTMLAnchorElement>('a[data-target]')];
+    const sections = links.map((a) => document.getElementById(a.dataset.target!)).filter((s): s is HTMLElement => !!s);
+    let current = '';
+
+    const setCurrent = (id: string) => {
+      if (id === current) return;
+      current = id;
+      for (const a of links) {
+        const on = a.dataset.target === id;
+        if (on) a.setAttribute('aria-current', 'true');
+        else a.removeAttribute('aria-current');
+        // Keep the active chip visible inside the bar without scrolling the page.
+        if (on) {
+          const left = a.offsetLeft - (list.clientWidth - a.offsetWidth) / 2;
+          list.scrollTo({ left, behavior: 'smooth' });
+        }
+      }
+    };
+
+    const pick = () => {
+      const line = nav.getBoundingClientRect().bottom + 40;
+      let id = '';
+      for (const s of sections) if (s.getBoundingClientRect().top <= line) id = s.id;
+      setCurrent(id);
+    };
+    addEventListener('scroll', pick, { passive: true });
+    addEventListener('resize', pick);
+    pick();
+  }
+</script>
+
+<style>
+  .page-nav {
+    position: sticky;
+    top: var(--header-h);
+    z-index: 40;
+    background: rgb(255 255 255 / 0.96);
+    backdrop-filter: saturate(1.4) blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+
+  ul {
+    list-style: none;
+    display: flex;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0.6rem 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Fade the edge so a cut-off chip reads as "scroll for more". */
+    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  }
+
+  ul::-webkit-scrollbar {
+    display: none;
+  }
+
+  a {
+    display: block;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    font-size: 0.93rem;
+    font-weight: 600;
+    line-height: 1.4;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      background-color 0.2s var(--ease),
+      color 0.2s var(--ease),
+      border-color 0.2s var(--ease);
+  }
+
+  a:hover {
+    border-color: var(--green);
+    color: var(--green-700);
+  }
+
+  a[aria-current] {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
+
+  @media print {
+    .page-nav {
+      display: none;
+    }
+  }
+</style>

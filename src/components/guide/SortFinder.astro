@@ -1,0 +1,489 @@
+---
+// "Which bin?" — every item is rendered as a plain list (works without JavaScript);
+// the script adds live search, suggestions, "show all" and a ?q= link from the home page.
+import Icon from '~/components/Icon.astro';
+import { binIcon, binOrder, bins, popularItems, shortName, sortItems, type Bin, type SortItem } from '~/data/sorting';
+import { fill, g } from '~/data/waste-guide';
+import { formatDigits, localizePath, tr, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const s = (key: keyof typeof g) => tr(g[key], lang);
+
+const PREVIEW = 6;
+const byBin = (bin: Bin) => sortItems.filter((i) => i.bin === bin);
+const haystack = (i: SortItem) => `${i.name.en} ${i.name.ne} ${i.terms ?? ''}`.toLowerCase();
+const popular = popularItems.map((id) => sortItems.find((i) => i.id === id)!);
+const askHref = localizePath('/contact/', lang);
+---
+
+<div
+  class="finder"
+  data-finder
+  data-count={s('finderCount')}
+  data-count-one={s('finderCountOne')}
+  data-lang={lang}
+  data-ask={askHref}
+  data-ask-message={s('askMessage')}
+>
+  <form class="f-search" role="search" data-finder-form>
+    <label for="finder-q">{s('finderLabel')}</label>
+    <div class="f-field">
+      <Icon name="search" size={22} />
+      <input id="finder-q" name="q" type="search" autocomplete="off" spellcheck="false" placeholder={s('finderPlaceholder')} data-finder-input />
+      <button type="button" class="f-clear" data-finder-clear hidden aria-label={s('finderClear')}><Icon name="x" size={18} /></button>
+    </div>
+    <div class="f-popular">
+      <span>{s('finderTry')}</span>
+      {
+        popular.map((i) => (
+          <button type="button" class="chip" data-finder-try={shortName(tr(i.name, lang))}>
+            {shortName(tr(i.name, lang))}
+          </button>
+        ))
+      }
+    </div>
+  </form>
+
+  <p class="f-status" aria-live="polite" data-finder-status></p>
+
+  <div class="f-none" data-finder-none hidden>
+    <p><strong data-finder-none-title></strong></p>
+    <p>{s('finderNoneRule')}</p>
+    <a class="btn btn-ghost btn-sm" data-finder-ask href={`${askHref}#query`}><Icon name="send" size={16} /> {s('finderAsk')}</a>
+  </div>
+
+  <div class="bins">
+    {
+      binOrder.map((bin) => {
+        const items = byBin(bin);
+        return (
+          <section class:list={['bin', `bin-${bin}`]} data-bin={bin} aria-labelledby={`bin-${bin}`}>
+            <header>
+              <span class="bin-icon" aria-hidden="true">
+                <Icon name={binIcon[bin]} size={26} />
+              </span>
+              <div>
+                <h3 id={`bin-${bin}`}>{tr(bins[bin].title, lang)}</h3>
+                <p class="bin-short">{tr(bins[bin].short, lang)}</p>
+              </div>
+            </header>
+            <p class="bin-rule">{tr(bins[bin].rule, lang)}</p>
+            <p class="bin-when">
+              <Icon name={bin === 'hazardous' ? 'phone' : 'calendar'} size={16} />
+              {tr(bins[bin].collected, lang)}
+            </p>
+            <ul>
+              {items.map((i, n) => (
+                <li data-text={haystack(i)} class:list={[n >= PREVIEW && 'extra']}>
+                  <span class="i-name">{tr(i.name, lang)}</span>
+                  {i.tip && <span class="i-tip">{tr(i.tip, lang)}</span>}
+                </li>
+              ))}
+            </ul>
+            {items.length > PREVIEW && (
+              <button type="button" class="more" data-finder-more aria-expanded="false" data-less={s('finderShowLess')}>
+                <span>{fill(s('finderShowAll'), { n: formatDigits(items.length, lang) })}</span>
+                <Icon name="chevron-down" size={16} />
+              </button>
+            )}
+          </section>
+        );
+      })
+    }
+  </div>
+</div>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-finder]');
+  if (root) {
+    root.classList.add('is-enhanced');
+    const input = root.querySelector<HTMLInputElement>('[data-finder-input]')!;
+    const clear = root.querySelector<HTMLButtonElement>('[data-finder-clear]')!;
+    const status = root.querySelector<HTMLElement>('[data-finder-status]')!;
+    const none = root.querySelector<HTMLElement>('[data-finder-none]')!;
+    const noneTitle = root.querySelector<HTMLElement>('[data-finder-none-title]')!;
+    const ask = root.querySelector<HTMLAnchorElement>('[data-finder-ask]')!;
+    const binsEls = [...root.querySelectorAll<HTMLElement>('[data-bin]')];
+    const nepaliDigits = root.dataset.lang === 'ne';
+    const digits = (n: number) => (nepaliDigits ? String(n).replace(/\d/g, (d) => '०१२३४५६७८९'[+d]) : String(n));
+    const norm = (s: string) =>
+      s
+        .toLowerCase()
+        .replace(/[.,()'"“”’\-–—]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const apply = () => {
+      const q = norm(input.value);
+      const words = q.split(' ').filter(Boolean);
+      root.classList.toggle('is-searching', words.length > 0);
+      clear.hidden = !words.length;
+      let total = 0;
+      for (const bin of binsEls) {
+        let shown = 0;
+        for (const li of bin.querySelectorAll<HTMLLIElement>('li')) {
+          const hit = words.every((w) => (li.dataset.text ?? '').includes(w));
+          li.hidden = words.length > 0 && !hit;
+          if (words.length && hit) shown++;
+        }
+        bin.hidden = words.length > 0 && shown === 0;
+        total += shown;
+      }
+      if (!words.length) {
+        status.textContent = '';
+        none.hidden = true;
+        return;
+      }
+      // No count when nothing matched: the box below says so.
+      status.textContent = !total ? '' : total === 1 ? root.dataset.countOne! : root.dataset.count!.replace('{n}', digits(total));
+      none.hidden = total > 0;
+      if (!total) {
+        const item = input.value.trim();
+        noneTitle.textContent = `“${item}”`;
+        // The contact form opens with the question already written.
+        const url = new URL(root.dataset.ask!, location.href);
+        url.searchParams.set('topic', 'other');
+        url.searchParams.set('message', root.dataset.askMessage!.replace('{item}', item.slice(0, 80)));
+        url.hash = 'query';
+        ask.href = url.pathname + url.search + url.hash;
+      }
+    };
+
+    input.addEventListener('input', apply);
+    root.querySelector('[data-finder-form]')!.addEventListener('submit', (e) => {
+      e.preventDefault();
+      apply();
+    });
+    clear.addEventListener('click', () => {
+      input.value = '';
+      apply();
+      input.focus();
+    });
+    root.querySelectorAll<HTMLButtonElement>('[data-finder-try]').forEach((b) =>
+      b.addEventListener('click', () => {
+        input.value = b.dataset.finderTry ?? '';
+        apply();
+      }),
+    );
+    root.querySelectorAll<HTMLButtonElement>('[data-finder-more]').forEach((b) => {
+      const label = b.querySelector('span')!;
+      const more = label.textContent;
+      b.addEventListener('click', () => {
+        const open = b.closest('[data-bin]')!.classList.toggle('is-open');
+        b.setAttribute('aria-expanded', String(open));
+        label.textContent = open ? b.dataset.less! : more;
+      });
+    });
+
+    // A search typed on the home page arrives as ?q=
+    const q = new URLSearchParams(location.search).get('q');
+    if (q) {
+      input.value = q;
+      apply();
+      // Jump straight there; a smooth scroll gets cut short while the page is still loading.
+      requestAnimationFrame(() => root.closest('section')?.scrollIntoView({ block: 'start', behavior: 'instant' }));
+    }
+  }
+</script>
+
+<style>
+  .finder {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .f-search {
+    display: grid;
+    gap: 0.85rem;
+    padding: clamp(1.1rem, 3vw, 1.6rem);
+    border-radius: var(--radius);
+    background:
+      radial-gradient(600px 260px at 90% 0%, rgb(69 154 46 / 0.4), transparent 60%),
+      linear-gradient(160deg, var(--slate-700), var(--slate-900));
+    color: #dfe3ea;
+  }
+
+  label {
+    font-family: var(--font-head);
+    font-weight: 600;
+    font-size: var(--step-1);
+    color: #fff;
+  }
+
+  :global(:lang(ne)) label {
+    font-family: var(--font-sans);
+  }
+
+  .f-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .f-field > :global(.icon) {
+    position: absolute;
+    left: 1rem;
+    color: var(--green);
+    pointer-events: none;
+  }
+
+  input {
+    width: 100%;
+    min-height: 58px;
+    padding: 0.8rem 3rem 0.8rem 3.1rem;
+    border: 2px solid transparent;
+    border-radius: 14px;
+    background: #fff;
+    color: var(--ink);
+    font-size: 1.15rem;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: var(--yellow);
+    box-shadow: 0 0 0 4px rgb(255 228 31 / 0.3);
+  }
+
+  input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  .f-clear {
+    position: absolute;
+    right: 0.6rem;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--green-50);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .f-popular {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.92rem;
+  }
+
+  .chip {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid rgb(255 255 255 / 0.25);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.08);
+    color: #fff;
+    font-size: 0.92rem;
+    cursor: pointer;
+    transition: background-color 0.2s var(--ease);
+  }
+
+  .chip:hover {
+    background: rgb(255 255 255 / 0.18);
+  }
+
+  /* The suggestions and live search only make sense with JavaScript. */
+  .finder:not(.is-enhanced) .f-search {
+    display: none;
+  }
+
+  .f-status {
+    font-weight: 600;
+    color: var(--green-700);
+  }
+
+  .f-status:empty {
+    display: none;
+  }
+
+  .f-none {
+    display: grid;
+    gap: 0.6rem;
+    justify-items: start;
+    padding: 1.25rem;
+    border-radius: var(--radius-sm);
+    background: #eef3f8;
+    border: 1px solid #d5e0ea;
+    color: var(--ink);
+  }
+
+  .bins {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .bin {
+    display: grid;
+    gap: 0.8rem;
+    padding: 1.25rem;
+    border-radius: var(--radius);
+    border: 1px solid;
+    background: #fff;
+  }
+
+  .bin header {
+    display: flex;
+    gap: 0.85rem;
+    align-items: center;
+  }
+
+  .bin-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    color: #fff;
+  }
+
+  .bin h3 {
+    font-size: 1.2rem;
+  }
+
+  .bin-short {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .bin-rule {
+    color: var(--muted);
+    font-size: var(--step--1);
+  }
+
+  .bin-when {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    justify-self: start;
+    padding: 0.15rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+
+  .bin ul {
+    list-style: none;
+    display: grid;
+    margin: 0;
+    padding: 0;
+  }
+
+  .bin li {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.6rem 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .i-name {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .i-tip {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  /* Collapsed until "show all", except while searching. */
+  .is-enhanced:not(.is-searching) .bin:not(.is-open) .extra {
+    display: none;
+  }
+
+  .more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.55rem;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .more:hover {
+    border-color: var(--green);
+  }
+
+  .is-open .more :global(.icon) {
+    rotate: 180deg;
+  }
+
+  .finder:not(.is-enhanced) .more,
+  .is-searching .more {
+    display: none;
+  }
+
+  /* Colours follow the home page: green for degradable, navy for non-degradable, yellow to warn. */
+  .bin-degradable {
+    border-color: var(--green-100);
+    background: linear-gradient(180deg, var(--green-50), #fff 150px);
+  }
+
+  .bin-degradable .bin-icon {
+    background: linear-gradient(135deg, var(--green-bright), var(--green));
+  }
+
+  .bin-degradable .bin-short {
+    color: var(--green-700);
+  }
+
+  .bin-degradable .bin-when {
+    background: var(--green-100);
+    color: var(--green-800);
+  }
+
+  .bin-nondegradable {
+    border-color: #d5e0ea;
+    background: linear-gradient(180deg, #eef3f8, #fff 150px);
+  }
+
+  .bin-nondegradable .bin-icon {
+    background: linear-gradient(135deg, var(--navy), var(--slate));
+  }
+
+  .bin-nondegradable .bin-short {
+    color: var(--navy);
+  }
+
+  .bin-nondegradable .bin-when {
+    background: #dde7f0;
+    color: var(--navy-900);
+  }
+
+  .bin-hazardous {
+    border-color: #ecdf85;
+    background: linear-gradient(180deg, #fffbe0, #fff 150px);
+  }
+
+  .bin-hazardous .bin-icon {
+    background: var(--yellow);
+    color: var(--green-900);
+  }
+
+  .bin-hazardous .bin-short {
+    color: #6b5800;
+  }
+
+  .bin-hazardous .bin-when {
+    background: var(--yellow-soft);
+    color: #4d3f00;
+  }
+
+  @media (max-width: 900px) {
+    .bins {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

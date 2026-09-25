@@ -1,0 +1,403 @@
+---
+// Household waste estimate. The page is built with the default household size, so it reads fine
+// without JavaScript; the script recalculates when the number of people changes.
+import Icon from '~/components/Icon.astro';
+import { PEOPLE_DEFAULT, PEOPLE_MAX, estimate, mix } from '~/data/household';
+import { fill, g } from '~/data/waste-guide';
+import { formatNumber, tr, type Lang } from '~/i18n/utils';
+
+type Props = { lang: Lang };
+const { lang } = Astro.props;
+const s = (key: keyof typeof g) => tr(g[key], lang);
+
+const e = estimate(PEOPLE_DEFAULT);
+const kg1 = (n: number) => formatNumber(n, lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const kg0 = (n: number) => formatNumber(n, lang, { maximumFractionDigits: 0 });
+const pct = (n: number) => formatNumber(n * 100, lang, { maximumFractionDigits: 0 });
+const unit = s('calcKg');
+---
+
+<div
+  class="calc"
+  data-calc
+  data-lang={lang}
+  data-bucket-deg={s('calcBucketDeg')}
+  data-bucket-dry={s('calcBucketNon')}
+  data-compost={s('calcCompost')}
+>
+  <div class="c-top">
+    <div class="c-people">
+      <label for="calc-people">{s('calcPeople')}</label>
+      <div class="stepper">
+        <button type="button" data-step="-1" aria-label={s('calcFewer')} aria-controls="calc-people"><Icon name="minus" size={20} /></button>
+        <input id="calc-people" type="number" inputmode="numeric" min="1" max={PEOPLE_MAX} value={PEOPLE_DEFAULT} data-people />
+        <button type="button" data-step="1" aria-label={s('calcMore')} aria-controls="calc-people"><Icon name="plus" size={20} /></button>
+      </div>
+    </div>
+
+    <dl class="c-totals" aria-live="polite">
+      <div>
+        <dt>{s('calcDay')}</dt>
+        <dd><span data-out="day">{kg1(e.day)}</span> <small>{unit}</small></dd>
+      </div>
+      <div>
+        <dt>{s('calcWeek')}</dt>
+        <dd><span data-out="week">{kg1(e.week)}</span> <small>{unit}</small></dd>
+      </div>
+      <div>
+        <dt>{s('calcYear')}</dt>
+        <dd><span data-out="year">{kg0(e.year)}</span> <small>{unit}</small></dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="c-grid">
+    <div class="c-mix">
+      <h3>{s('calcMix')}</h3>
+      <div class="bar" aria-hidden="true">
+        {mix.map((p) => <span class:list={['seg', `seg-${p.id}`]} style={`flex-grow: ${p.share}`} />)}
+      </div>
+      <ul class="legend">
+        {
+          mix.map((p, i) => (
+            <li>
+              <span class:list={['sw', `seg-${p.id}`]} aria-hidden="true" />
+              <span class="l-name">{tr(p.label, lang)}</span>
+              <span class="l-pct">{pct(p.share)}%</span>
+              <span class="l-kg">
+                <span data-out={`part-${i}`}>{kg1(e.weekByPart[i])}</span> {unit}
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <div class="c-buckets">
+      <h3>{s('calcBuckets')}</h3>
+      <ul>
+        <li>
+          <span class="b-icon b-deg" aria-hidden="true"><Icon name="leaf" size={20} /></span>
+          <span data-out="bucket-deg">{fill(s('calcBucketDeg'), { size: kg0(e.bucketDegradable) })}</span>
+        </li>
+        <li>
+          <span class="b-icon b-dry" aria-hidden="true"><Icon name="recycle" size={20} /></span>
+          <span data-out="bucket-dry">{fill(s('calcBucketNon'), { size: kg0(e.bucketDry) })}</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="c-compost">
+    <span class="icon-tile solid" aria-hidden="true"><Icon name="sprout" size={22} /></span>
+    <span data-out="compost">{fill(s('calcCompost'), { kg: kg0(e.compostYear), sacks: kg0(e.riceSacks) })}</span>
+  </p>
+
+  <p class="c-source small muted">{s('calcSource')}</p>
+</div>
+
+<script>
+  import { clampPeople, estimate } from '~/data/household';
+
+  const root = document.querySelector<HTMLElement>('[data-calc]');
+  if (root) {
+    const input = root.querySelector<HTMLInputElement>('[data-people]')!;
+    // Browsers do not all ship Nepali number formats, so digits are swapped by hand (as the server does).
+    const nepali = root.dataset.lang === 'ne';
+    const digits = (text: string) => (nepali ? text.replace(/\d/g, (d) => '०१२३४५६७८९'[+d]) : text);
+    const oneFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const wholeFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+    const one = { format: (n: number) => digits(oneFmt.format(n)) };
+    const whole = { format: (n: number) => digits(wholeFmt.format(n)) };
+    const fill = (text: string, vars: Record<string, string>) => text.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
+    const out = (name: string, text: string) => {
+      const el = root.querySelector(`[data-out="${name}"]`);
+      if (el) el.textContent = text;
+    };
+
+    const update = () => {
+      const people = clampPeople(Number(input.value));
+      const e = estimate(people);
+      out('day', one.format(e.day));
+      out('week', one.format(e.week));
+      out('year', whole.format(e.year));
+      e.weekByPart.forEach((kg, i) => out(`part-${i}`, one.format(kg)));
+      out('bucket-deg', fill(root.dataset.bucketDeg!, { size: whole.format(e.bucketDegradable) }));
+      out('bucket-dry', fill(root.dataset.bucketDry!, { size: whole.format(e.bucketDry) }));
+      out('compost', fill(root.dataset.compost!, { kg: whole.format(e.compostYear), sacks: whole.format(e.riceSacks) }));
+      return people;
+    };
+
+    input.addEventListener('input', () => {
+      if (input.value !== '') update();
+    });
+    // Tidy what was typed (empty, 0, 45…) once the field is left.
+    input.addEventListener('change', () => (input.value = String(update())));
+    root.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) =>
+      b.addEventListener('click', () => {
+        input.value = String(clampPeople(Number(input.value) + Number(b.dataset.step)));
+        update();
+      }),
+    );
+  }
+</script>
+
+<style>
+  .calc {
+    display: grid;
+    gap: clamp(1.25rem, 3vw, 1.75rem);
+    padding: clamp(1.4rem, 4vw, 2.25rem);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .c-top {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.25rem 2rem;
+    align-items: end;
+  }
+
+  .c-people {
+    display: grid;
+    justify-items: start;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .stepper {
+    display: flex;
+    align-items: stretch;
+    border: 1.5px solid var(--line-strong);
+    border-radius: 999px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .stepper button {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    border: 0;
+    background: var(--green-50);
+    color: var(--green-800);
+    cursor: pointer;
+  }
+
+  .stepper button:hover {
+    background: var(--green-100);
+  }
+
+  .stepper input {
+    width: 4rem;
+    min-height: 3rem;
+    border: 0;
+    text-align: center;
+    font-family: var(--font-head);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--navy);
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .stepper input::-webkit-inner-spin-button,
+  .stepper input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .stepper input:focus-visible {
+    outline-offset: -3px;
+  }
+
+  .c-totals {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .c-totals div {
+    padding: 0.8rem 1rem;
+    border-radius: var(--radius-sm);
+    background: var(--green-50);
+  }
+
+  .c-totals dt {
+    color: var(--muted);
+    font-size: var(--step--1);
+    font-weight: 600;
+  }
+
+  .c-totals dd {
+    margin: 0;
+    font-family: var(--font-head);
+    font-size: var(--step-2);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--green-800);
+  }
+
+  /* The heading font draws Nepali digits as English ones. */
+  :global(:lang(ne)) .c-totals dd,
+  :global(:lang(ne)) .stepper input {
+    font-family: var(--font-sans);
+  }
+
+  .c-totals small {
+    font-size: 0.55em;
+    color: var(--muted);
+  }
+
+  .c-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 1.5rem 2.5rem;
+  }
+
+  h3 {
+    margin-bottom: 0.75rem;
+    font-size: 1.1rem;
+  }
+
+  .bar {
+    display: flex;
+    gap: 3px;
+    height: 1.1rem;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .seg {
+    flex-basis: 0;
+  }
+
+  .seg-degradable {
+    background: var(--series-1);
+  }
+
+  .seg-plastic {
+    background: var(--series-2);
+  }
+
+  .seg-paper {
+    background: var(--series-3);
+  }
+
+  .seg-other {
+    background: var(--slate);
+  }
+
+  .legend {
+    display: grid;
+    gap: 0.1rem;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .legend li {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: var(--step--1);
+  }
+
+  .sw {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 3px;
+  }
+
+  .l-name {
+    color: var(--ink);
+  }
+
+  .l-pct {
+    color: var(--muted);
+  }
+
+  .l-kg {
+    min-width: 4.5rem;
+    text-align: right;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .c-buckets ul {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .c-buckets li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.75rem;
+    align-items: start;
+    color: var(--ink);
+  }
+
+  .b-icon {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 10px;
+    color: #fff;
+  }
+
+  .b-deg {
+    background: linear-gradient(135deg, var(--green-bright), var(--green));
+  }
+
+  .b-dry {
+    background: linear-gradient(135deg, var(--navy), var(--slate));
+  }
+
+  .c-compost {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius);
+    background: var(--yellow-soft);
+    color: var(--green-900);
+    font-weight: 600;
+  }
+
+  .c-source {
+    margin-top: -0.5rem;
+  }
+
+  @media (max-width: 800px) {
+    .c-top,
+    .c-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 460px) {
+    .c-totals {
+      gap: 0.4rem;
+    }
+
+    .c-totals div {
+      padding: 0.6rem 0.7rem;
+    }
+  }
+</style>

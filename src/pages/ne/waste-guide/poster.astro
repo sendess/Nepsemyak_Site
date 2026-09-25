@@ -1,0 +1,11 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import View from '~/views/WastePoster.astro';
+import { g } from '~/data/waste-guide';
+
+const lang = 'ne';
+---
+
+<BaseLayout title={g.posterTitle[lang]} description={g.posterLead[lang]}>
+  <View lang={lang} />
+</BaseLayout>
